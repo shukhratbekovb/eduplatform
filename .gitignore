@@ -84,3 +84,5 @@ next-env.d.ts
 .vercel
 .turbo
 *.local
+
+.claude
