@@ -31,7 +31,10 @@ interface CustomFieldFormProps {
 
 export function CustomFieldForm({ open, onOpenChange, field, onSubmit, loading }: CustomFieldFormProps) {
   const [fieldType, setFieldType] = useState<CustomFieldType>(field?.type ?? 'text')
-  const [options, setOptions]     = useState<string[]>(field?.options ?? [''])
+  const [options, setOptions]     = useState<string[]>(
+    Array.isArray(field?.options) ? field.options
+    : (field?.options as any)?.choices ?? ['']
+  )
 
   const { register, handleSubmit, formState: { errors } } = useForm<any>({
     defaultValues: {
@@ -48,7 +51,9 @@ export function CustomFieldForm({ open, onOpenChange, field, onSubmit, loading }
   const submit = (data: any) => {
     const values: any = { type: fieldType, label: data.label }
     if (fieldType === 'select' || fieldType === 'multiselect') {
-      values.options = options.filter((o) => o.trim())
+      const filtered = options.filter((o) => o.trim())
+      if (filtered.length === 0) return
+      values.options = { choices: filtered }
     }
     onSubmit(values)
   }

@@ -8,6 +8,7 @@ import { useAuthStore } from '@/lib/stores/useAuthStore'
 import { apiClient } from '@/lib/api/axios'
 import { useQueryClient } from '@tanstack/react-query'
 import { crmKeys } from '@/lib/api/crm/query-keys'
+import { useT } from '@/lib/i18n'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils/cn'
 import type { LeadComment } from '@/types/crm'
@@ -18,6 +19,7 @@ interface TimelineCommentProps {
 }
 
 export function TimelineComment({ comment, leadId }: TimelineCommentProps) {
+  const t              = useT()
   const currentUser    = useAuthStore((s) => s.user)
   const isOwn          = currentUser?.id === comment.authorId
   const qc             = useQueryClient()
@@ -36,9 +38,9 @@ export function TimelineComment({ comment, leadId }: TimelineCommentProps) {
     try {
       await apiClient.patch(`/crm/leads/${leadId}/comments/${comment.id}`, { text })
       invalidate()
-      toast.success('Комментарий обновлён')
+      toast.success(t('managers.toast.saved'))
     } catch {
-      toast.error('Не удалось обновить')
+      toast.error(t('comment.toast.error'))
     } finally {
       setSaving(false)
       setEditing(false)
@@ -50,9 +52,9 @@ export function TimelineComment({ comment, leadId }: TimelineCommentProps) {
     try {
       await apiClient.delete(`/crm/leads/${leadId}/comments/${comment.id}`)
       invalidate()
-      toast.success('Комментарий удалён')
+      toast.success(t('comment.toast.deleted'))
     } catch {
-      toast.error('Не удалось удалить')
+      toast.error(t('comment.toast.delError'))
     } finally {
       setDeleting(false)
       setConfirmDel(false)
@@ -79,14 +81,14 @@ export function TimelineComment({ comment, leadId }: TimelineCommentProps) {
                 <button
                   onClick={() => setEditing(true)}
                   className="p-1 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                  aria-label="Изменить"
+                  aria-label={t('common.edit')}
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => setConfirmDel(true)}
                   className="p-1 text-gray-400 hover:text-danger-500 hover:bg-danger-50 rounded transition-colors"
-                  aria-label="Удалить"
+                  aria-label={t('common.delete')}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -114,14 +116,14 @@ export function TimelineComment({ comment, leadId }: TimelineCommentProps) {
                   className="flex items-center gap-1 px-3 py-1.5 text-xs bg-primary-600 text-white hover:bg-primary-700 rounded transition-colors disabled:opacity-50"
                 >
                   <Check className="w-3 h-3" />
-                  {saving ? 'Сохранение…' : 'Сохранить'}
+                  {saving ? t('common.loading') : t('common.save')}
                 </button>
                 <button
                   onClick={() => { setEditing(false); setText(comment.text) }}
                   className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded transition-colors"
                 >
                   <X className="w-3 h-3" />
-                  Отмена
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -134,9 +136,9 @@ export function TimelineComment({ comment, leadId }: TimelineCommentProps) {
       <ConfirmDialog
         open={confirmDel}
         onOpenChange={setConfirmDel}
-        title="Удалить комментарий?"
-        description="Это действие нельзя отменить."
-        confirmLabel="Удалить"
+        title={t('comment.delete.confirm')}
+        description={t('comment.toast.delError')}
+        confirmLabel={t('common.delete')}
         destructive
         loading={deleting}
         onConfirm={handleDelete}

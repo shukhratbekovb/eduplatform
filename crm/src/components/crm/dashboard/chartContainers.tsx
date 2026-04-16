@@ -33,8 +33,8 @@ export function LeadsOverTimeContainer({ period, funnelId, managerId }: ChartFil
 
 // ── Leads by Source ───────────────────────────────────────────────────────────
 
-export function SourcesChartContainer({ period }: ChartFilters) {
-  const { data = [], isLoading } = useAnalyticsSources(period)
+export function SourcesChartContainer({ period, funnelId, managerId }: ChartFilters) {
+  const { data = [], isLoading } = useAnalyticsSources({ period, funnelId, managerId })
   if (isLoading) return <Spinner />
   return <DashLeadsBySourceChart data={data} />
 }

@@ -4,12 +4,14 @@ import { Send } from 'lucide-react'
 import { UserAvatar } from '@/components/ui/avatar'
 import { useAuthStore } from '@/lib/stores/useAuthStore'
 import { useCreateComment } from '@/lib/hooks/crm/useLeads'
+import { useT } from '@/lib/i18n'
 
 interface CommentBoxProps {
   leadId: string
 }
 
 export function CommentBox({ leadId }: CommentBoxProps) {
+  const t       = useT()
   const user    = useAuthStore((s) => s.user)
   const [text, setText] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -34,7 +36,7 @@ export function CommentBox({ leadId }: CommentBoxProps) {
             if (e.key === 'Enter' && e.ctrlKey) submit()
           }}
           rows={3}
-          placeholder="Написать комментарий… (Ctrl+Enter для отправки)"
+          placeholder={t('comment.placeholder')}
           className="w-full border border-gray-300 rounded-lg px-3 py-2.5 pr-10 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-colors"
         />
         <button
@@ -42,7 +44,7 @@ export function CommentBox({ leadId }: CommentBoxProps) {
           onClick={submit}
           disabled={!text.trim() || isPending}
           className="absolute right-2 bottom-2.5 p-1.5 text-primary-600 hover:bg-primary-50 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label="Отправить комментарий"
+          aria-label={t('comment.send')}
         >
           <Send className="w-4 h-4" />
         </button>

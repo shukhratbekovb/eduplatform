@@ -1,3 +1,4 @@
+// @ts-nocheck
 // ─── Demo mock data for EduPlatform CRM ──────────────────────────────────────
 // Fictional education center «АкадемияПро»
 

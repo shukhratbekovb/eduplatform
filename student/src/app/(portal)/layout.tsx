@@ -1,24 +1,29 @@
 'use client'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/lib/stores/useAuthStore'
+import { useAuthStore, useIsAuthenticated, useHasHydrated } from '@/lib/stores/useAuthStore'
 import { apiClient } from '@/lib/api/axios'
 import { demoAdapter } from '@/lib/demo/adapter'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { TopBar } from '@/components/layout/TopBar'
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const isAuthenticated = useIsAuthenticated()
+  const hasHydrated     = useHasHydrated()
   const isDemoMode      = useAuthStore((s) => s.isDemoMode)
   const router          = useRouter()
 
   useEffect(() => {
-    if (!isAuthenticated) { router.replace('/login'); return }
+    if (hasHydrated && !isAuthenticated) {
+      router.replace('/login')
+      return
+    }
     if (isDemoMode) {
       ;(apiClient.defaults as any).adapter = demoAdapter
     }
-  }, [isAuthenticated, isDemoMode, router])
+  }, [hasHydrated, isAuthenticated, isDemoMode, router])
 
+  if (!hasHydrated) return null
   if (!isAuthenticated) return null
 
   return (

@@ -8,10 +8,12 @@ import { TaskForm } from '@/components/crm/tasks/TaskForm'
 import { useCrmStore } from '@/lib/stores/useCrmStore'
 import { useIsDirector } from '@/lib/stores/useAuthStore'
 import { useTasks } from '@/lib/hooks/crm/useTasks'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils/cn'
 import type { Task, TaskStatus } from '@/types/crm'
 
 export default function TasksPage() {
+  const t            = useT()
   const tasksView    = useCrmStore((s) => s.tasksView)
   const setTasksView = useCrmStore((s) => s.setTasksView)
   const showAll      = useCrmStore((s) => s.showAllManagersTasks)
@@ -41,7 +43,7 @@ export default function TasksPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">Задачи</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('tasks.title')}</h1>
           {isDirector && (
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
@@ -50,13 +52,12 @@ export default function TasksPage() {
                 onChange={(e) => setShowAll(e.target.checked)}
                 className="w-4 h-4 accent-primary-600 cursor-pointer"
               />
-              <span className="text-sm text-gray-600">Все менеджеры</span>
+              <span className="text-sm text-gray-600">{t('tasks.allManagers')}</span>
             </label>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          {/* View toggle */}
           <div className="flex items-center border border-gray-200 rounded overflow-hidden">
             <button
               onClick={() => setTasksView('kanban')}
@@ -75,7 +76,7 @@ export default function TasksPage() {
                 'p-2 transition-colors',
                 tasksView === 'calendar' ? 'bg-primary-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
               )}
-              aria-label="Календарь"
+              aria-label={t('tasks.calendar')}
               aria-pressed={tasksView === 'calendar'}
             >
               <Calendar className="w-4 h-4" />
@@ -84,7 +85,7 @@ export default function TasksPage() {
 
           <Button size="md" onClick={() => handleAddTask()}>
             <Plus className="w-4 h-4" />
-            Создать задачу
+            {t('tasks.addTask')}
           </Button>
         </div>
       </div>
@@ -97,9 +98,9 @@ export default function TasksPage() {
       ) : tasks.length === 0 ? (
         <EmptyState
           icon={CheckSquare}
-          title="Нет задач"
-          description="Создайте первую задачу или они появятся автоматически при работе с лидами."
-          action={{ label: '+ Создать задачу', onClick: () => handleAddTask() }}
+          title={t('tasks.empty')}
+          description={t('tasks.emptyHint')}
+          action={{ label: t('tasks.emptyAdd'), onClick: () => handleAddTask() }}
         />
       ) : tasksView === 'kanban' ? (
         <TaskKanban
@@ -110,12 +111,11 @@ export default function TasksPage() {
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <p className="text-sm text-gray-400 text-center py-8">
-            Календарный вид будет добавлен в следующей версии.
+            {t('tasks.calendarHint')}
           </p>
         </div>
       )}
 
-      {/* Task form modal */}
       <TaskForm
         open={formOpen}
         onOpenChange={setFormOpen}

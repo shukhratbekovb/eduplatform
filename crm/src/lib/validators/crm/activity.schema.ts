@@ -5,7 +5,10 @@ export const activitySchema = z.object({
   date:            z.string().min(1, 'Укажите дату'),
   outcome:         z.string().min(1, 'Укажите исход'),
   notes:           z.string().optional(),
-  durationMinutes: z.number().min(1).optional(),
+  durationMinutes: z.preprocess(
+    (v) => (v === '' || v === undefined || v === null || Number.isNaN(v) ? undefined : Number(v)),
+    z.number().min(1).optional(),
+  ),
   channel:         z.string().optional(),
   needsFollowUp:   z.boolean(),
 })

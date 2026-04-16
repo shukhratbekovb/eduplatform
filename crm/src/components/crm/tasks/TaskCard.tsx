@@ -7,6 +7,7 @@ import { UserAvatar } from '@/components/ui/avatar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { formatDate } from '@/lib/utils/dates'
 import { useDeleteTask } from '@/lib/hooks/crm/useTasks'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils/cn'
 import { useState } from 'react'
 import type { Task, TaskPriority } from '@/types/crm'
@@ -25,11 +26,11 @@ const PRIORITY_BADGE_VARIANT: Record<TaskPriority, 'low' | 'medium' | 'high' | '
   critical: 'critical',
 }
 
-const PRIORITY_LABEL: Record<TaskPriority, string> = {
-  low:      'Низкий',
-  medium:   'Средний',
-  high:     'Высокий',
-  critical: 'Критический',
+const PRIORITY_KEY: Record<TaskPriority, string> = {
+  low:      'task.priority.low',
+  medium:   'task.priority.medium',
+  high:     'task.priority.high',
+  critical: 'task.priority.critical',
 }
 
 interface TaskCardProps {
@@ -39,6 +40,7 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, onEdit, isDragOverlay = false }: TaskCardProps) {
+  const t = useT()
   const [confirmDel, setConfirmDel] = useState(false)
   const { mutate: deleteTask, isPending: deleting } = useDeleteTask()
 
@@ -83,7 +85,7 @@ export function TaskCard({ task, onEdit, isDragOverlay = false }: TaskCardProps)
               {...attributes}
               {...listeners}
               className="mt-0.5 p-0.5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              aria-label="Перетащить"
+              aria-label={t("tasks.drag")}
             >
               <GripVertical className="w-3.5 h-3.5" />
             </button>
@@ -98,14 +100,14 @@ export function TaskCard({ task, onEdit, isDragOverlay = false }: TaskCardProps)
                 <button
                   onClick={() => onEdit(task)}
                   className="p-1 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                  aria-label="Изменить"
+                  aria-label={t("common.edit")}
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
                 <button
                   onClick={() => setConfirmDel(true)}
                   className="p-1 text-gray-400 hover:text-danger-500 hover:bg-danger-50 rounded transition-colors"
-                  aria-label="Удалить"
+                  aria-label={t("common.delete")}
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -120,7 +122,7 @@ export function TaskCard({ task, onEdit, isDragOverlay = false }: TaskCardProps)
             {/* Metadata row */}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <Badge variant={PRIORITY_BADGE_VARIANT[task.priority]} className="text-[10px]">
-                {PRIORITY_LABEL[task.priority]}
+                {t(PRIORITY_KEY[task.priority])}
               </Badge>
 
               {task.dueDate && (
@@ -157,9 +159,9 @@ export function TaskCard({ task, onEdit, isDragOverlay = false }: TaskCardProps)
       <ConfirmDialog
         open={confirmDel}
         onOpenChange={setConfirmDel}
-        title="Удалить задачу?"
-        description="Это действие нельзя отменить."
-        confirmLabel="Удалить"
+        title={t("tasks.delete.title")}
+        description={t("tasks.delete.desc")}
+        confirmLabel={t("common.delete")}
         destructive
         loading={deleting}
         onConfirm={() =>

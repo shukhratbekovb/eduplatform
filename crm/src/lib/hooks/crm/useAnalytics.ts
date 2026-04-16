@@ -1,32 +1,32 @@
 'use client'
 import { useQuery } from '@tanstack/react-query'
 import { analyticsApi } from '@/lib/api/crm/analytics'
+import type { AnalyticsFilters } from '@/lib/api/crm/analytics'
 import { crmKeys } from '@/lib/api/crm/query-keys'
-import { useCrmStore } from '@/lib/stores/useCrmStore'
 import type { AnalyticsPeriod } from '@/types/crm'
 
 const STALE = 5 * 60_000 // 5 min
 
-export function useAnalyticsOverview(period: AnalyticsPeriod) {
+export function useAnalyticsOverview(filters: AnalyticsFilters) {
   return useQuery({
-    queryKey: crmKeys.analytics.overview(period),
-    queryFn:  () => analyticsApi.overview(period),
+    queryKey: ['crm', 'analytics', 'overview', filters],
+    queryFn:  () => analyticsApi.overview(filters),
     staleTime: STALE,
   })
 }
 
-export function useAnalyticsSources(period: AnalyticsPeriod) {
+export function useAnalyticsSources(filters: AnalyticsFilters) {
   return useQuery({
-    queryKey: crmKeys.analytics.sources(period),
-    queryFn:  () => analyticsApi.sources(period),
+    queryKey: ['crm', 'analytics', 'sources', filters],
+    queryFn:  () => analyticsApi.sources(filters),
     staleTime: STALE,
   })
 }
 
-export function useAnalyticsManagers(period: AnalyticsPeriod) {
+export function useAnalyticsManagers(filters: AnalyticsFilters) {
   return useQuery({
-    queryKey: crmKeys.analytics.managers(period),
-    queryFn:  () => analyticsApi.managers(period),
+    queryKey: ['crm', 'analytics', 'managers', filters],
+    queryFn:  () => analyticsApi.managers(filters),
     staleTime: STALE,
   })
 }
@@ -40,10 +40,10 @@ export function useAnalyticsConversion(funnelId: string, period: AnalyticsPeriod
   })
 }
 
-export function useAnalyticsLossReasons(period: AnalyticsPeriod) {
+export function useAnalyticsLossReasons(filters: AnalyticsFilters) {
   return useQuery({
-    queryKey: crmKeys.analytics.lossReasons(period),
-    queryFn:  () => analyticsApi.lossReasons(period),
+    queryKey: ['crm', 'analytics', 'loss-reasons', filters],
+    queryFn:  () => analyticsApi.lossReasons(filters),
     staleTime: STALE,
   })
 }

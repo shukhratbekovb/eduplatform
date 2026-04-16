@@ -3,9 +3,10 @@ import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ChevronLeft, Pencil, Trophy, XCircle, Trash2,
+  ChevronLeft, Pencil, Trophy, XCircle, Trash2, FileText,
   Phone, Mail, User2, Calendar, Tag, GitBranch,
 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useLead, useUpdateLead, useMarkLeadWon, useMarkLeadLost, useDeleteLead } from '@/lib/hooks/crm/useLeads'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,8 +18,9 @@ import { MarkLostDialog } from '@/components/crm/leads/MarkLostDialog'
 import { LeadTimeline } from '@/components/crm/timeline/LeadTimeline'
 import { formatDate, formatDateTime } from '@/lib/utils/dates'
 import { useFunnels, useStages, useCustomFields } from '@/lib/hooks/crm/useFunnels'
-import { useSources } from '@/lib/hooks/crm/useLeads'
-import { useIsDirector } from '@/lib/stores/useAuthStore'
+import { useSources, useManagers } from '@/lib/hooks/crm/useLeads'
+import { useIsDirector, useCurrentUser } from '@/lib/stores/useAuthStore'
+import { apiClient } from '@/lib/api/axios'
 import { CustomFieldDisplay } from '@/components/crm/leads/CustomFieldDisplay'
 import { useT } from '@/lib/i18n'
 import { toast } from 'sonner'
@@ -29,36 +31,39 @@ const statusVariant: Record<LeadStatus, 'active' | 'won' | 'lost'> = {
   won:    'won',
   lost:   'lost',
 }
-const statusLabel: Record<LeadStatus, string> = {
-  active: 'Активный',
-  won:    'Won',
-  lost:   'Lost',
-}
 
 export default function LeadDetailPage() {
   const params = useParams()
   const id     = (params?.id as string) ?? ''
   const router  = useRouter()
-  const isDir   = useIsDirector()
+  const isDir       = useIsDirector()
+  const currentUser = useCurrentUser()
+  const t           = useT()
 
   const { data: lead, isLoading }          = useLead(id)
   const { data: funnels = [] }             = useFunnels()
   const { data: stages  = [] }             = useStages(lead?.funnelId ?? '')
   const { data: sources = [] }             = useSources()
+  const { data: managers = [] }            = useManagers()
   const { data: customFieldDefs = [] }     = useCustomFields(lead?.funnelId ?? '')
   const { mutate: markWon }            = useMarkLeadWon()
   const { mutate: deleteLead, isPending: deleting } = useDeleteLead()
 
-  const t = useT()
-
   const [editOpen, setEditOpen]       = useState(false)
   const [lostOpen, setLostOpen]       = useState(false)
   const [deleteOpen, setDeleteOpen]   = useState(false)
+  const [wonDialogOpen, setWonDialogOpen] = useState(false)
 
   const activeFunnels = funnels.filter((f) => !f.isArchived)
 
+  // Resolve related objects from loaded data
+  const currentStage  = stages.find((s) => s.id === lead?.stageId)
+  const currentSource = sources.find((s) => s.id === lead?.sourceId)
+  const currentFunnel = funnels.find((f) => f.id === lead?.funnelId)
+  const currentAssignee = managers.find((m) => m.id === lead?.assignedTo)
+
   const handleMarkWon = () => {
-    markWon(id, { onSuccess: () => toast.success(t('leads.toast.won')) })
+    markWon(id, { onSuccess: () => setWonDialogOpen(true) })
   }
 
   const handleDelete = () => {
@@ -81,7 +86,6 @@ export default function LeadDetailPage() {
     return <p className="text-sm text-gray-500">{t('lead.notFound')}</p>
   }
 
-  // Only show custom fields that are defined in the funnel schema
   const customFieldEntries = customFieldDefs
     .slice()
     .sort((a, b) => a.order - b.order)
@@ -102,13 +106,13 @@ export default function LeadDetailPage() {
         <div>
           <div className="flex items-center gap-3 mb-1.5 flex-wrap">
             <h1 className="text-2xl font-bold text-gray-900">{lead.fullName}</h1>
-            <Badge variant={statusVariant[lead.status]}>{statusLabel[lead.status]}</Badge>
-            {lead.stage && (
+            <Badge variant={statusVariant[lead.status]}>{t(`lead.status.${lead.status}`)}</Badge>
+            {currentStage && (
               <span
                 className="text-xs font-medium px-2 py-0.5 rounded text-white"
-                style={{ backgroundColor: lead.stage.color ?? '#6366F1' }}
+                style={{ backgroundColor: currentStage.color ?? '#6366F1' }}
               >
-                {lead.stage.name}
+                {currentStage.name}
               </span>
             )}
           </div>
@@ -133,11 +137,11 @@ export default function LeadDetailPage() {
             <>
               <Button size="sm" variant="secondary" onClick={handleMarkWon}>
                 <Trophy className="w-3.5 h-3.5" />
-                Won
+                {t('lead.status.won')}
               </Button>
               <Button size="sm" variant="danger" onClick={() => setLostOpen(true)}>
                 <XCircle className="w-3.5 h-3.5" />
-                Lost
+                {t('lead.status.lost')}
               </Button>
             </>
           )}
@@ -174,9 +178,9 @@ export default function LeadDetailPage() {
                 {t('lead.section.main')}
               </h3>
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <InfoRow icon={User2} label={t('lead.field.assignee')} value={lead.assignee?.name ?? '—'} />
-                <InfoRow icon={Tag} label={t('lead.field.source')} value={lead.source?.name ?? '—'} />
-                <InfoRow icon={GitBranch} label={t('lead.field.funnel')} value={lead.funnel?.name ?? '—'} />
+                <InfoRow icon={User2} label={t('lead.field.assignee')} value={currentAssignee?.name ?? t('table.unassigned')} warn={!currentAssignee} />
+                <InfoRow icon={Tag} label={t('lead.field.source')} value={currentSource?.name ?? '—'} />
+                <InfoRow icon={GitBranch} label={t('lead.field.funnel')} value={currentFunnel?.name ?? '—'} />
                 <InfoRow icon={Calendar} label={t('lead.field.createdAt')} value={formatDate(lead.createdAt)} />
                 <InfoRow icon={Calendar} label={t('lead.field.updatedAt')} value={formatDate(lead.updatedAt)} />
                 {lead.lastActivityAt && (
@@ -204,7 +208,7 @@ export default function LeadDetailPage() {
             {/* Custom fields */}
             {customFieldEntries.length > 0 && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                   {t('lead.section.customFields')}
                 </h3>
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
@@ -215,7 +219,7 @@ export default function LeadDetailPage() {
                         key={fieldDef.id}
                         className={fieldDef.type === 'multiselect' ? 'sm:col-span-2' : ''}
                       >
-                        <dt className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <dt className="text-xs text-gray-500 mb-1">
                           {fieldDef.label}
                         </dt>
                         <dd>
@@ -247,7 +251,7 @@ export default function LeadDetailPage() {
         funnels={activeFunnels}
         stages={stages}
         sources={sources}
-        managers={[]}
+        managers={managers}
       />
 
       <MarkLostDialog
@@ -267,6 +271,45 @@ export default function LeadDetailPage() {
         loading={deleting}
         onConfirm={handleDelete}
       />
+
+      {/* Won → Create contract dialog */}
+      <Dialog open={wonDialogOpen} onOpenChange={setWonDialogOpen}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-success-600" />
+              {t('contracts.won.title')}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            <strong>{lead.fullName}</strong> {t('contracts.won.desc')}
+          </p>
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="secondary" onClick={() => {
+              setWonDialogOpen(false)
+              // Auto-create task to remind about contract
+              apiClient.post('/crm/tasks', {
+                title: `Составить договор: ${lead.fullName}`,
+                description: `Лид ${lead.fullName} (${lead.phone}) выигран. Необходимо составить договор.`,
+                linkedLeadId: id,
+                assignedTo: lead.assignedTo || currentUser?.id,
+                dueDate: new Date(Date.now() + 24*60*60*1000).toISOString(),
+                priority: 'high',
+              }).then(() => toast.success(t('contracts.won.taskCreated')))
+                .catch(() => {})
+            }}>
+              Позже (создать задачу)
+            </Button>
+            <Button onClick={() => {
+              setWonDialogOpen(false)
+              router.push(`/contracts?newContract=1&leadId=${id}&fullName=${encodeURIComponent(lead.fullName)}&phone=${encodeURIComponent(lead.phone)}&email=${encodeURIComponent(lead.email || '')}`)
+            }}>
+              <FileText className="w-4 h-4" />
+              Создать договор
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -275,17 +318,19 @@ function InfoRow({
   icon: Icon,
   label,
   value,
+  warn,
 }: {
   icon: React.ElementType
   label: string
   value: string
+  warn?: boolean
 }) {
   return (
     <div className="flex items-start gap-2">
       <Icon className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
       <div className="min-w-0">
         <dt className="text-gray-500 text-xs mb-0.5">{label}</dt>
-        <dd className="font-medium text-gray-900 truncate">{value}</dd>
+        <dd className={`font-medium truncate ${warn ? 'text-warning-600' : 'text-gray-900'}`}>{value}</dd>
       </div>
     </div>
   )

@@ -1,5 +1,8 @@
 'use client'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Clock, Handshake, FileText } from 'lucide-react'
+import { apiClient } from '@/lib/api/axios'
+import { analyticsApi } from '@/lib/api/crm/analytics'
+import { crmKeys } from '@/lib/api/crm/query-keys'
 import { Button } from '@/components/ui/button'
 import { PeriodPicker } from '@/components/crm/analytics/PeriodPicker'
 import { OverviewCards } from '@/components/crm/analytics/OverviewCards'
@@ -19,7 +22,8 @@ import {
 import { useCrmStore } from '@/lib/stores/useCrmStore'
 import { useFunnels } from '@/lib/hooks/crm/useFunnels'
 import { useT } from '@/lib/i18n'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
+import type { AnalyticsPeriod } from '@/types/crm'
 
 export default function AnalyticsPage() {
   const period         = useCrmStore((s) => s.analyticsPeriod)
@@ -32,11 +36,13 @@ export default function AnalyticsPage() {
   const activeFunnels                    = funnels.filter((f) => !f.isArchived)
   const currentFunnelId                  = activeFunnelId || activeFunnels[0]?.id || ''
 
-  const { data: overview,    isLoading: l1 } = useAnalyticsOverview(period)
-  const { data: sources = [], isLoading: l2 } = useAnalyticsSources(period)
-  const { data: managers = [], isLoading: l4 } = useAnalyticsManagers(period)
+  const analyticsFilters = { period, funnelId: currentFunnelId || undefined }
+
+  const { data: overview,    isLoading: l1 } = useAnalyticsOverview(analyticsFilters)
+  const { data: sources = [], isLoading: l2 } = useAnalyticsSources(analyticsFilters)
+  const { data: managers = [], isLoading: l4 } = useAnalyticsManagers(analyticsFilters)
   const { data: conversion = [], isLoading: l3 } = useAnalyticsConversion(currentFunnelId, period)
-  const { data: lossReasons = [], isLoading: l5 } = useAnalyticsLossReasons(period)
+  const { data: lossReasons = [], isLoading: l5 } = useAnalyticsLossReasons(analyticsFilters)
   const { data: sankeyData,  isLoading: l6 } = useAnalyticsSankey(period, currentFunnelId)
   const t = useT()
 
@@ -108,19 +114,84 @@ export default function AnalyticsPage() {
         <SankeyChart data={sankeyData ?? { nodes: [], links: [] }} isLoading={l6} />
       </div>
 
+      {/* Contract analytics */}
+      <ContractAnalytics period={period} />
+
       {/* Managers table */}
       <ManagerStatsTable data={managers} isLoading={l4} />
     </div>
   )
 }
 
+// ── Contract Analytics ──────────────────────────────────────────────────────
+
+function ContractAnalytics({ period }: { period: AnalyticsPeriod }) {
+  const t = useT()
+  const { data: overview } = useQuery({
+    queryKey: ['crm', 'analytics', 'contracts-overview', period],
+    queryFn: () => apiClient.get('/crm/analytics/contracts-overview', { params: { period: period.type } }).then(r => r.data),
+    staleTime: 5 * 60_000,
+  })
+  const { data: byDirection = [] } = useQuery<any[]>({
+    queryKey: ['crm', 'analytics', 'contracts-by-direction', period],
+    queryFn: () => apiClient.get('/crm/analytics/contracts-by-direction', { params: { period: period.type } }).then(r => r.data),
+    staleTime: 5 * 60_000,
+  })
+
+  const colors = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Overview cards */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+          <FileText className="w-4 h-4" />{t('contracts.title')}
+        </h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-primary-50 rounded-xl">
+            <p className="text-3xl font-bold text-primary-700">{overview?.totalContracts ?? 0}</p>
+            <p className="text-xs text-gray-500 mt-1">{t('common.all')}</p>
+          </div>
+          <div className="text-center p-4 bg-success-50 rounded-xl">
+            <p className="text-3xl font-bold text-success-700">{overview?.activeContracts ?? 0}</p>
+            <p className="text-xs text-gray-500 mt-1">Active</p>
+          </div>
+          <div className="text-center p-4 bg-warning-50 rounded-xl">
+            <p className="text-3xl font-bold text-warning-700">{(overview?.totalRevenue ?? 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">Revenue (UZS)</p>
+          </div>
+        </div>
+      </div>
+
+      {/* By direction chart */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="text-sm font-semibold text-gray-700 mb-4">Contracts by direction</h3>
+        {byDirection.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">No data</p>
+        ) : (
+          <div className="space-y-3">
+            {byDirection.map((d: any, i: number) => (
+              <div key={d.directionId ?? i}>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="font-medium text-gray-700">{d.directionName}</span>
+                  <span className="text-gray-500">{d.count} ({d.percent}%)</span>
+                </div>
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${d.percent}%`, backgroundColor: colors[i % colors.length] }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Quick metrics (time-to-close + touches) ──────────────────────────────────
-import { Clock, Handshake } from 'lucide-react'
-import { useAnalyticsOverview as _unused } from '@/lib/hooks/crm/useAnalytics'
-import { analyticsApi } from '@/lib/api/crm/analytics'
-import { useQuery } from '@tanstack/react-query'
-import { crmKeys } from '@/lib/api/crm/query-keys'
-import type { AnalyticsPeriod } from '@/types/crm'
 
 function QuickMetrics({ period }: { period: AnalyticsPeriod }) {
   const t = useT()

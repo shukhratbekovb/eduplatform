@@ -8,6 +8,7 @@ import { TimelineComment } from './TimelineComment'
 import { ActivityForm } from './ActivityForm'
 import { CommentBox } from './CommentBox'
 import { useTimeline } from '@/lib/hooks/crm/useLeads'
+import { useT } from '@/lib/i18n'
 import { groupByDate } from '@/lib/utils/dates'
 import type { TimelineEntry } from '@/types/crm'
 
@@ -16,6 +17,7 @@ interface LeadTimelineProps {
 }
 
 export function LeadTimeline({ leadId }: LeadTimelineProps) {
+  const t = useT()
   const [showActivityForm, setShowActivityForm] = useState(false)
 
   const {
@@ -55,7 +57,7 @@ export function LeadTimeline({ leadId }: LeadTimelineProps) {
           variant={showActivityForm ? 'secondary' : 'primary'}
         >
           <Plus className="w-4 h-4" />
-          Записать активность
+          {t('timeline.logActivity')}
         </Button>
       </div>
 
@@ -71,7 +73,7 @@ export function LeadTimeline({ leadId }: LeadTimelineProps) {
         </div>
       ) : entries.length === 0 ? (
         <div className="text-center py-12 text-gray-400 text-sm">
-          Нет активностей. Запишите первое взаимодействие.
+          {t('timeline.empty')}
         </div>
       ) : (
         <div className="space-y-6">
@@ -110,7 +112,7 @@ export function LeadTimeline({ leadId }: LeadTimelineProps) {
       <div className="border-t border-gray-100 pt-4">
         <div className="flex items-center gap-2 mb-3">
           <MessageCircle className="w-4 h-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-600">Комментарий</span>
+          <span className="text-sm font-medium text-gray-600">{t('timeline.comment')}</span>
         </div>
         <CommentBox leadId={leadId} />
       </div>

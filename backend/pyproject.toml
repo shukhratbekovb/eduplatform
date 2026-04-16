@@ -1,0 +1,88 @@
+[tool.poetry]
+name = "eduplatform-backend"
+version = "0.1.0"
+description = "EduPlatform centralized backend — FastAPI + Clean Architecture"
+authors = ["shukhratbekovb"]
+readme = "README.md"
+packages = [{ include = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.13"
+
+# ── Web Framework ──────────────────────────────────────────────────────────────
+fastapi = "^0.115"
+uvicorn = { version = "^0.30", extras = ["standard"] }
+python-multipart = "^0.0.9"
+
+# ── Database ───────────────────────────────────────────────────────────────────
+sqlalchemy = { version = "^2.0", extras = ["asyncio"] }
+asyncpg = "^0.30"
+alembic = "^1.13"
+
+# ── Cache ──────────────────────────────────────────────────────────────────────
+redis = { version = "^5.0", extras = ["hiredis"] }
+
+# ── Async task queue ───────────────────────────────────────────────────────────
+celery = { version = "^5.4", extras = ["redis"] }
+kombu = "^5.3"
+
+# ── Auth ───────────────────────────────────────────────────────────────────────
+python-jose = { version = "^3.3", extras = ["cryptography"] }
+passlib = { version = "^1.7", extras = ["bcrypt"] }
+
+# ── Validation & Settings ──────────────────────────────────────────────────────
+pydantic = {extras = ["email"], version = "^2.12.5"}
+pydantic-settings = "^2.3"
+
+# ── HTTP client ────────────────────────────────────────────────────────────────
+httpx = "^0.27"
+
+# ── Date & Time ────────────────────────────────────────────────────────────────
+python-dateutil = "^2.9"
+
+# ── File Storage ───────────────────────────────────────────────────────────────
+aioboto3 = "^13.0"
+python-magic = "^0.4"
+
+# ── Observability ──────────────────────────────────────────────────────────────
+structlog = "^24.1"
+sentry-sdk = { version = "^2.0", extras = ["fastapi"] }
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2"
+pytest-asyncio = "^0.23"
+pytest-cov = "^5.0"
+pytest-mock = "^3.14"
+factory-boy = "^3.3"
+faker = "^25.0"
+testcontainers = { version = "^4.5", extras = ["postgres", "redis"] }
+httpx = "^0.27"
+ruff = "^0.4"
+mypy = "^1.10"
+pre-commit = "^3.7"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=80"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "S"]
+ignore = ["S101"]  # assert used in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "ANN"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

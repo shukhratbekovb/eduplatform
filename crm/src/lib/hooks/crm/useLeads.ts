@@ -7,12 +7,12 @@ import { useCrmStore } from '@/lib/stores/useCrmStore'
 import type { CreateLeadDto, UpdateLeadDto, MarkLeadLostDto, CreateActivityDto, CreateSourceDto, UpdateSourceDto } from '@/types/crm'
 
 // ── Leads ──────────────────────────────────────────────────────────────────────
-export function useLeads(funnelId: string) {
+export function useLeads(funnelId?: string) {
   const filters = useCrmStore((s) => s.leadsFilters)
+  const params = { ...filters, limit: 200, ...(funnelId ? { funnelId } : {}) }
   return useQuery({
-    queryKey: crmKeys.leads({ ...filters, funnelId }),
-    queryFn:  () => leadsApi.list({ ...filters, funnelId, limit: 200 }),
-    enabled:  !!funnelId,
+    queryKey: crmKeys.leads(params),
+    queryFn:  () => leadsApi.list(params),
     staleTime: 30_000,
   })
 }
@@ -160,8 +160,33 @@ export function useDeleteComment(leadId: string) {
 export function useManagers() {
   return useQuery({
     queryKey: crmKeys.managers(),
-    queryFn:  usersApi.listManagers,
+    queryFn:  usersApi.list,
     staleTime: 10 * 60_000,
+  })
+}
+
+export function useCreateCrmUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (dto: import('@/lib/api/crm/leads').CreateCrmUserDto) => usersApi.create(dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: crmKeys.managers() })
+      toast.success('Менеджер добавлен')
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Не удалось создать'),
+  })
+}
+
+export function useUpdateCrmUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: import('@/lib/api/crm/leads').UpdateCrmUserDto }) =>
+      usersApi.update(id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: crmKeys.managers() })
+      toast.success('Сохранено')
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Не удалось обновить'),
   })
 }
 
@@ -182,7 +207,10 @@ export function useCreateSource() {
       qc.invalidateQueries({ queryKey: crmKeys.sources() })
       toast.success('Источник создан')
     },
-    onError: () => toast.error('Не удалось создать источник'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || 'Не удалось создать источник'
+      toast.error(msg)
+    },
   })
 }
 

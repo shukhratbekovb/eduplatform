@@ -8,16 +8,22 @@ import {
 } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
-export function formatDate(dateStr: string): string {
-  return format(parseISO(dateStr), 'd MMM yyyy', { locale: ru })
+export function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—'
+  try { return format(parseISO(dateStr), 'd MMM yyyy', { locale: ru }) }
+  catch { return '—' }
 }
 
-export function formatDateTime(dateStr: string): string {
-  return format(parseISO(dateStr), 'd MMM yyyy, HH:mm', { locale: ru })
+export function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—'
+  try { return format(parseISO(dateStr), 'd MMM yyyy, HH:mm', { locale: ru }) }
+  catch { return '—' }
 }
 
-export function formatTime(dateStr: string): string {
-  return format(parseISO(dateStr), 'HH:mm', { locale: ru })
+export function formatTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—'
+  try { return format(parseISO(dateStr), 'HH:mm', { locale: ru }) }
+  catch { return '—' }
 }
 
 export function formatRelativeDate(dateStr: string): string {
@@ -29,8 +35,8 @@ export function formatRelativeDate(dateStr: string): string {
   return formatDate(dateStr)
 }
 
-export function groupByDate(items: { date: string }[]) {
-  const groups: Record<string, typeof items> = {}
+export function groupByDate<T extends { date: string }>(items: T[]): Record<string, T[]> {
+  const groups: Record<string, T[]> = {}
   for (const item of items) {
     const date = parseISO(item.date)
     let key: string

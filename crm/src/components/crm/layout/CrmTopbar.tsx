@@ -8,12 +8,14 @@ import { Button } from '@/components/ui/button'
 import { formatRelativeDate } from '@/lib/utils/dates'
 import { useThemeStore } from '@/lib/stores/useThemeStore'
 import { useI18nStore, type Lang } from '@/lib/stores/useI18nStore'
+import { useT } from '@/lib/i18n'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Popover from '@radix-ui/react-popover'
 import { cn } from '@/lib/utils/cn'
 
 // ── Notification Bell ──────────────────────────────────────────────────────────
 function NotificationBell() {
+  const t = useT()
   const { data: notifications = [] } = useNotifications()
   const { mutate: markAll } = useMarkAllNotificationsRead()
   const unread = notifications.filter((n) => !n.isRead)
@@ -41,20 +43,20 @@ function NotificationBell() {
           className="w-80 bg-white rounded-lg shadow-md border border-gray-200 z-50 animate-fade-in"
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900">Уведомления</h3>
+            <h3 className="text-sm font-semibold text-gray-900">{t('topbar.notifications')}</h3>
             {unread.length > 0 && (
               <button
                 onClick={() => markAll()}
                 className="text-xs text-primary-600 hover:underline"
               >
-                Прочитать все
+                {t('topbar.readAll')}
               </button>
             )}
           </div>
 
           <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
             {notifications.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">Нет уведомлений</p>
+              <p className="py-8 text-center text-sm text-gray-400">{t('topbar.noNotifications')}</p>
             ) : (
               notifications.slice(0, 20).map((n) => (
                 <div
@@ -81,6 +83,7 @@ function NotificationBell() {
 
 // ── User Menu ──────────────────────────────────────────────────────────────────
 function UserMenu() {
+  const t      = useT()
   const user   = useCurrentUser()
   const logout = useAuthStore((s) => s.logout)
   const router = useRouter()
@@ -92,7 +95,7 @@ function UserMenu() {
 
   if (!user) return null
 
-  const roleLabel = user.role === 'director' ? 'Директор' : 'Менеджер по продажам'
+  const roleLabel = user.role === 'director' ? t('role.director') : t('role.sales_manager')
 
   return (
     <DropdownMenu.Root>
@@ -117,7 +120,7 @@ function UserMenu() {
             className="flex items-center gap-2 px-3 py-2 text-sm text-danger-600 hover:bg-danger-50 cursor-pointer outline-none"
           >
             <LogOut className="w-4 h-4" />
-            Выйти
+            {t('topbar.logout')}
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
@@ -131,14 +134,15 @@ interface CrmTopbarProps {
 }
 
 function ThemeToggle() {
+  const t      = useT()
   const theme  = useThemeStore((s) => s.theme)
   const toggle = useThemeStore((s) => s.toggle)
   return (
     <button
       onClick={toggle}
       className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-      aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-      title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+      aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
+      title={theme === 'dark' ? t('theme.light') : t('theme.dark')}
     >
       {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
     </button>
@@ -153,7 +157,7 @@ function LangToggle() {
     <button
       onClick={() => setLang(next)}
       className="flex items-center gap-1 p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-xs font-semibold"
-      title={next === 'en' ? 'Switch to English' : 'Переключить на Русский'}
+      title={next === 'en' ? 'English' : 'Русский'}
     >
       <Languages className="w-4 h-4" />
       {lang.toUpperCase()}

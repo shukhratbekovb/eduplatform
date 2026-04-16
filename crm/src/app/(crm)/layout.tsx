@@ -5,31 +5,35 @@ import { Providers } from '@/components/shared/Providers'
 import { CrmSidebar } from '@/components/crm/layout/CrmSidebar'
 import { CrmTopbar } from '@/components/crm/layout/CrmTopbar'
 import { DemoBanner } from '@/components/crm/layout/DemoBanner'
-import { useAuthStore } from '@/lib/stores/useAuthStore'
+import { useAuthStore, useIsAuthenticated, useHasHydrated } from '@/lib/stores/useAuthStore'
 import { apiClient } from '@/lib/api/axios'
 import { demoAdapter } from '@/lib/demo/adapter'
 
 function CrmShell({ children }: { children: React.ReactNode }) {
   const router          = useRouter()
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-  const token           = useAuthStore((s) => s.token)
+  const isAuthenticated = useIsAuthenticated()
+  const hasHydrated     = useHasHydrated()
   const isDemoMode      = useAuthStore((s) => s.isDemoMode)
 
-  // Re-install demo adapter if the user reloads the page while in demo mode
-  // (Zustand persist restores isDemoMode=true but the adapter is not stored)
+  // Re-install demo adapter after page reload
   useEffect(() => {
     if (isDemoMode) {
       ;(apiClient.defaults as any).adapter = demoAdapter
     }
   }, [isDemoMode])
 
+  // Redirect only AFTER Zustand has restored from localStorage
   useEffect(() => {
-    if (!isAuthenticated || !token) {
+    if (hasHydrated && !isAuthenticated) {
       router.replace('/login')
     }
-  }, [isAuthenticated, token, router])
+  }, [hasHydrated, isAuthenticated, router])
 
-  if (!isAuthenticated || !token) return null
+  // While hydrating — show nothing (prevents flash)
+  if (!hasHydrated) return null
+
+  // After hydration — if not authenticated, show nothing (redirect is in progress)
+  if (!isAuthenticated) return null
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">

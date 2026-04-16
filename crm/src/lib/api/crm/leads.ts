@@ -10,9 +10,26 @@ import type {
 } from '@/types/crm'
 import type { LeadsFilters } from '@/types/crm/filters'
 
+function serializeParams(params: Record<string, any>): string {
+  const parts: string[] = []
+  for (const [key, val] of Object.entries(params)) {
+    if (val === undefined || val === null || val === '') continue
+    if (Array.isArray(val)) {
+      if (val.length === 0) continue
+      for (const v of val) parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`)
+    } else {
+      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(val)}`)
+    }
+  }
+  return parts.join('&')
+}
+
 export const leadsApi = {
   list: (params: Partial<LeadsFilters> & { funnelId?: string; page?: number; limit?: number }) =>
-    apiClient.get<PaginatedResponse<Lead>>('/crm/leads', { params }).then(r => r.data),
+    apiClient.get<PaginatedResponse<Lead>>('/crm/leads', {
+      params,
+      paramsSerializer: serializeParams,
+    }).then(r => r.data),
 
   get:       (id: string)                     => apiClient.get<Lead>(`/crm/leads/${id}`).then(r => r.data),
   create:    (dto: CreateLeadDto)             => apiClient.post<Lead>('/crm/leads', dto).then(r => r.data),
@@ -54,17 +71,32 @@ export const leadsApi = {
     apiClient.delete(`/crm/leads/${leadId}/comments/${commentId}`),
 }
 
+export interface CreateCrmUserDto {
+  name: string
+  email: string
+  password: string
+  role?: string
+}
+export interface UpdateCrmUserDto {
+  name?: string
+  email?: string
+  role?: string
+  isActive?: boolean
+}
+
 export const usersApi = {
-  listManagers: () =>
-    apiClient.get<User[]>('/crm/users').then(r => r.data),
+  list:   () => apiClient.get<(User & { isActive: boolean })[]>('/crm/users').then(r => r.data),
+  listManagers: () => apiClient.get<User[]>('/crm/users').then(r => r.data),
+  create: (dto: CreateCrmUserDto) => apiClient.post<User>('/crm/users', dto).then(r => r.data),
+  update: (id: string, dto: UpdateCrmUserDto) => apiClient.patch<User>(`/crm/users/${id}`, dto).then(r => r.data),
 }
 
 export const sourcesApi = {
-  list:             ()                              => apiClient.get<LeadSource[]>('/crm/lead-sources').then(r => r.data),
-  create:           (dto: CreateSourceDto)          => apiClient.post<LeadSource>('/crm/lead-sources', dto).then(r => r.data),
-  update:           (id: string, dto: UpdateSourceDto) =>
+  list:           ()                              => apiClient.get<LeadSource[]>('/crm/lead-sources').then(r => r.data),
+  create:         (dto: CreateSourceDto)          => apiClient.post<LeadSource>('/crm/lead-sources', dto).then(r => r.data),
+  update:         (id: string, dto: UpdateSourceDto) =>
     apiClient.patch<LeadSource>(`/crm/lead-sources/${id}`, dto).then(r => r.data),
-  delete:           (id: string)                    => apiClient.delete(`/crm/lead-sources/${id}`),
-  regenerateSecret: (id: string)                    =>
-    apiClient.post<{ webhookSecret: string }>(`/crm/lead-sources/${id}/regenerate-secret`).then(r => r.data),
+  delete:         (id: string)                    => apiClient.delete(`/crm/lead-sources/${id}`),
+  regenerateKey:  (id: string)                    =>
+    apiClient.post<LeadSource>(`/crm/lead-sources/${id}/regenerate-key`).then(r => r.data),
 }

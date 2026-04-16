@@ -2,17 +2,18 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Phone, Users, MessageSquare, Activity, X, Check } from 'lucide-react'
+import { Phone, Users, MessageSquare, Activity as ActivityIcon, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { activitySchema, type ActivityFormValues } from '@/lib/validators/crm/activity.schema'
 import { useCreateActivity } from '@/lib/hooks/crm/useLeads'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils/cn'
 
 const TYPES = [
-  { value: 'call',    label: 'Звонок',    icon: Phone },
-  { value: 'meeting', label: 'Встреча',   icon: Users },
-  { value: 'message', label: 'Сообщение', icon: MessageSquare },
-  { value: 'other',   label: 'Другое',    icon: Activity },
+  { value: 'call',    key: 'activity.type.call',    icon: Phone },
+  { value: 'meeting', key: 'activity.type.meeting',  icon: Users },
+  { value: 'message', key: 'activity.type.message',  icon: MessageSquare },
+  { value: 'other',   key: 'activity.type.other',    icon: ActivityIcon },
 ] as const
 
 const MESSAGE_CHANNELS = ['WhatsApp', 'Telegram', 'Email', 'Другое']
@@ -23,6 +24,7 @@ interface ActivityFormProps {
 }
 
 export function ActivityForm({ leadId, onClose }: ActivityFormProps) {
+  const t = useT()
   const { mutate: createActivity, isPending } = useCreateActivity(leadId)
 
   const now = new Date()
@@ -44,24 +46,26 @@ export function ActivityForm({ leadId, onClose }: ActivityFormProps) {
   const type = watch('type')
 
   const onSubmit = (values: ActivityFormValues) => {
-    createActivity(
-      {
-        ...values,
-        durationMinutes: values.durationMinutes ? Number(values.durationMinutes) : undefined,
-      },
-      {
-        onSuccess: () => {
-          reset()
-          onClose()
-        },
-      }
-    )
+    // Clean up fields not relevant to the selected type
+    const dto = {
+      type: values.type,
+      date: values.date,
+      outcome: values.outcome,
+      notes: values.notes || undefined,
+      needsFollowUp: values.needsFollowUp,
+      durationMinutes: values.type === 'call' && values.durationMinutes
+        ? Number(values.durationMinutes) : undefined,
+      channel: values.type === 'message' ? values.channel || undefined : undefined,
+    }
+    createActivity(dto, {
+      onSuccess: () => { reset(); onClose() },
+    })
   }
 
   return (
     <div className="rounded-lg border border-primary-200 bg-primary-50/40 p-4 animate-scale-in">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-medium text-gray-800">Записать активность</span>
+        <span className="text-sm font-medium text-gray-800">{t('activity.form.title')}</span>
         <button
           type="button"
           onClick={onClose}
@@ -75,7 +79,7 @@ export function ActivityForm({ leadId, onClose }: ActivityFormProps) {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Type selector */}
         <div className="flex gap-2">
-          {TYPES.map(({ value, label, icon: Icon }) => (
+          {TYPES.map(({ value, key, icon: Icon }) => (
             <button
               key={value}
               type="button"
@@ -88,7 +92,7 @@ export function ActivityForm({ leadId, onClose }: ActivityFormProps) {
               )}
             >
               <Icon className="w-3.5 h-3.5" />
-              {label}
+              {t(key)}
             </button>
           ))}
         </div>
@@ -96,7 +100,7 @@ export function ActivityForm({ leadId, onClose }: ActivityFormProps) {
         {/* Date */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">
-            Дата и время <span className="text-danger-500">*</span>
+            {t('activity.form.date')} <span className="text-danger-500">*</span>
           </label>
           <input
             type="datetime-local"
@@ -113,7 +117,7 @@ export function ActivityForm({ leadId, onClose }: ActivityFormProps) {
         {type === 'call' && (
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
-              Длительность (мин)
+              {t('activity.form.duration')}
             </label>
             <input
               type="number"
@@ -128,7 +132,7 @@ export function ActivityForm({ leadId, onClose }: ActivityFormProps) {
         {/* Channel (message only) */}
         {type === 'message' && (
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Канал</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('activity.form.channel')}</label>
             <select
               {...register('channel')}
               className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
@@ -144,7 +148,7 @@ export function ActivityForm({ leadId, onClose }: ActivityFormProps) {
         {/* Outcome */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">
-            Результат <span className="text-danger-500">*</span>
+            {t('activity.form.outcome')} <span className="text-danger-500">*</span>
           </label>
           <textarea
             {...register('outcome')}
@@ -160,7 +164,7 @@ export function ActivityForm({ leadId, onClose }: ActivityFormProps) {
 
         {/* Notes */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Заметки</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('activity.form.notes')}</label>
           <textarea
             {...register('notes')}
             rows={2}
@@ -176,17 +180,17 @@ export function ActivityForm({ leadId, onClose }: ActivityFormProps) {
             {...register('needsFollowUp')}
             className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
           />
-          <span className="text-sm text-gray-700">Требует follow-up</span>
+          <span className="text-sm text-gray-700">{t('activity.form.followUp')}</span>
         </label>
 
         {/* Actions */}
         <div className="flex gap-2 pt-1">
           <Button type="submit" size="sm" loading={isPending}>
             <Check className="w-3.5 h-3.5" />
-            Сохранить
+            {t('activity.form.save')}
           </Button>
           <Button type="button" variant="secondary" size="sm" onClick={onClose}>
-            Отмена
+            {t('common.cancel')}
           </Button>
         </div>
       </form>

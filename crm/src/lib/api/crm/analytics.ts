@@ -5,24 +5,41 @@ import type {
 } from '@/types/crm'
 import type { AnalyticsPeriod } from '@/types/crm/filters'
 
+export interface AnalyticsFilters {
+  period: AnalyticsPeriod
+  funnelId?: string
+  managerId?: string
+}
+
+function buildParams(f: AnalyticsFilters) {
+  const p = f.period.type === 'custom'
+    ? { period: 'custom', from: f.period.from, to: f.period.to }
+    : { period: f.period.type }
+  return {
+    ...p,
+    ...(f.funnelId  ? { funnelId: f.funnelId }   : {}),
+    ...(f.managerId ? { managerId: f.managerId } : {}),
+  }
+}
+
 function periodParams(p: AnalyticsPeriod) {
   if (p.type === 'custom') return { period: 'custom', from: p.from, to: p.to }
   return { period: p.type }
 }
 
 export const analyticsApi = {
-  overview:    (p: AnalyticsPeriod) =>
-    apiClient.get<AnalyticsOverview>('/crm/analytics/overview', { params: periodParams(p) }).then(r => r.data),
-  sources:     (p: AnalyticsPeriod) =>
-    apiClient.get<LeadSourceStat[]>('/crm/analytics/sources', { params: periodParams(p) }).then(r => r.data),
-  managers:    (p: AnalyticsPeriod) =>
-    apiClient.get<ManagerStat[]>('/crm/analytics/managers', { params: periodParams(p) }).then(r => r.data),
+  overview:    (f: AnalyticsFilters) =>
+    apiClient.get<AnalyticsOverview>('/crm/analytics/overview', { params: buildParams(f) }).then(r => r.data),
+  sources:     (f: AnalyticsFilters) =>
+    apiClient.get<LeadSourceStat[]>('/crm/analytics/sources', { params: buildParams(f) }).then(r => r.data),
+  managers:    (f: AnalyticsFilters) =>
+    apiClient.get<ManagerStat[]>('/crm/analytics/managers', { params: buildParams(f) }).then(r => r.data),
   conversion:  (funnelId: string, p: AnalyticsPeriod) =>
     apiClient.get<FunnelConversionStat[]>('/crm/analytics/funnel-conversion', {
       params: { funnelId, ...periodParams(p) }
     }).then(r => r.data),
-  lossReasons: (p: AnalyticsPeriod) =>
-    apiClient.get<LossReasonStat[]>('/crm/analytics/loss-reasons', { params: periodParams(p) }).then(r => r.data),
+  lossReasons: (f: AnalyticsFilters) =>
+    apiClient.get<LossReasonStat[]>('/crm/analytics/loss-reasons', { params: buildParams(f) }).then(r => r.data),
   forecast:    (funnelId: string) =>
     apiClient.get<{ forecast: number }>('/crm/analytics/forecast', { params: { funnelId } }).then(r => r.data),
   timeToClose:     (p: AnalyticsPeriod) =>

@@ -62,20 +62,23 @@ export interface CustomField {
   funnelId: string
   label: string
   type: CustomFieldType
-  options?: string[]
+  options?: { choices: string[] } | string[] | null
   order: number
 }
 
 // ─── Lead Source ──────────────────────────────────────────────────────────────
-export type LeadSourceType = 'manual' | 'import' | 'api'
+export type LeadSourceType = 'manual' | 'import' | 'api' | 'landing'
 
 export interface LeadSource {
   id: string
   name: string
   type: LeadSourceType
   isActive: boolean
+  funnelId?: string
+  apiKey?: string
   webhookUrl?: string
   webhookSecret?: string
+  createdAt?: string
 }
 
 // ─── Timeline ─────────────────────────────────────────────────────────────────

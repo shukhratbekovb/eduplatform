@@ -29,7 +29,7 @@ export default function LoginPage() {
   const router          = useRouter()
   const setAuth         = useAuthStore((s) => s.setAuth)
   const enableDemo      = useAuthStore((s) => s.enableDemo)
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const isAuthenticated = useAuthStore((s) => !!s.token && !!s.student)
   const [showPw,       setShowPw]       = useState(false)
   const [serverError,  setServerError]  = useState('')
   const [demoLoading,  setDemoLoading]  = useState(false)

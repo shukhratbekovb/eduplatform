@@ -3,6 +3,14 @@ import { useController, type Control } from 'react-hook-form'
 import type { CustomField } from '@/types/crm'
 import type { LeadFormValues } from '@/lib/validators/crm/lead.schema'
 
+function getChoices(field: CustomField): string[] {
+  if (Array.isArray(field.options)) return field.options
+  if (field.options && typeof field.options === 'object' && 'choices' in field.options) {
+    return (field.options as any).choices ?? []
+  }
+  return []
+}
+
 interface Props {
   field: CustomField
   control: Control<LeadFormValues>
@@ -65,7 +73,7 @@ export function CustomFieldInput({ field, control }: Props) {
           onChange={(e) => formField.onChange(e.target.value)}
         >
           <option value="">— не выбрано —</option>
-          {field.options?.map((opt) => (
+          {getChoices(field).map((opt) => (
             <option key={opt} value={opt}>{opt}</option>
           ))}
         </select>
@@ -81,7 +89,7 @@ export function CustomFieldInput({ field, control }: Props) {
       }
       return (
         <div className="flex flex-wrap gap-2 pt-1">
-          {field.options?.map((opt) => {
+          {getChoices(field).map((opt) => {
             const active = selected.includes(opt)
             return (
               <button

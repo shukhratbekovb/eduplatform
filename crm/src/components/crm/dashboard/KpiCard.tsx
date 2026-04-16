@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -7,11 +8,12 @@ type CardColor = 'primary' | 'success' | 'warning' | 'danger' | 'info'
 interface KpiCardProps {
   label: string
   value: string | number
-  delta?: number        // % change vs previous period (positive = up)
+  delta?: number
   icon: React.ElementType
   color?: CardColor
   loading?: boolean
-  suffix?: string       // e.g. '%'
+  suffix?: string
+  href?: string
 }
 
 const colorMap: Record<CardColor, { icon: string; bg: string; darkBg: string }> = {
@@ -22,7 +24,7 @@ const colorMap: Record<CardColor, { icon: string; bg: string; darkBg: string }> 
   info:    { icon: 'text-info-500',     bg: 'bg-info-50',     darkBg: 'dark:bg-blue-900/20' },
 }
 
-export function KpiCard({ label, value, delta, icon: Icon, color = 'primary', loading, suffix }: KpiCardProps) {
+export function KpiCard({ label, value, delta, icon: Icon, color = 'primary', loading, suffix, href }: KpiCardProps) {
   const c = colorMap[color]
 
   if (loading) {
@@ -35,8 +37,11 @@ export function KpiCard({ label, value, delta, icon: Icon, color = 'primary', lo
     )
   }
 
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
+  const inner = (
+    <div className={cn(
+      'bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 flex flex-col gap-3 transition-shadow',
+      href ? 'hover:shadow-md hover:border-primary-300 cursor-pointer' : 'hover:shadow-md',
+    )}>
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</span>
         <span className={cn('p-2 rounded-lg', c.bg, c.darkBg)}>
@@ -55,6 +60,9 @@ export function KpiCard({ label, value, delta, icon: Icon, color = 'primary', lo
       </div>
     </div>
   )
+
+  if (href) return <Link href={href}>{inner}</Link>
+  return inner
 }
 
 function DeltaBadge({ delta }: { delta: number }) {

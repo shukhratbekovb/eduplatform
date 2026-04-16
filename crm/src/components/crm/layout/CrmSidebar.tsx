@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Users, CheckSquare, BarChart2, Settings,
+  Users, CheckSquare, BarChart2, Settings, FileText,
   ChevronLeft, ChevronRight, GraduationCap, BookUser, LayoutDashboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -12,11 +12,12 @@ import { useT } from '@/lib/i18n'
 import * as Tooltip from '@radix-ui/react-tooltip'
 
 const navItemDefs = [
-  { href: '/dashboard', i18nKey: 'nav.dashboard', icon: LayoutDashboard },
-  { href: '/leads',     i18nKey: 'nav.leads',     icon: Users },
-  { href: '/contacts',  i18nKey: 'nav.contacts',  icon: BookUser },
-  { href: '/tasks',     i18nKey: 'nav.tasks',     icon: CheckSquare },
-  { href: '/analytics', i18nKey: 'nav.analytics', icon: BarChart2 },
+  { href: '/dashboard',  i18nKey: 'nav.dashboard',  icon: LayoutDashboard },
+  { href: '/leads',      i18nKey: 'nav.leads',      icon: Users },
+  { href: '/contacts',   i18nKey: 'nav.contacts',   icon: BookUser },
+  { href: '/contracts',  i18nKey: 'nav.contracts',   icon: FileText },
+  { href: '/tasks',      i18nKey: 'nav.tasks',      icon: CheckSquare },
+  { href: '/analytics',  i18nKey: 'nav.analytics',  icon: BarChart2 },
 ]
 
 const settingsItemDef = { href: '/settings', i18nKey: 'nav.settings', icon: Settings }

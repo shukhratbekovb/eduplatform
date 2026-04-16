@@ -2,9 +2,10 @@
 import { useState } from 'react'
 import {
   Users, CheckSquare, CheckCheck, AlertTriangle, TrendingUp,
-  RefreshCw,
+  RefreshCw, FileText,
 } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api/axios'
 
 import { useIsDirector, useCurrentUser } from '@/lib/stores/useAuthStore'
 import { useT } from '@/lib/i18n'
@@ -15,8 +16,7 @@ import {
 } from '@/lib/hooks/crm/useAnalytics'
 import { useTasks }   from '@/lib/hooks/crm/useTasks'
 import { useFunnels } from '@/lib/hooks/crm/useFunnels'
-import { useQuery }   from '@tanstack/react-query'
-import { apiClient }  from '@/lib/api/axios'
+import { useManagers } from '@/lib/hooks/crm/useLeads'
 import type { User, AnalyticsPeriod } from '@/types/crm'
 
 import { KpiCard }         from '@/components/crm/dashboard/KpiCard'
@@ -53,16 +53,24 @@ export default function DashboardPage() {
 
   // Reference data
   const { data: funnels  = [] } = useFunnels()
-  const { data: managers = [] } = useQuery<User[]>({
-    queryKey: ['crm', 'users'],
-    queryFn:  () => apiClient.get<User[]>('/crm/users').then((r) => r.data),
-    staleTime: 5 * 60_000,
-  })
+  const { data: managers = [] } = useManagers()
+
+  // Analytics filters (period + funnel + manager)
+  const analyticsFilters = {
+    period,
+    funnelId:  funnelId  || undefined,
+    managerId: managerId || undefined,
+  }
 
   // KPI data
-  const { data: overview,     isLoading: l1 } = useAnalyticsOverview(period)
-  const { data: managerStats = [], isLoading: l3 } = useAnalyticsManagers(period)
+  const { data: overview,     isLoading: l1 } = useAnalyticsOverview(analyticsFilters)
+  const { data: managerStats = [], isLoading: l3 } = useAnalyticsManagers(analyticsFilters)
   const { data: tasks = [],   isLoading: tasksLoading } = useTasks()
+  const { data: contractsOverview } = useQuery({
+    queryKey: ['crm', 'analytics', 'contracts-overview', period],
+    queryFn: () => apiClient.get('/crm/analytics/contracts-overview', { params: { period: period.type } }).then(r => r.data),
+    staleTime: 5 * 60_000,
+  })
 
   const handleRefresh = () => {
     qc.invalidateQueries({ queryKey: ['crm', 'analytics'] })
@@ -122,19 +130,20 @@ export default function DashboardPage() {
 
       {/* ── KPI Cards ───────────────────────────────────────────────────── */}
       {isDirector ? (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <KpiCard label={t('dashboard.kpi.newLeads')}       value={overview?.newLeads ?? 0}       delta={overview?.delta.newLeads}        icon={Users}       color="primary" loading={l1} />
-          <KpiCard label={t('dashboard.kpi.totalTasks')}     value={overview?.totalTasks ?? 0}                                              icon={CheckSquare} color="info"    loading={l1} />
-          <KpiCard label={t('dashboard.kpi.completedTasks')} value={overview?.completedTasks ?? 0} delta={overview?.completedTasksPercent} icon={CheckCheck}  color="success" loading={l1} />
-          <KpiCard label={t('dashboard.kpi.overdueTasks')}   value={overview?.overdueTasks ?? 0}                                           icon={AlertTriangle} color="danger" loading={l1} />
-          <KpiCard label={t('dashboard.kpi.conversionRate')} value={conversionRate}                 suffix="%"                             icon={TrendingUp}  color="warning" loading={l3} />
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+          <KpiCard label={t('dashboard.kpi.newLeads')}       value={overview?.newLeads ?? 0}       delta={overview?.delta.newLeads}        icon={Users}       color="primary" loading={l1} href="/leads" />
+          <KpiCard label={t('dashboard.kpi.totalTasks')}     value={overview?.totalTasks ?? 0}                                              icon={CheckSquare} color="info"    loading={l1} href="/tasks" />
+          <KpiCard label={t('dashboard.kpi.completedTasks')} value={overview?.completedTasks ?? 0} delta={overview?.completedTasksPercent} icon={CheckCheck}  color="success" loading={l1} href="/tasks" />
+          <KpiCard label={t('dashboard.kpi.overdueTasks')}   value={overview?.overdueTasks ?? 0}                                           icon={AlertTriangle} color="danger" loading={l1} href="/tasks" />
+          <KpiCard label={t('dashboard.kpi.conversionRate')} value={conversionRate}                 suffix="%"                             icon={TrendingUp}  color="warning" loading={l3} href="/analytics" />
+          <KpiCard label={t("contracts.title")}                          value={contractsOverview?.totalContracts ?? 0}                                icon={FileText}    color="info"    loading={false} href="/contracts" />
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label={t('dashboard.kpi.myLeads')}      value={myStats?.leadsHandled ?? 0}                                icon={Users}       color="primary" loading={l3}         />
-          <KpiCard label={t('dashboard.kpi.myTasks')}      value={visibleTasks.filter((t) => t.status !== 'done').length}    icon={CheckSquare} color="info"    loading={tasksLoading} />
-          <KpiCard label={t('dashboard.kpi.myDone')}       value={visibleTasks.filter((t) => t.status === 'done').length}    icon={CheckCheck}  color="success" loading={tasksLoading} />
-          <KpiCard label={t('dashboard.kpi.myConversion')} value={myStats ? Math.round(myStats.wonRate * 100) : 0} suffix="%" icon={TrendingUp}  color="warning" loading={l3}         />
+          <KpiCard label={t('dashboard.kpi.myLeads')}      value={myStats?.leadsHandled ?? 0}                                icon={Users}       color="primary" loading={l3}         href="/leads" />
+          <KpiCard label={t('dashboard.kpi.myTasks')}      value={visibleTasks.filter((t) => t.status !== 'done').length}    icon={CheckSquare} color="info"    loading={tasksLoading} href="/tasks" />
+          <KpiCard label={t('dashboard.kpi.myDone')}       value={visibleTasks.filter((t) => t.status === 'done').length}    icon={CheckCheck}  color="success" loading={tasksLoading} href="/tasks" />
+          <KpiCard label={t('dashboard.kpi.myConversion')} value={myStats ? Math.round(myStats.wonRate * 100) : 0} suffix="%" icon={TrendingUp}  color="warning" loading={l3}         href="/analytics" />
         </div>
       )}
 

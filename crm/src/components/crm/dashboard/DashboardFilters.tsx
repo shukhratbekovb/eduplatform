@@ -1,5 +1,6 @@
 'use client'
 import { PeriodPicker } from '@/components/crm/analytics/PeriodPicker'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { useT } from '@/lib/i18n'
 import type { AnalyticsPeriod } from '@/types/crm'
 import type { Funnel, User } from '@/types/crm'
@@ -7,8 +8,6 @@ import type { Funnel, User } from '@/types/crm'
 interface Props {
   period: AnalyticsPeriod
   onPeriodChange: (p: AnalyticsPeriod) => void
-
-  // Director-only filters
   isDirector?: boolean
   funnels?: Funnel[]
   funnelId?: string
@@ -30,29 +29,31 @@ export function DashboardFilters({
       <PeriodPicker value={period} onChange={onPeriodChange} />
 
       {isDirector && funnels && funnels.length > 0 && (
-        <select
-          value={funnelId ?? ''}
-          onChange={(e) => onFunnelChange?.(e.target.value)}
-          className="border border-gray-200 dark:border-gray-600 rounded px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-100"
-        >
-          <option value="">{t('dashboard.filter.allFunnels')}</option>
-          {funnels.filter((f) => !f.isArchived).map((f) => (
-            <option key={f.id} value={f.id}>{f.name}</option>
-          ))}
-        </select>
+        <Select value={funnelId ?? '__all__'} onValueChange={(v) => onFunnelChange?.(v === '__all__' ? '' : v)}>
+          <SelectTrigger className="w-[180px] h-9 text-sm">
+            <SelectValue placeholder={t('dashboard.filter.allFunnels')} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">{t('dashboard.filter.allFunnels')}</SelectItem>
+            {funnels.filter((f) => !f.isArchived).map((f) => (
+              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
 
       {isDirector && managers && managers.length > 0 && (
-        <select
-          value={managerId ?? ''}
-          onChange={(e) => onManagerChange?.(e.target.value)}
-          className="border border-gray-200 dark:border-gray-600 rounded px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-100"
-        >
-          <option value="">{t('dashboard.filter.allManagers')}</option>
-          {managers.filter((m) => m.role === 'sales_manager').map((m) => (
-            <option key={m.id} value={m.id}>{m.name}</option>
-          ))}
-        </select>
+        <Select value={managerId ?? '__all__'} onValueChange={(v) => onManagerChange?.(v === '__all__' ? '' : v)}>
+          <SelectTrigger className="w-[180px] h-9 text-sm">
+            <SelectValue placeholder={t('dashboard.filter.allManagers')} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">{t('dashboard.filter.allManagers')}</SelectItem>
+            {managers.filter((m) => m.role === 'sales_manager').map((m) => (
+              <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
     </div>
   )

@@ -2,14 +2,15 @@
 import { useState } from 'react'
 import { CalendarDays } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { useT } from '@/lib/i18n'
 import type { AnalyticsPeriod, AnalyticsPeriodType } from '@/types/crm'
 
-const PRESETS: { value: AnalyticsPeriodType; label: string }[] = [
-  { value: 'today',     label: 'Сегодня' },
-  { value: 'yesterday', label: 'Вчера' },
-  { value: 'week',      label: 'Неделя' },
-  { value: 'month',     label: 'Месяц' },
-  { value: 'custom',    label: 'Период' },
+const PRESET_KEYS: { value: AnalyticsPeriodType; key: string }[] = [
+  { value: 'today',     key: 'period.today' },
+  { value: 'yesterday', key: 'period.yesterday' },
+  { value: 'week',      key: 'period.week' },
+  { value: 'month',     key: 'period.month' },
+  { value: 'custom',    key: 'period.custom' },
 ]
 
 interface PeriodPickerProps {
@@ -18,6 +19,7 @@ interface PeriodPickerProps {
 }
 
 export function PeriodPicker({ value, onChange }: PeriodPickerProps) {
+  const t = useT()
   const [showCustom, setShowCustom] = useState(value.type === 'custom')
 
   const handlePreset = (type: AnalyticsPeriodType) => {
@@ -33,7 +35,7 @@ export function PeriodPicker({ value, onChange }: PeriodPickerProps) {
     <div className="flex items-center gap-3 flex-wrap">
       {/* Preset buttons */}
       <div className="flex items-center border border-gray-200 rounded overflow-hidden">
-        {PRESETS.map(({ value: v, label }) => (
+        {PRESET_KEYS.map(({ value: v, key }) => (
           <button
             key={v}
             onClick={() => handlePreset(v)}
@@ -44,7 +46,7 @@ export function PeriodPicker({ value, onChange }: PeriodPickerProps) {
                 : 'bg-white text-gray-600 hover:bg-gray-50'
             )}
           >
-            {label}
+            {t(key)}
           </button>
         ))}
       </div>

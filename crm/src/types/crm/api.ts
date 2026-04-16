@@ -67,10 +67,12 @@ export interface ReorderCustomFieldsDto { orderedIds: string[] }
 export interface CreateSourceDto {
   name: string
   type: LeadSourceType
+  funnelId?: string
 }
 export interface UpdateSourceDto {
   name?: string
   isActive?: boolean
+  funnelId?: string
 }
 
 // ─── Activity DTOs ────────────────────────────────────────────────────────────
