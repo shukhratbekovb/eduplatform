@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   DndContext, DragOverlay, closestCorners,
   PointerSensor, KeyboardSensor, useSensor, useSensors,
@@ -31,11 +31,11 @@ export function LeadKanban({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  // Group leads by stage
-  const leadsByStage = stages.reduce<Record<string, Lead[]>>((acc, stage) => {
+  // Group leads by stage (memoized)
+  const leadsByStage = useMemo(() => stages.reduce<Record<string, Lead[]>>((acc, stage) => {
     acc[stage.id] = leads.filter((l) => l.stageId === stage.id)
     return acc
-  }, {})
+  }, {}), [stages, leads])
 
   const activeLead = activeId ? leads.find((l) => l.id === activeId) : null
 

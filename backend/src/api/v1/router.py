@@ -11,6 +11,8 @@ from src.api.v1.lms import mup_tasks
 from src.api.v1.lms import compensation
 from src.api.v1.lms import late_requests
 from src.api.v1.lms import analytics as lms_analytics
+from src.api.v1.lms import exams as lms_exams
+from src.api.v1.lms import reports as lms_reports
 from src.api.v1.crm import (
     funnels, leads, tasks, contracts,
     activities as crm_activities,
@@ -44,6 +46,8 @@ router.include_router(mup_tasks.router)
 router.include_router(compensation.router)
 router.include_router(late_requests.router)
 router.include_router(lms_analytics.router)
+router.include_router(lms_reports.router)
+router.include_router(lms_exams.router, prefix="/lms")
 
 # ── CRM ───────────────────────────────────────────────────────────────────────
 router.include_router(funnels.router)

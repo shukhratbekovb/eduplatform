@@ -46,19 +46,16 @@ export interface Room {
 }
 
 export interface Group {
-  id:           string
-  name:         string
-  directionId:  string
-  direction:    Direction
-  subjectId:    string
-  subject:      Subject
-  teacherId:    string
-  teacher:      User
-  startDate:    string        // ISO date
-  endDate:      string        // ISO date
-  isArchived:   boolean
-  studentCount: number        // computed
-  createdAt:    string
+  id:             string
+  name:           string
+  directionId:    string | null
+  directionName:  string | null
+  roomId:         string | null
+  startDate:      string | null    // ISO date
+  endDate:        string | null    // ISO date
+  schedule:       Record<string, any> | null
+  isActive:       boolean
+  studentCount:   number           // computed
 }
 
 export interface Enrollment {
@@ -116,31 +113,26 @@ export interface RiskFactors {
 // ─── Schedule & Lessons ──────────────────────────────────────────────────────
 
 export type LessonStatus =
-  | 'scheduled'    // future lesson
-  | 'in_progress'  // today, within time window
-  | 'conducted'    // attendance + topic filled, window passed
-  | 'incomplete'   // window passed, missing data
-  | 'cancelled'    // cancelled by MUP
+  | 'scheduled'
+  | 'completed'
+  | 'cancelled'
 
-export type AttendanceStatus = 'on_time' | 'late' | 'absent'
+export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused'
 
 export interface Lesson {
   id:           string
   groupId:      string
-  group:        Group
-  teacherId:    string
-  teacher:      User
+  subjectId:    string | null
+  teacherId:    string | null
   roomId:       string | null
-  room:         Room | null
   date:         string     // ISO date YYYY-MM-DD
   startTime:    string     // "HH:mm"
   endTime:      string     // "HH:mm"
   topic:        string | null
   status:       LessonStatus
-  isRecurring:  boolean
-  seriesId:     string | null
+  isOnline:     boolean
   cancelReason: string | null
-  createdAt:    string
+  createdAt:    string | null
 }
 
 export interface AttendanceRecord {
@@ -211,17 +203,20 @@ export interface HomeworkSubmission {
 export type LateRequestStatus = 'pending' | 'approved' | 'rejected'
 
 export interface LateEntryRequest {
-  id:          string
-  lessonId:    string
-  lesson:      Lesson
-  teacherId:   string
-  teacher:     User
-  reason:      string
-  status:      LateRequestStatus
-  reviewedBy:  string | null     // MUP user id
-  reviewNote:  string | null
-  reviewedAt:  string | null
-  createdAt:   string
+  id:              string
+  lessonId:        string
+  lessonDate:      string | null
+  lessonTopic:     string | null
+  groupName:       string | null
+  teacherId:       string | null
+  teacherName:     string | null
+  reason:          string
+  isApproved:      boolean | null  // null=pending, true=approved, false=rejected
+  reviewedByName:  string | null
+  reviewedAt:      string | null
+  createdAt:       string | null
+  // computed
+  status:          LateRequestStatus
 }
 
 // ─── Gamification ────────────────────────────────────────────────────────────
@@ -316,18 +311,19 @@ export interface SalaryBreakdownItem {
 export type ExamStatus = 'upcoming' | 'in_progress' | 'completed' | 'cancelled'
 
 export interface Exam {
-  id:          string
-  title:       string
-  groupId:     string
-  group:       Group
-  date:        string     // ISO date YYYY-MM-DD
-  startTime:   string     // "HH:mm"
-  endTime:     string     // "HH:mm"
-  roomId:      string | null
-  room:        Room | null
-  description: string | null
-  status:      ExamStatus
-  createdAt:   string
+  id:           string
+  title:        string
+  groupId:      string | null
+  groupName:    string | null
+  subjectId:    string | null
+  subjectName:  string | null
+  date:         string
+  startTime:    string
+  endTime:      string
+  description:  string | null
+  status:       ExamStatus
+  maxScore:     number
+  gradesCount:  number
 }
 
 // ─── Analytics ───────────────────────────────────────────────────────────────

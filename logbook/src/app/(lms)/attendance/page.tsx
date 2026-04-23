@@ -1,10 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { ChevronRight, CheckCircle2, Clock, AlertTriangle, CalendarDays } from 'lucide-react'
 import { format, isToday, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { useSchedule } from '@/lib/hooks/lms/useSchedule'
+import { useGroups } from '@/lib/hooks/lms/useGroups'
 import { useLmsStore } from '@/lib/stores/useLmsStore'
 import { useCurrentUser } from '@/lib/stores/useAuthStore'
 import { isLessonEditable, needsLateRequest } from '@/lib/utils/lessonWindow'
@@ -19,7 +20,12 @@ export default function AttendancePage() {
   const isTeacher = user?.role === 'teacher'
   const weekStart = useLmsStore((s) => s.scheduleWeekStart)
 
-  const { data: allLessons = [], isLoading } = useSchedule(weekStart)
+  const filters: Record<string, string> = {}
+  if (isTeacher && user?.id) filters.teacherId = user.id
+
+  const { data: allLessons = [], isLoading } = useSchedule(weekStart, filters)
+  const { data: groups = [] } = useGroups()
+  const groupMap = useMemo(() => new Map((groups as any[]).map((g: any) => [g.id, g])), [groups])
 
   const [tab, setTab] = useState<'today' | 'groups'>('today')
   const [selectedDate, setSelectedDate] = useState<string>(toIsoDate(new Date()))
@@ -27,23 +33,16 @@ export default function AttendancePage() {
   const todayStr = toIsoDate(new Date())
   const displayDate = selectedDate || todayStr
 
-  // Filter lessons
-  const lessons = (allLessons as Lesson[]).filter((l) => {
-    if (isTeacher && l.teacherId !== user?.id) return false
-    return l.date === displayDate
-  })
-
-  const allWeekLessons = (allLessons as Lesson[]).filter((l) => {
-    if (isTeacher && l.teacherId !== user?.id) return false
-    return true
-  })
+  // Filter by selected date
+  const lessons = (allLessons as Lesson[]).filter((l) => l.date === displayDate)
+  const allWeekLessons = allLessons as Lesson[]
 
   // Sort by startTime
   const sorted = [...lessons].sort((a, b) => a.startTime.localeCompare(b.startTime))
 
   // Group by group for "Посещаемость групп" tab
   const byGroup = allWeekLessons.reduce<Record<string, Lesson[]>>((acc, l) => {
-    const key = l.group.id
+    const key = l.groupId
     if (!acc[key]) acc[key] = []
     acc[key].push(l)
     return acc
@@ -127,7 +126,7 @@ export default function AttendancePage() {
         ) : (
           <div className="space-y-2">
             {sorted.map((lesson) => (
-              <LessonAttendanceRow key={lesson.id} lesson={lesson} />
+              <LessonAttendanceRow key={lesson.id} lesson={lesson} groupName={groupMap.get(lesson.groupId)?.name} />
             ))}
           </div>
         )
@@ -138,23 +137,24 @@ export default function AttendancePage() {
             <EmptyState icon={CheckCircle2} title="Нет данных о группах" description="Расписание ещё не составлено" />
           ) : (
             Object.entries(byGroup).map(([groupId, groupLessons]) => {
-              const group = groupLessons[0].group
-              const conducted = groupLessons.filter((l) => l.status === 'conducted').length
+              const group = groupMap.get(groupId)
+              const groupName = group?.name ?? groupId.slice(0, 8)
+              const directionName = group?.directionName
+              const conducted = groupLessons.filter((l) => l.status === 'completed').length
               const total     = groupLessons.length
               const pct       = total > 0 ? Math.round((conducted / total) * 100) : 0
               return (
                 <div key={groupId} className="bg-white rounded-xl border border-gray-200 p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="text-sm font-semibold text-gray-900">{group.name}</p>
-                      <p className="text-xs text-gray-400">{group.subject.name}</p>
+                      <p className="text-sm font-semibold text-gray-900">{groupName}</p>
+                      {directionName && <p className="text-xs text-gray-400">{directionName}</p>}
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-gray-900">{pct}%</p>
                       <p className="text-xs text-gray-400">{conducted}/{total} уроков</p>
                     </div>
                   </div>
-                  {/* Progress bar */}
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className={cn(
@@ -174,10 +174,10 @@ export default function AttendancePage() {
   )
 }
 
-function LessonAttendanceRow({ lesson }: { lesson: Lesson }) {
+function LessonAttendanceRow({ lesson, groupName }: { lesson: Lesson; groupName?: string }) {
   const editable    = isLessonEditable(lesson)
   const needsReq    = needsLateRequest(lesson)
-  const isConducted = lesson.status === 'conducted'
+  const isConducted = lesson.status === 'completed'
 
   return (
     <Link
@@ -186,17 +186,15 @@ function LessonAttendanceRow({ lesson }: { lesson: Lesson }) {
         'flex items-center gap-4 p-4 bg-white rounded-xl border transition-all hover:shadow-sm',
         editable
           ? 'border-primary-300 ring-1 ring-primary-100'
-          : lesson.status === 'incomplete' ? 'border-danger-200'
+          : lesson.status === 'cancelled' ? 'border-gray-200'
           : 'border-gray-200'
       )}
     >
       {/* Status bar */}
       <div className={cn(
         'w-1 self-stretch rounded-full shrink-0',
-        lesson.status === 'conducted'   ? 'bg-success-500' :
-        lesson.status === 'in_progress' ? 'bg-warning-500' :
-        lesson.status === 'incomplete'  ? 'bg-danger-500'  :
-        lesson.status === 'cancelled'   ? 'bg-gray-300'    :
+        lesson.status === 'completed' ? 'bg-success-500' :
+        lesson.status === 'cancelled' ? 'bg-gray-400' :
         'bg-primary-400'
       )} />
 
@@ -209,7 +207,7 @@ function LessonAttendanceRow({ lesson }: { lesson: Lesson }) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-gray-900 truncate">{lesson.group.name}</p>
+          <p className="text-sm font-semibold text-gray-900 truncate">{groupName ?? ''}</p>
           <LessonStatusBadge status={lesson.status} />
           {editable && (
             <span className="text-xs bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full font-medium">
@@ -222,11 +220,9 @@ function LessonAttendanceRow({ lesson }: { lesson: Lesson }) {
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-400 mt-1">
-          {lesson.group.subject.name}
-          {lesson.room && ` · ${lesson.room.name}`}
-          {lesson.topic && ` · "${lesson.topic}"`}
-        </p>
+        {lesson.topic && (
+          <p className="text-xs text-gray-400 mt-1">"{lesson.topic}"</p>
+        )}
       </div>
 
       {/* Conducted stat */}
@@ -234,7 +230,7 @@ function LessonAttendanceRow({ lesson }: { lesson: Lesson }) {
         <div className="shrink-0 text-right">
           <div className="flex items-center gap-1 text-success-600">
             <CheckCircle2 className="w-4 h-4" />
-            <span className="text-sm font-semibold">{lesson.group.studentCount}</span>
+            <span className="text-sm font-semibold">{(lesson as any).group?.studentCount ?? 0}</span>
           </div>
           <p className="text-xs text-gray-400">чел.</p>
         </div>

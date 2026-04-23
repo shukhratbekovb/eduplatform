@@ -157,28 +157,14 @@ class Room(AggregateRoot):
 @dataclass
 class Group(AggregateRoot):
     name: str = ""
-    direction_id: UUID | None = None
-    subject_id: UUID | None = None
-    teacher_id: UUID | None = None
     start_date: date | None = None
     end_date: date | None = None
     schedule: dict | None = None  # type: ignore[type-arg]
     is_active: bool = True
 
     @classmethod
-    def create(
-        cls,
-        name: str,
-        direction_id: UUID | None = None,
-        subject_id: UUID | None = None,
-        teacher_id: UUID | None = None,
-    ) -> "Group":
-        return cls(
-            name=name,
-            direction_id=direction_id,
-            subject_id=subject_id,
-            teacher_id=teacher_id,
-        )
+    def create(cls, name: str) -> "Group":
+        return cls(name=name)
 
 
 # ── Lesson ────────────────────────────────────────────────────────────────────

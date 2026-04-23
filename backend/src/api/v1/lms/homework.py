@@ -95,6 +95,21 @@ async def create_assignment(
     )
 
 
+@router.get("/assignments", response_model=list[AssignmentOut])
+async def list_assignments_by_lesson(
+    current_user: CurrentUser, db: DbSession,
+    lesson_id: UUID | None = None,
+) -> list[AssignmentOut]:
+    q = select(HomeworkAssignmentModel)
+    if lesson_id:
+        q = q.where(HomeworkAssignmentModel.lesson_id == lesson_id)
+    rows = (await db.execute(q.order_by(HomeworkAssignmentModel.due_date))).scalars().all()
+    return [AssignmentOut(
+        id=m.id, lesson_id=m.lesson_id, title=m.title, description=m.description,
+        due_date=m.due_date.isoformat() if m.due_date else "", max_score=float(m.max_score),
+    ) for m in rows]
+
+
 @router.get("/assignments/{assignment_id}", response_model=AssignmentOut)
 async def get_assignment(assignment_id: UUID, current_user: CurrentUser, db: DbSession) -> AssignmentOut:
     m = await db.get(HomeworkAssignmentModel, assignment_id)

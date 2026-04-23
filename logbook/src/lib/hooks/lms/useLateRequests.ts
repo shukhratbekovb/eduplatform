@@ -35,9 +35,9 @@ export function useReviewLateRequest() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: ReviewLateRequestDto }) =>
       lateRequestsApi.review(id, data),
-    onSuccess: (req) => {
+    onSuccess: (req: any) => {
       qc.invalidateQueries({ queryKey: ['lms', 'late-requests'] })
-      const label = req.status === 'approved' ? 'одобрен' : 'отклонён'
+      const label = req.isApproved ? 'одобрен' : 'отклонён'
       toast.success(`Запрос ${label}`)
     },
     onError: () => toast.error('Не удалось обработать запрос'),

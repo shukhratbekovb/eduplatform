@@ -94,11 +94,8 @@ class GroupModel(Base, UUIDPrimaryKey, TimestampMixin):
     __tablename__ = "groups"
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    subject_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True, index=True
-    )
-    teacher_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    direction_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("directions.id", ondelete="SET NULL"), nullable=True, index=True
     )
     room_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("rooms.id", ondelete="SET NULL"), nullable=True
@@ -134,6 +131,9 @@ class LessonModel(Base, UUIDPrimaryKey, TimestampMixin):
 
     group_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    subject_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True, index=True
     )
     teacher_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
@@ -190,8 +190,11 @@ class GradeRecordModel(Base, UUIDPrimaryKey):
     lesson_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("lessons.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    exam_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exams.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     type: Mapped[str] = mapped_column(
-        SAEnum("class", "independent", "control", "thematic", "homework", name="grade_type", create_type=False),
+        SAEnum("homework", "exam", "quiz", "project", "participation", name="grade_type", create_type=False),
         nullable=False, index=True,
     )
     score: Mapped[Decimal] = mapped_column(Numeric(4, 1), nullable=False)
@@ -215,11 +218,11 @@ class DiamondRecordModel(Base, UUIDPrimaryKey):
         UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
     )
     amount: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     awarded_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    awarded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 # ── Lesson Materials ──────────────────────────────────────────────────────────
@@ -232,7 +235,7 @@ class LessonMaterialModel(Base, UUIDPrimaryKey):
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(
-        SAEnum("pdf", "video", "article", "presentation", name="material_type", create_type=False),
+        SAEnum("pdf", "video", "link", "image", "other", name="material_type", create_type=False),
         nullable=False, default="pdf",
     )
     url: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -301,8 +304,8 @@ class HomeworkSubmissionModel(Base, UUIDPrimaryKey):
 class LateEntryRequestModel(Base, UUIDPrimaryKey, TimestampMixin):
     __tablename__ = "late_entry_requests"
 
-    student_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
+    student_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
     )
     lesson_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True
@@ -371,10 +374,35 @@ class LmsNotificationModel(Base, UUIDPrimaryKey):
 class CompensationModelModel(Base, UUIDPrimaryKey, TimestampMixin):
     __tablename__ = "compensation_models"
 
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    teacher_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    type: Mapped[str] = mapped_column(String(30), nullable=False)  # per_lesson, fixed_monthly, per_student
+    rate: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="UZS")
+    effective_from: Mapped[date] = mapped_column(Date, nullable=False)
+    effective_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
+# ── Exams ─────────────────────────────────────────────────────────────────────
+
+class ExamModel(Base, UUIDPrimaryKey, TimestampMixin):
+    __tablename__ = "exams"
+
+    subject_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("subjects.id", ondelete="CASCADE"), nullable=True
+    )
+    group_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("groups.id", ondelete="SET NULL"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    params: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)  # type: ignore[type-arg]
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_score: Mapped[Decimal] = mapped_column(Numeric(4, 1), nullable=False, default=12)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
 
 # ── Salary Calculations ───────────────────────────────────────────────────────
@@ -421,26 +449,6 @@ class PaymentModel(Base, UUIDPrimaryKey, TimestampMixin):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-
-
-# ── Exams ─────────────────────────────────────────────────────────────────────
-
-class ExamModel(Base, UUIDPrimaryKey):
-    __tablename__ = "exams"
-
-    group_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    subject_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True
-    )
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    exam_date: Mapped[date] = mapped_column(Date, nullable=False)
-    max_score: Mapped[Decimal] = mapped_column(Numeric(4, 1), nullable=False, default=12)
-    created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 # ── Risk Factors ──────────────────────────────────────────────────────────────

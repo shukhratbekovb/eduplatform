@@ -23,6 +23,8 @@ def upgrade() -> None:
         sa.Column("password_hash", sa.String(255), nullable=False),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("role", sa.Enum("director","mup","teacher","sales_manager","cashier","student", name="user_role", create_type=False), nullable=False),
+        sa.Column("phone", sa.String(30), nullable=True),
+        sa.Column("date_of_birth", sa.Date, nullable=True),
         sa.Column("avatar_url", sa.String, nullable=True),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
@@ -70,12 +72,17 @@ def upgrade() -> None:
         "students",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("full_name", sa.String(255), nullable=False),
+        sa.Column("email", sa.String(255), nullable=True),
+        sa.Column("photo_url", sa.Text, nullable=True),
         sa.Column("student_code", sa.String(20), nullable=True, unique=True),
         sa.Column("phone", sa.String(30), nullable=True),
+        sa.Column("parent_name", sa.String(255), nullable=True),
         sa.Column("parent_phone", sa.String(30), nullable=True),
         sa.Column("date_of_birth", sa.Date, nullable=True),
         sa.Column("address", sa.Text, nullable=True),
         sa.Column("direction_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("directions.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
         sa.Column("gpa", sa.Numeric(4, 2), nullable=False, server_default="0"),
         sa.Column("attendance_percent", sa.Numeric(5, 2), nullable=False, server_default="0"),
         sa.Column("risk_level", sa.Enum("low","medium","high","critical", name="risk_level", create_type=False), nullable=False, server_default="low"),
@@ -94,20 +101,18 @@ def upgrade() -> None:
         "groups",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.String(255), nullable=False),
-        sa.Column("subject_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("teacher_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("direction_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("directions.id", ondelete="SET NULL"), nullable=True),
         sa.Column("room_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("rooms.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("schedule", postgresql.JSONB, nullable=False, server_default="{}"),
+        sa.Column("schedule", postgresql.JSONB, nullable=True),
         sa.Column("max_students", sa.Integer, nullable=True),
-        sa.Column("price_per_month", sa.Numeric(10, 2), nullable=False, server_default="0"),
+        sa.Column("price_per_month", sa.Numeric(10, 2), nullable=True),
         sa.Column("started_at", sa.Date, nullable=True),
         sa.Column("ended_at", sa.Date, nullable=True),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
     )
-    op.create_index("ix_groups_subject_id", "groups", ["subject_id"])
-    op.create_index("ix_groups_teacher_id", "groups", ["teacher_id"])
+    op.create_index("ix_groups_direction_id", "groups", ["direction_id"])
 
     op.create_table(
         "enrollments",
@@ -125,6 +130,7 @@ def upgrade() -> None:
         "lessons",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("group_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("subject_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True),
         sa.Column("teacher_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("room_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("rooms.id", ondelete="SET NULL"), nullable=True),
         sa.Column("scheduled_at", sa.DateTime(timezone=True), nullable=False),
@@ -138,6 +144,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
     )
     op.create_index("ix_lessons_group_id", "lessons", ["group_id"])
+    op.create_index("ix_lessons_subject_id", "lessons", ["subject_id"])
     op.create_index("ix_lessons_teacher_id", "lessons", ["teacher_id"])
     op.create_index("ix_lessons_scheduled_at", "lessons", ["scheduled_at"])
     op.create_index("ix_lessons_status", "lessons", ["status"])
@@ -160,7 +167,7 @@ def upgrade() -> None:
         "grade_records",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("subject_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("subject_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True),
         sa.Column("lesson_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("lessons.id", ondelete="SET NULL"), nullable=True),
         sa.Column("type", sa.Enum("homework","exam","quiz","project","participation", name="grade_type", create_type=False), nullable=False),
         sa.Column("score", sa.Numeric(5, 2), nullable=False),
@@ -342,9 +349,10 @@ def upgrade() -> None:
     op.create_table(
         "exams",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("subject_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("subject_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True),
         sa.Column("group_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("groups.id", ondelete="SET NULL"), nullable=True),
         sa.Column("title", sa.String(255), nullable=False),
+        sa.Column("description", sa.Text, nullable=True),
         sa.Column("scheduled_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("duration_minutes", sa.Integer, nullable=True),
         sa.Column("max_score", sa.Numeric(5, 2), nullable=False, server_default="100"),
@@ -428,11 +436,24 @@ def upgrade() -> None:
     op.create_index("ix_stages_funnel_id", "stages", ["funnel_id"])
 
     op.create_table(
+        "crm_contacts",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("full_name", sa.String(255), nullable=False),
+        sa.Column("phone", sa.String(30), nullable=False, unique=True),
+        sa.Column("email", sa.String(255), nullable=True),
+        sa.Column("notes", sa.Text, nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+    )
+
+    op.create_table(
         "lead_sources",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.String(255), nullable=False),
-        sa.Column("type", sa.Enum("manual","import","api", name="lead_source_type", create_type=False), nullable=False, server_default="manual"),
+        sa.Column("type", sa.Enum("manual","import","api","landing", name="lead_source_type", create_type=False), nullable=False, server_default="manual"),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
+        sa.Column("funnel_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("funnels.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("api_key", sa.String(64), unique=True, nullable=True),
         sa.Column("webhook_url", sa.Text, nullable=True),
         sa.Column("webhook_secret", sa.String(255), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -448,6 +469,7 @@ def upgrade() -> None:
         sa.Column("funnel_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("funnels.id", ondelete="CASCADE"), nullable=False),
         sa.Column("stage_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("stages.id", ondelete="SET NULL"), nullable=True),
         sa.Column("assigned_to", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("contact_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("crm_contacts.id", ondelete="SET NULL"), nullable=True),
         sa.Column("status", sa.Enum("active","won","lost", name="lead_status", create_type=False), nullable=False, server_default="active"),
         sa.Column("lost_reason", sa.Text, nullable=True),
         sa.Column("custom_fields", postgresql.JSONB, nullable=False, server_default="{}"),
@@ -459,6 +481,9 @@ def upgrade() -> None:
     op.create_index("ix_leads_stage_id", "leads", ["stage_id"])
     op.create_index("ix_leads_assigned_to", "leads", ["assigned_to"])
     op.create_index("ix_leads_status", "leads", ["status"])
+    op.create_index("ix_leads_source_id", "leads", ["source_id"])
+    op.create_index("ix_leads_contact_id", "leads", ["contact_id"])
+    op.create_index("ix_leads_created_at", "leads", ["created_at"])
 
     op.create_table(
         "custom_fields",
@@ -558,9 +583,67 @@ def upgrade() -> None:
     op.create_index("ix_crm_notifications_user_id", "crm_notifications", ["user_id"])
     op.create_index("ix_crm_notifications_is_read", "crm_notifications", ["is_read"])
 
+    # --- CONTRACTS ---
+    op.execute("CREATE SEQUENCE IF NOT EXISTS contract_number_seq START 1")
+
+    op.create_table(
+        "contracts",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("contract_number", sa.String(20), unique=True, nullable=True),
+        sa.Column("lead_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("leads.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("direction_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("directions.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("full_name", sa.String(255), nullable=False),
+        sa.Column("phone", sa.String(30), nullable=False),
+        sa.Column("email", sa.String(255), nullable=True),
+        sa.Column("payment_type", sa.String(20), nullable=False, server_default="monthly"),
+        sa.Column("payment_amount", sa.Numeric(12, 2), nullable=True),
+        sa.Column("currency", sa.String(10), nullable=False, server_default="UZS"),
+        sa.Column("start_date", sa.Date, nullable=True),
+        sa.Column("notes", sa.Text, nullable=True),
+        sa.Column("status", sa.String(20), nullable=False, server_default="active"),
+        sa.Column("created_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+    )
+    op.create_index("ix_contracts_student_id", "contracts", ["student_id"])
+    op.create_index("ix_contracts_direction_id", "contracts", ["direction_id"])
+    op.create_index("ix_contracts_status", "contracts", ["status"])
+    op.create_index("ix_contracts_created_at", "contracts", ["created_at"])
+
+    op.create_table(
+        "contract_files",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("contract_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("contracts.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("file_url", sa.Text, nullable=False),
+        sa.Column("file_name", sa.String(255), nullable=False),
+        sa.Column("uploaded_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+    )
+    op.create_index("ix_contract_files_contract_id", "contract_files", ["contract_id"])
+
+    op.create_table(
+        "student_documents",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("type", sa.String(50), nullable=False),
+        sa.Column("file_url", sa.Text, nullable=False),
+        sa.Column("file_name", sa.String(255), nullable=False),
+        sa.Column("uploaded_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+    )
+    op.create_index("ix_student_documents_student_id", "student_documents", ["student_id"])
+
+    # --- MISSING COLUMNS ---
+    # students: full_name, email, photo_url, parent_name, is_active
+    # (These are already in the model but not in the initial migration)
+
 
 def downgrade() -> None:
     # Drop tables in reverse FK order
+    op.drop_table("student_documents")
+    op.drop_table("contract_files")
+    op.drop_table("contracts")
+    op.execute("DROP SEQUENCE IF EXISTS contract_number_seq")
     op.drop_table("crm_notifications")
     op.drop_table("crm_tasks")
     op.drop_table("lead_comments")
@@ -570,6 +653,7 @@ def downgrade() -> None:
     op.drop_table("custom_fields")
     op.drop_table("leads")
     op.drop_table("lead_sources")
+    op.drop_table("crm_contacts")
     op.drop_table("stages")
     op.drop_table("funnels")
     op.drop_table("student_activity_events")

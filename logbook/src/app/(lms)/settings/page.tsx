@@ -66,19 +66,24 @@ function DirectionsTab() {
   const { mutate: update }  = useUpdateDirection()
   const { mutate: destroy } = useDeleteDirection()
 
-  const [form, setForm]       = useState<{ name: string; color: string } | null>(null)
+  const [form, setForm] = useState<{ name: string; description: string; color: string; durationMonths: string; totalLessons: string } | null>(null)
   const [editId, setEditId]   = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
-  const openCreate = () => { setEditId(null); setForm({ name: '', color: DIRECTION_COLORS[0] }) }
-  const openEdit   = (d: Direction) => { setEditId(d.id); setForm({ name: d.name, color: d.color }) }
+  const openCreate = () => { setEditId(null); setForm({ name: '', description: '', color: DIRECTION_COLORS[0], durationMonths: '', totalLessons: '' }) }
+  const openEdit   = (d: Direction) => { setEditId(d.id); setForm({ name: d.name, description: d.description ?? '', color: d.color, durationMonths: String((d as any).durationMonths ?? ''), totalLessons: String((d as any).totalLessons ?? '') }) }
 
   const handleSave = () => {
     if (!form?.name.trim()) return
+    const payload = {
+      name: form.name, description: form.description || undefined, color: form.color,
+      durationMonths: form.durationMonths ? Number(form.durationMonths) : undefined,
+      totalLessons: form.totalLessons ? Number(form.totalLessons) : undefined,
+    }
     if (editId) {
-      update({ id: editId, data: form }, { onSuccess: () => setForm(null) })
+      update({ id: editId, data: payload as any }, { onSuccess: () => setForm(null) })
     } else {
-      create(form, { onSuccess: () => setForm(null) })
+      create(payload as any, { onSuccess: () => setForm(null) })
     }
   }
 
@@ -96,7 +101,10 @@ function DirectionsTab() {
             <div key={d.id} className="flex items-center justify-between p-3 rounded-md border border-gray-100 hover:bg-gray-50">
               <div className="flex items-center gap-3">
                 <span className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                <span className="text-sm font-medium text-gray-900">{d.name}</span>
+                <div>
+                  <span className="text-sm font-medium text-gray-900">{d.name}</span>
+                  {d.description && <p className="text-xs text-gray-400">{d.description}</p>}
+                </div>
               </div>
               <div className="flex gap-1">
                 <button onClick={() => openEdit(d)} className="p-1.5 text-gray-400 hover:text-gray-700 rounded">
@@ -125,8 +133,38 @@ function DirectionsTab() {
                 <Input
                   value={form?.name ?? ''}
                   onChange={(e) => setForm((f) => f ? { ...f, name: e.target.value } : f)}
-                  placeholder="Например: IT"
+                  placeholder="Например: Python Backend"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Описание</label>
+                <textarea
+                  value={form?.description ?? ''}
+                  onChange={(e) => setForm((f) => f ? { ...f, description: e.target.value } : f)}
+                  placeholder="Краткое описание направления..."
+                  rows={2}
+                  className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 resize-none focus:outline-none focus:border-primary-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Длительность (мес.)</label>
+                  <Input
+                    type="number"
+                    value={form?.durationMonths ?? ''}
+                    onChange={(e) => setForm((f) => f ? { ...f, durationMonths: e.target.value } : f)}
+                    placeholder="6"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Кол-во уроков</label>
+                  <Input
+                    type="number"
+                    value={form?.totalLessons ?? ''}
+                    onChange={(e) => setForm((f) => f ? { ...f, totalLessons: e.target.value } : f)}
+                    placeholder="72"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-2">Цвет</label>

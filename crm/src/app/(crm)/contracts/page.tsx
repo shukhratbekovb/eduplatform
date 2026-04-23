@@ -24,7 +24,7 @@ interface Contract {
   startDate?: string; notes?: string; status: string; createdAt?: string
   studentLogin?: string; studentPassword?: string; hasDocuments?: boolean; studentId?: string
 }
-interface Direction { id: string; name: string; duration_months?: number; total_lessons?: number; is_active: boolean }
+interface Direction { id: string; name: string; durationMonths?: number; totalLessons?: number; isActive: boolean }
 interface StudentResult { id: string; fullName: string; phone?: string; email?: string; studentCode?: string; hasDocuments: boolean }
 
 const PAYMENT_TYPES = [
@@ -90,7 +90,7 @@ export default function ContractsPage() {
           <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder={t('contracts.filter.allDir')}/></SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">{t('contracts.filter.allDir')}</SelectItem>
-            {directions.filter(d=>d.is_active).map(d=><SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+            {directions.filter(d=>d.isActive).map(d=><SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -151,7 +151,7 @@ export default function ContractsPage() {
 function ContractForm({open,onClose,onCreated}:{open:boolean;onClose:()=>void;onCreated:(c:Contract)=>void}) {
   const qc = useQueryClient()
   const {data:directions=[]} = useDirections()
-  const activeDirections = directions.filter(d=>d.is_active)
+  const activeDirections = directions.filter(d=>d.isActive)
   const createMut = useMutation({
     mutationFn:(dto:any)=>apiClient.post<Contract>('/crm/contracts',dto).then(r=>r.data),
     onSuccess:()=>qc.invalidateQueries({queryKey:['crm','contracts']}),
@@ -262,7 +262,7 @@ function ContractForm({open,onClose,onCreated}:{open:boolean;onClose:()=>void;on
                   <SelectTrigger><SelectValue placeholder="Выберите…"/></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Выберите…</SelectItem>
-                    {activeDirections.map(d=><SelectItem key={d.id} value={d.id} description={`${d.duration_months} мес. · ${d.total_lessons} уроков`}>{d.name}</SelectItem>)}
+                    {activeDirections.map(d=><SelectItem key={d.id} value={d.id} description={`${d.durationMonths} мес. · ${d.totalLessons} уроков`}>{d.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -270,8 +270,8 @@ function ContractForm({open,onClose,onCreated}:{open:boolean;onClose:()=>void;on
 
             {selectedDir&&(
               <div className="flex gap-4 p-3 bg-primary-50 border border-primary-100 rounded-lg text-sm">
-                <div><span className="text-gray-500">Длительность:</span> <strong>{selectedDir.duration_months} мес.</strong></div>
-                <div><span className="text-gray-500">Уроков:</span> <strong>{selectedDir.total_lessons}</strong></div>
+                <div><span className="text-gray-500">Длительность:</span> <strong>{selectedDir.durationMonths} мес.</strong></div>
+                <div><span className="text-gray-500">Уроков:</span> <strong>{selectedDir.totalLessons}</strong></div>
               </div>
             )}
 

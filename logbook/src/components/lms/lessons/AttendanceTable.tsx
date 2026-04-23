@@ -17,7 +17,7 @@ interface AttendanceTableProps {
 }
 
 const statuses: { value: AttendanceStatus; label: string; color: string }[] = [
-  { value: 'on_time', label: 'Присутствует', color: 'bg-success-50 text-success-700 border-success-200' },
+  { value: 'present', label: 'Присутствует', color: 'bg-success-50 text-success-700 border-success-200' },
   { value: 'late',    label: 'Опоздал',      color: 'bg-warning-50 text-warning-700 border-warning-200' },
   { value: 'absent',  label: 'Отсутствует',  color: 'bg-danger-50 text-danger-700 border-danger-200' },
 ]

@@ -186,12 +186,17 @@ async def create_lead(body: CreateLeadRequest, current_user: CurrentUser, db: Db
             .where(UserModel.is_active == True)  # noqa: E712
         )).scalars().all()
         if managers:
-            # Pick manager with fewest active leads
+            # Pick manager with fewest active leads — single GROUP BY query
+            manager_ids = [m.id for m in managers]
+            lead_counts = (await db.execute(
+                select(LeadModel.assigned_to, fn.count(LeadModel.id).label("cnt"))
+                .where(LeadModel.assigned_to.in_(manager_ids), LeadModel.status == "active")
+                .group_by(LeadModel.assigned_to)
+            )).all()
+            counts_map = {r.assigned_to: r.cnt for r in lead_counts}
             best, best_count = None, float("inf")
             for m in managers:
-                cnt = (await db.execute(
-                    select(fn.count()).where(LeadModel.assigned_to == m.id, LeadModel.status == "active")
-                )).scalar() or 0
+                cnt = counts_map.get(m.id, 0)
                 if cnt < best_count:
                     best, best_count = m.id, cnt
             assigned_to = best
@@ -630,16 +635,24 @@ async def list_contacts(
     q = q.offset((page - 1) * limit).limit(limit)
     rows = (await db.execute(q)).scalars().all()
 
+    # Bulk fetch lead counts per contact — single GROUP BY query
+    contact_ids = [c.id for c in rows]
+    leads_counts_map: dict = {}  # type: ignore[type-arg]
+    if contact_ids:
+        count_rows = (await db.execute(
+            select(LeadModel.contact_id, fn.count(LeadModel.id).label("cnt"))
+            .where(LeadModel.contact_id.in_(contact_ids))
+            .group_by(LeadModel.contact_id)
+        )).all()
+        leads_counts_map = {r.contact_id: r.cnt for r in count_rows}
+
     result = []
     for c in rows:
-        leads_count = (await db.execute(
-            select(fn.count()).where(LeadModel.contact_id == c.id)
-        )).scalar() or 0
         result.append(ContactOut(
             id=c.id, fullName=c.full_name, phone=c.phone, email=c.email,
             notes=c.notes,
             createdAt=c.created_at.isoformat() if c.created_at else None,
-            leadsCount=leads_count,
+            leadsCount=leads_counts_map.get(c.id, 0),
         ))
     return result
 

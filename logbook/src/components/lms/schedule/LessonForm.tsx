@@ -111,34 +111,47 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
     setRangeStart(''); setRangeEnd(''); setWeekdays([])
   }, [open, defaultDate])
 
-  // Derived lists
+  // Derived lists — filter groups by selected direction
   const filteredGroups = useMemo(
-    () => directionId ? (allGroups as Group[]).filter((g) => g.directionId === directionId) : (allGroups as Group[]),
+    () => directionId
+      ? (allGroups as Group[]).filter((g) => g.directionId === directionId)
+      : (allGroups as Group[]),
     [allGroups, directionId]
   )
 
-  const teachers = useMemo(
+  const allTeachers = useMemo(
     () => (allUsers as any[]).filter((u) => u.role === 'teacher'),
     [allUsers]
   )
 
-  const selectedGroup = (allGroups as Group[]).find((g) => g.id === groupId)
+  // Filter teachers by selected subject's teacher_id
+  const filteredTeachers = useMemo(() => {
+    if (!subjectId) return allTeachers
+    const subj = (dirSubjects as any[]).find((s: any) => s.id === subjectId)
+    if (!subj?.teacherId) return allTeachers
+    return allTeachers.filter((t: any) => t.id === subj.teacherId)
+  }, [allTeachers, dirSubjects, subjectId])
 
-  // When direction changes — reset group, subject, teacher
+  // When direction changes — reset cascade
   const handleDirectionChange = (val: string) => {
     setDirectionId(val)
     setGroupId(''); setSubjectId(''); setTeacherId('')
   }
 
-  // When group changes — auto-fill subject and teacher from group
+  // When group changes — reset subject & teacher
   const handleGroupChange = (val: string) => {
     setGroupId(val)
-    const g = (allGroups as Group[]).find((g) => g.id === val)
-    if (g) {
-      setSubjectId(g.subjectId ?? g.subject?.id ?? '')
-      setTeacherId(g.teacherId ?? g.teacher?.id ?? '')
+    setSubjectId(''); setTeacherId('')
+  }
+
+  // When subject changes — auto-select teacher if only one, otherwise reset
+  const handleSubjectChange = (val: string) => {
+    setSubjectId(val)
+    const subj = (dirSubjects as any[]).find((s: any) => s.id === val)
+    if (subj?.teacherId) {
+      setTeacherId(subj.teacherId)
     } else {
-      setSubjectId(''); setTeacherId('')
+      setTeacherId('')
     }
   }
 
@@ -222,7 +235,7 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
           <Field label="Предмет *">
             <SelectInput
               value={subjectId}
-              onChange={setSubjectId}
+              onChange={handleSubjectChange}
               disabled={!directionId}
               placeholder={directionId ? 'Выберите предмет' : 'Сначала выберите направление'}
             >
@@ -237,10 +250,10 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
             <SelectInput
               value={teacherId}
               onChange={setTeacherId}
-              disabled={!directionId}
-              placeholder="Выберите преподавателя"
+              disabled={!subjectId}
+              placeholder={subjectId ? 'Выберите преподавателя' : 'Сначала выберите предмет'}
             >
-              {teachers.map((t: any) => (
+              {filteredTeachers.map((t: any) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </SelectInput>

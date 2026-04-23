@@ -34,12 +34,9 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "amqp://edu:edu@localhost:5672//"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
 
-    # ── AWS S3 / MinIO ────────────────────────────────────────────────────────
-    AWS_ACCESS_KEY_ID: str = "minioadmin"
-    AWS_SECRET_ACCESS_KEY: str = "minioadmin"
-    AWS_BUCKET_NAME: str = "eduplatform-files"
-    AWS_REGION: str = "us-east-1"
-    AWS_ENDPOINT_URL: str | None = "http://localhost:9000"  # None for real AWS
+    # ── Google Cloud Storage ─────────────────────────────────────────────────
+    GCS_BUCKET_NAME: str = "eduplatform"
+    GCS_CREDENTIALS_JSON: str | None = "/app/gcp_keys.json"
 
     # ── Sentry ────────────────────────────────────────────────────────────────
     SENTRY_DSN: str | None = None

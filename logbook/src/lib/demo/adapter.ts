@@ -195,19 +195,15 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
     }
     const params = config.params ?? {}
     if (method === 'get' && !groupId) {
-      let filtered = groups.filter((g) => !g.isArchived)
-      if (params.teacherId) filtered = filtered.filter((g) => g.teacherId === params.teacherId)
-      if (params.directionId) filtered = filtered.filter((g) => g.directionId === params.directionId)
+      let filtered = groups.filter((g) => g.isActive)
       return resolve(ok(filtered, config))
     }
     if (method === 'get') return resolve(ok(groups.find((g) => g.id === groupId) ?? groups[0], config))
     if (method === 'post') {
-      const teacher = DEMO_USERS.find((u) => u.id === body.teacherId) ?? DEMO_TEACHER_1
-      const direction = directions.find((d) => d.id === body.directionId) ?? directions[0]
-      const subject = subjects.find((s) => s.id === body.subjectId) ?? subjects[0]
       const group = {
-        id: uid(), isArchived: false, studentCount: 0, createdAt: new Date().toISOString(),
-        teacher, direction, subject, ...body,
+        id: uid(), isActive: true, studentCount: 0,
+        roomId: null, schedule: null,
+        ...body,
       } as typeof groups[0]
       groups.push(group)
       return resolve(created(group, config))
@@ -234,7 +230,7 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
     const lessonId = idFrom(url, 'lessons')
 
     if (url.includes('/conduct')) {
-      lessons = lessons.map((l) => l.id === lessonId ? { ...l, status: 'conducted' as const, topic: body.topic } : l)
+      lessons = lessons.map((l) => l.id === lessonId ? { ...l, status: 'completed' as const, topic: body.topic } : l)
       return resolve(ok(lessons.find((l) => l.id === lessonId), config))
     }
 
@@ -262,7 +258,7 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
       // Bulk create: body has { groupId, roomId?, startDate, endDate, weekdays, startTime, endTime }
       const { groupId: bGroupId, roomId: bRoomId, teacherId: bTeacherId, startDate, endDate, weekdays: wdays, startTime: bStart, endTime: bEnd } = body
       const bGroup   = groups.find((g) => g.id === bGroupId) ?? groups[0]
-      const bTeacherIdToUse = bTeacherId ?? bGroup.teacherId
+      const bTeacherIdToUse = bTeacherId ?? DEMO_TEACHER_1.id
       const bTeacher = DEMO_USERS.find((u) => u.id === bTeacherIdToUse) ?? DEMO_TEACHER_1
       const bRoom    = bRoomId ? rooms.find((r) => r.id === bRoomId) ?? null : null
       const createdLessons: Lesson[] = []
@@ -273,10 +269,10 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
         if ((wdays as number[]).includes(getISODay(cur))) {
           const dateStr = cur.toISOString().slice(0, 10)
           const lesson: Lesson = {
-            id: uid(), status: 'scheduled', isRecurring: true, seriesId: uid(),
+            id: uid(), status: 'scheduled',
             cancelReason: null, topic: null, createdAt: new Date().toISOString(),
-            group: bGroup, teacher: bTeacher, teacherId: bTeacher.id,
-            room: bRoom, roomId: bRoomId ?? null,
+            subjectId: null, teacherId: bTeacher.id,
+            roomId: bRoomId ?? null, isOnline: false,
             groupId: bGroupId, date: dateStr,
             startTime: bStart, endTime: bEnd,
           }
@@ -304,16 +300,16 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
     if (method === 'get') return resolve(ok(lessons.find((l) => l.id === lessonId) ?? lessons[0], config))
     if (method === 'post') {
       const group   = groups.find((g) => g.id === body.groupId) ?? groups[0]
-      // Use teacherId from body if provided, otherwise fall back to group's teacher
-      const teacherIdToUse = body.teacherId ?? group.teacherId
+      // Use teacherId from body if provided, otherwise fall back to subject's teacher
+      const teacherIdToUse = body.teacherId ?? DEMO_TEACHER_1.id
       const teacher = DEMO_USERS.find((u) => u.id === teacherIdToUse) ?? DEMO_TEACHER_1
       const room    = rooms.find((r) => r.id === body.roomId) ?? null
       const lesson = {
-        id: uid(), status: 'scheduled' as const, isRecurring: false, seriesId: null,
+        id: uid(), status: 'scheduled' as const,
         cancelReason: null, topic: null, createdAt: new Date().toISOString(),
-        group, teacher, teacherId: teacher.id, room, roomId: body.roomId ?? null,
+        subjectId: body.subjectId ?? null, teacherId: teacher.id,
+        roomId: body.roomId ?? null, isOnline: false,
         groupId: body.groupId, date: body.date, startTime: body.startTime, endTime: body.endTime,
-        ...body,
       } as Lesson
       lessons.push(lesson)
       return resolve(created(lesson, config))
@@ -412,9 +408,10 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
     if (method === 'post') {
       const lesson = lessons.find((l) => l.id === body.lessonId) ?? lessons[0]
       const req = {
-        id: uid(), status: 'pending' as const, reviewedBy: null, reviewNote: null, reviewedAt: null,
-        createdAt: new Date().toISOString(), teacher: DEMO_TEACHER_1, teacherId: 'u3',
-        lessonId: body.lessonId, reason: body.reason, lesson, ...body,
+        id: uid(), isApproved: null, reviewedByName: null, reviewedAt: null,
+        createdAt: new Date().toISOString(), teacherId: 'u3', teacherName: 'Demo Teacher',
+        lessonId: body.lessonId, lessonDate: lesson.date, lessonTopic: lesson.topic,
+        groupName: null, reason: body.reason, status: 'pending' as const,
       } as LateEntryRequest
       lateRequests.push(req)
       return resolve(created(req, config))
@@ -461,9 +458,10 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
       const group = groups.find((g) => g.id === body.groupId) ?? groups[0]
       const room  = rooms.find((r) => r.id === body.roomId) ?? null
       const exam = {
-        id: uid(), status: 'upcoming' as const, createdAt: new Date().toISOString(),
-        description: null, roomId: body.roomId ?? null,
-        group, room, ...body,
+        id: uid(), status: 'upcoming' as const,
+        title: body.title, groupId: body.groupId, groupName: group.name,
+        date: body.date, startTime: body.startTime, endTime: body.endTime,
+        description: body.description ?? null,
       } as Exam
       exams.push(exam)
       return resolve(created(exam, config))
@@ -524,8 +522,8 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
     const groupPerf = groups.map((g) => ({
       groupId:     g.id,
       groupName:   g.name,
-      direction:   g.direction.name,
-      teacher:     g.teacher.name,
+      direction:   'N/A',
+      teacher:     (lessons.find((l) => l.groupId === g.id) as any)?.teacher?.name ?? '',
       studentCount: g.studentCount,
       avgGrade:    6.5 + Math.random() * 2.5,
       attendance:  70 + Math.random() * 25,
@@ -535,7 +533,7 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
   }
   if (url.includes('/lms/reports/teacher-hours')) {
     const teachers = DEMO_USERS.filter((u) => u.role === 'teacher').map((t) => {
-      const tLessons = lessons.filter((l) => l.teacherId === t.id && l.status === 'conducted')
+      const tLessons = lessons.filter((l) => l.teacherId === t.id && l.status === 'completed')
       const hours = tLessons.length * 1.5 // 90 min per lesson
       return {
         teacherId:   t.id,
@@ -550,7 +548,7 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
   }
   if (url.includes('/lms/reports/by-direction')) {
     const dirs = DEMO_DIRECTIONS.map((dir) => {
-      const dirGroups = groups.filter((g) => g.directionId === dir.id)
+      const dirGroups = groups.filter((_g) => true) // groups no longer have directionId
       const dirLessons = lessons.filter((l) => dirGroups.some((g) => g.id === l.groupId))
       return {
         directionId: dir.id,
@@ -559,7 +557,7 @@ export function demoAdapter(config: InternalAxiosRequestConfig): Promise<AxiosRe
         groupCount: dirGroups.length,
         studentCount: dirGroups.reduce((s, g) => s + g.studentCount, 0),
         lessonsTotal: dirLessons.length,
-        lessonsConducted: dirLessons.filter((l) => l.status === 'conducted').length,
+        lessonsConducted: dirLessons.filter((l) => l.status === 'completed').length,
         lessonsCancelled: dirLessons.filter((l) => l.status === 'cancelled').length,
       }
     })

@@ -1,6 +1,7 @@
 import uuid
+from datetime import date
 
-from sqlalchemy import Boolean, String, Enum as SAEnum
+from sqlalchemy import Boolean, Date, String, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,5 +24,7 @@ class UserModel(Base, UUIDPrimaryKey, TimestampMixin):
         nullable=False,
         index=True,
     )
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

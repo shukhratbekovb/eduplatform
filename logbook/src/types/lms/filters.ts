@@ -21,7 +21,6 @@ export interface StudentFilters {
 export interface GroupFilters {
   search?:      string
   directionId?: string
-  teacherId?:   string
   isArchived?:  boolean
 }
 

@@ -77,12 +77,12 @@ export interface ConductLessonDto {
 // ─── Groups ───────────────────────────────────────────────────────────────────
 
 export interface CreateGroupDto {
-  name:        string
-  directionId: string
-  subjectId:   string
-  teacherId:   string
-  startDate:   string
-  endDate:     string
+  name:         string
+  directionId?: string
+  roomId?:      string
+  startDate?:   string
+  endDate?:     string
+  schedule?:    Record<string, any>
 }
 
 export interface EnrollStudentDto {
@@ -99,7 +99,7 @@ export interface CreateStudentDto {
   dateOfBirth?: string
   parentName?: string
   parentPhone?: string
-}
+  address?: string}
 
 export interface UpdateStudentDto extends Partial<CreateStudentDto> {}
 
@@ -125,8 +125,7 @@ export interface CreateLateRequestDto {
 }
 
 export interface ReviewLateRequestDto {
-  status:     'approved' | 'rejected'
-  reviewNote?: string
+  approved: boolean
 }
 
 // ─── MUP Tasks ────────────────────────────────────────────────────────────────

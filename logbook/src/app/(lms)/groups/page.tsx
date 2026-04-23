@@ -2,45 +2,57 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Plus, BookOpen, Search, Users, Calendar } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api/axios'
 import { useGroups, useArchiveGroup } from '@/lib/hooks/lms/useGroups'
-import { useDirections, useSubjects, useLmsUsers } from '@/lib/hooks/lms/useSettings'
+import { useDirections } from '@/lib/hooks/lms/useSettings'
 import { useIsDirectorOrMup, useCurrentUser } from '@/lib/stores/useAuthStore'
 import { GroupForm } from '@/components/lms/groups/GroupForm'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { formatDate } from '@/lib/utils/dates'
-import { cn } from '@/lib/utils/cn'
 import type { Group } from '@/types/lms'
 
 export default function GroupsPage() {
   const user       = useCurrentUser()
-  const isTeacher  = user?.role === 'teacher'
   const canManage  = useIsDirectorOrMup()
-
-  const params = isTeacher ? { teacherId: user?.id } : undefined
-  const { data: groups = [], isLoading } = useGroups(params as any)
-  const { data: directions = [] }        = useDirections()
-  const { data: subjects = [] }          = useSubjects()
-  const { data: allUsers = [] }          = useLmsUsers()
-  const { mutate: archiveGroup }         = useArchiveGroup()
+  const isTeacher  = user?.role === 'teacher'
 
   const [search, setSearch]       = useState('')
   const [filterDir, setFilterDir] = useState('')
   const [showForm, setShowForm]   = useState(false)
 
-  // Build lookup maps
-  const subjectMap   = useMemo(() => new Map((subjects as any[]).map((s: any) => [s.id, s])), [subjects])
-  const teacherMap   = useMemo(() => new Map((allUsers as any[]).map((u: any) => [u.id, u])), [allUsers])
-
-  const filtered = (groups as Group[]).filter((g) => {
-    const matchName = g.name.toLowerCase().includes(search.toLowerCase())
-    return matchName
+  // Teacher's directions
+  const { data: teacherDirs } = useQuery({
+    queryKey: ['lms', 'teacher-directions', user?.id],
+    queryFn: () => apiClient.get(`/lms/users/${user!.id}/directions`).then((r) => r.data as { id: string; name: string }[]),
+    enabled: isTeacher && !!user?.id,
+    staleTime: 10 * 60_000,
   })
+  const { data: allDirections = [] } = useDirections()
+  const directions = useMemo(
+    () => isTeacher && teacherDirs ? teacherDirs : allDirections,
+    [isTeacher, teacherDirs, allDirections],
+  )
+
+  // Build params for API
+  const apiParams = useMemo(() => {
+    const p: Record<string, string> = {}
+    if (isTeacher && user?.id) p.teacherId = user.id
+    if (filterDir) p.directionId = filterDir
+    return Object.keys(p).length ? p : undefined
+  }, [isTeacher, user?.id, filterDir])
+
+  const { data: groups = [], isLoading } = useGroups(apiParams)
+  const { mutate: archiveGroup }         = useArchiveGroup()
+
+  const filtered = (groups as Group[]).filter((g) =>
+    g.name.toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
     <div>
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-primary-600" />
@@ -55,7 +67,6 @@ export default function GroupsPage() {
         )}
       </div>
 
-      {/* Filters */}
       <div className="flex gap-3 mb-5 flex-wrap">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -66,9 +77,18 @@ export default function GroupsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <select
+          value={filterDir}
+          onChange={(e) => setFilterDir(e.target.value)}
+          className="h-10 border border-gray-300 rounded text-sm px-3 text-gray-700 focus:outline-none focus:border-primary-500 bg-white"
+        >
+          <option value="">Все направления</option>
+          {(directions as any[]).map((d: any) => (
+            <option key={d.id} value={d.id}>{d.name}</option>
+          ))}
+        </select>
       </div>
 
-      {/* Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -79,20 +99,9 @@ export default function GroupsPage() {
         <EmptyState icon={BookOpen} title="Группы не найдены" description="Попробуйте изменить фильтры" />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((group: any) => {
-            const subject = subjectMap.get(group.subjectId)
-            const teacher = teacherMap.get(group.teacherId)
-            return (
-              <GroupCard
-                key={group.id}
-                group={group}
-                subjectName={subject?.name}
-                teacherName={teacher?.name}
-                canManage={canManage}
-                onArchive={() => archiveGroup(group.id)}
-              />
-            )
-          })}
+          {filtered.map((group) => (
+            <GroupCard key={group.id} group={group} />
+          ))}
         </div>
       )}
 
@@ -101,29 +110,23 @@ export default function GroupsPage() {
   )
 }
 
-function GroupCard({
-  group, subjectName, teacherName, canManage, onArchive,
-}: {
-  group: any; subjectName?: string; teacherName?: string;
-  canManage: boolean; onArchive: () => void;
-}) {
+function GroupCard({ group }: { group: Group }) {
   return (
     <Link
       href={`/groups/${group.id}`}
-      className="block bg-white rounded-lg border border-gray-200 p-4 hover:border-primary-300 hover:shadow-sm transition-all group"
+      className="block bg-white rounded-lg border border-gray-200 p-4 hover:border-primary-300 hover:shadow-sm transition-all group/card"
     >
-      <h3 className="font-semibold text-gray-900 group-hover:text-primary-700 transition-colors mb-1">
+      <h3 className="font-semibold text-gray-900 group-hover/card:text-primary-700 transition-colors mb-0.5">
         {group.name}
       </h3>
-      {subjectName && <p className="text-sm text-gray-500 mb-3">{subjectName}</p>}
+      {group.directionName && (
+        <p className="text-xs text-gray-500 mb-2">{group.directionName}</p>
+      )}
 
       <div className="space-y-1 text-xs text-gray-400">
         <div className="flex items-center gap-1.5">
           <Users className="w-3.5 h-3.5" />
-          <span>
-            {group.studentCount ?? 0} студентов
-            {teacherName && ` · ${teacherName.split(' ')[0]}`}
-          </span>
+          <span>{group.studentCount ?? 0} студентов</span>
         </div>
         {(group.startDate || group.endDate) && (
           <div className="flex items-center gap-1.5">

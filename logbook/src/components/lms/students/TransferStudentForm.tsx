@@ -62,7 +62,7 @@ export function TransferStudentForm({ open, onOpenChange, student }: TransferStu
                 <option value="">Выберите группу…</option>
                 {available.map((g: any) => (
                   <option key={g.id} value={g.id}>
-                    {g.name} — {g.subject?.name} ({g.teacher?.name})
+                    {g.name}
                   </option>
                 ))}
               </select>

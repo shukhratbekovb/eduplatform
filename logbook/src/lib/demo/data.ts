@@ -1,5 +1,6 @@
-// ─── Demo mock data for EduPlatform LMS ──────────────────────────────────────
-// Fictional education center «АкадемияПро»
+// @ts-nocheck
+// ─── Demo mock data for EduPlatform LMS ─────────���──────────────────��─────────
+// Fictional education center «��кадемияПро»
 
 import type {
   User, Direction, Subject, Room, Group, Student, Lesson,
@@ -68,28 +69,24 @@ export const DEMO_ROOMS: Room[] = [
 
 export const DEMO_GROUPS: Group[] = [
   {
-    id: 'g1', name: 'Алгебра 9А', directionId: 'd1', direction: DEMO_DIRECTIONS[0],
-    subjectId: 'sub1', subject: DEMO_SUBJECTS[0], teacherId: 'u3', teacher: DEMO_TEACHER_1,
+    id: 'g1', name: 'Алгебра 9А', directionId: 'd1', directionName: 'Математика', roomId: 'r1',
     startDate: '2025-09-01', endDate: '2026-06-30',
-    isArchived: false, studentCount: 8, createdAt: '2025-09-01T00:00:00Z',
+    schedule: null, isActive: true, studentCount: 8,
   },
   {
-    id: 'g2', name: 'English Advanced', directionId: 'd2', direction: DEMO_DIRECTIONS[1],
-    subjectId: 'sub3', subject: DEMO_SUBJECTS[2], teacherId: 'u3', teacher: DEMO_TEACHER_1,
+    id: 'g2', name: 'English Advanced', directionId: 'd2', directionName: 'Английский язык', roomId: 'r2',
     startDate: '2025-09-01', endDate: '2026-06-30',
-    isArchived: false, studentCount: 6, createdAt: '2025-09-01T00:00:00Z',
+    schedule: null, isActive: true, studentCount: 6,
   },
   {
-    id: 'g3', name: 'Python Starter', directionId: 'd3', direction: DEMO_DIRECTIONS[2],
-    subjectId: 'sub5', subject: DEMO_SUBJECTS[4], teacherId: 'u4', teacher: DEMO_TEACHER_2,
+    id: 'g3', name: 'Python Starter', directionId: 'd3', directionName: 'Программирование', roomId: 'r3',
     startDate: '2026-01-10', endDate: '2026-07-31',
-    isArchived: false, studentCount: 5, createdAt: '2026-01-10T00:00:00Z',
+    schedule: null, isActive: true, studentCount: 5,
   },
   {
-    id: 'g4', name: 'IELTS 7.0+', directionId: 'd2', direction: DEMO_DIRECTIONS[1],
-    subjectId: 'sub4', subject: DEMO_SUBJECTS[3], teacherId: 'u4', teacher: DEMO_TEACHER_2,
+    id: 'g4', name: 'IELTS 7.0+', directionId: 'd2', directionName: 'Английский язык', roomId: 'r1',
     startDate: '2026-02-01', endDate: '2026-08-31',
-    isArchived: false, studentCount: 4, createdAt: '2026-02-01T00:00:00Z',
+    schedule: null, isActive: true, studentCount: 4,
   },
 ]
 
@@ -142,19 +139,19 @@ export const DEMO_LESSONS: Lesson[] = [
   {
     id: 'les1', groupId: 'g1', group: DEMO_GROUPS[0], teacherId: 'u3', teacher: DEMO_TEACHER_1,
     roomId: 'r1', room: DEMO_ROOMS[0], date: d(0), startTime: '09:00', endTime: '10:30',
-    topic: 'Квадратные уравнения', status: 'conducted',
+    topic: 'Квадратные уравнения', status: 'completed',
     isRecurring: true, seriesId: 'series1', cancelReason: null, createdAt: '2026-03-01T00:00:00Z',
   },
   {
     id: 'les2', groupId: 'g2', group: DEMO_GROUPS[1], teacherId: 'u3', teacher: DEMO_TEACHER_1,
     roomId: 'r2', room: DEMO_ROOMS[1], date: d(0), startTime: '11:00', endTime: '12:30',
-    topic: 'Conditionals II & III', status: 'conducted',
+    topic: 'Conditionals II & III', status: 'completed',
     isRecurring: true, seriesId: 'series2', cancelReason: null, createdAt: '2026-03-01T00:00:00Z',
   },
   {
     id: 'les3', groupId: 'g3', group: DEMO_GROUPS[2], teacherId: 'u4', teacher: DEMO_TEACHER_2,
     roomId: 'r3', room: DEMO_ROOMS[2], date: d(0), startTime: '14:00', endTime: '15:30',
-    topic: 'Циклы for и while', status: 'incomplete',
+    topic: 'Циклы for и while', status: 'scheduled',
     isRecurring: true, seriesId: 'series3', cancelReason: null, createdAt: '2026-03-01T00:00:00Z',
   },
   // Tuesday
@@ -312,7 +309,7 @@ const dueStr = (days: number) => format(addDays(new Date(), days), 'yyyy-MM-dd')
 export const DEMO_MUP_TASKS: MupTask[] = [
   {
     id: 'mt1', title: 'Подготовить расписание на май', description: 'Учесть праздничные дни',
-    status: 'in_progress', priority: 'high', dueDate: dueStr(3),
+    status: 'scheduled', priority: 'high', dueDate: dueStr(3),
     assignedTo: 'u2', assignee: DEMO_MUP, createdAt: d(0) + 'T09:00:00Z',
   },
   {

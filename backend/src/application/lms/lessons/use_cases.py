@@ -36,7 +36,7 @@ class CreateLessonUseCase:
             lesson_date=inp.lesson_date,
             start_time=inp.start_time,
             end_time=inp.end_time,
-            teacher_id=inp.teacher_id or group.teacher_id,
+            teacher_id=inp.teacher_id,
             room_id=inp.room_id,
             is_online=inp.is_online,
             topic=inp.topic,

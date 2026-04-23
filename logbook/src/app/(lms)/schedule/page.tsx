@@ -1,23 +1,28 @@
 'use client'
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, CalendarDays, RefreshCw } from 'lucide-react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, CalendarDays, RefreshCw, Pencil, Trash2, BookOpen, Users, MapPin, Clock, X, Check } from 'lucide-react'
 import { addWeeks, subWeeks, parseISO, format, isToday } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { useSchedule } from '@/lib/hooks/lms/useSchedule'
-import { useRooms, useLmsUsers } from '@/lib/hooks/lms/useSettings'
+import { useSchedule, useUpdateLesson, useCancelLesson } from '@/lib/hooks/lms/useSchedule'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api/axios'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
+import { useGroups } from '@/lib/hooks/lms/useGroups'
+import { useRooms, useLmsUsers, useSubjects } from '@/lib/hooks/lms/useSettings'
 import { useLmsStore } from '@/lib/stores/useLmsStore'
 import { useIsDirectorOrMup, useCurrentUser } from '@/lib/stores/useAuthStore'
 import { LessonForm } from '@/components/lms/schedule/LessonForm'
 import { Button } from '@/components/ui/button'
 import { getWeekDays, toIsoDate } from '@/lib/utils/dates'
 import { cn } from '@/lib/utils/cn'
-import Link from 'next/link'
 import type { Lesson } from '@/types/lms'
 
 // Calendar constants
-const HOUR_START  = 8   // 8:00
-const HOUR_END    = 21  // 21:00
-const HOUR_HEIGHT = 64  // px per hour
+const HOUR_START  = 0
+const HOUR_END    = 24
+const HOUR_HEIGHT = 80  // px per hour
 const TOTAL_HOURS = HOUR_END - HOUR_START
 const GRID_HEIGHT = TOTAL_HOURS * HOUR_HEIGHT
 
@@ -25,12 +30,10 @@ const HOURS = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => HOUR_START + i)
 
 const DAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
-const STATUS_DOT: Record<Lesson['status'], string> = {
-  scheduled:   'bg-primary-500',
-  in_progress: 'bg-warning-500 animate-pulse',
-  conducted:   'bg-success-500',
-  incomplete:  'bg-danger-500',
-  cancelled:   'bg-gray-400',
+const STATUS_DOT: Record<string, string> = {
+  scheduled: 'bg-primary-500',
+  completed: 'bg-success-500',
+  cancelled: 'bg-gray-400',
 }
 
 function timeToMinutes(time: string) {
@@ -56,16 +59,36 @@ export default function SchedulePage() {
 
   const [showForm, setShowForm]           = useState(false)
   const [defaultDate, setDefaultDate]     = useState<string>()
-  const [filterTeacherId, setFilterTeacher] = useState('')
-  const [filterRoomId, setFilterRoom]     = useState('')
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null)
+  const [filterTeacherIds, setFilterTeacherIds] = useState<Set<string>>(new Set())
+  const [filterRoomIds, setFilterRoomIds]       = useState<Set<string>>(new Set())
 
-  const filters: Record<string, string> = {}
-  if (filterTeacherId) filters.teacherId = filterTeacherId
-  if (filterRoomId)    filters.roomId    = filterRoomId
+  const isTeacher = user?.role === 'teacher'
 
-  const { data: lessons = [], isLoading, refetch } = useSchedule(weekStart, filters)
-  const { data: rooms = [] }    = useRooms()
-  const { data: allUsers = [] } = useLmsUsers()
+  // API filter: only teacherId for teacher role
+  const apiFilters: Record<string, string> = {}
+  if (isTeacher && user?.id) apiFilters.teacherId = user.id
+
+  const { data: rawLessons = [], isLoading, refetch } = useSchedule(weekStart, apiFilters)
+
+  // Client-side multiselect filtering
+  const lessons = useMemo(() => {
+    let result = rawLessons as Lesson[]
+    if (filterTeacherIds.size > 0)
+      result = result.filter((l) => l.teacherId && filterTeacherIds.has(l.teacherId))
+    if (filterRoomIds.size > 0)
+      result = result.filter((l) => l.roomId && filterRoomIds.has(l.roomId))
+    return result
+  }, [rawLessons, filterTeacherIds, filterRoomIds])
+  const { data: groups = [] }     = useGroups()
+  const { data: subjects = [] }   = useSubjects()
+  const { data: rooms = [] }      = useRooms()
+  const { data: allUsers = [] }   = useLmsUsers()
+
+  const groupMap   = useMemo(() => new Map((groups as any[]).map((g: any) => [g.id, g.name])), [groups])
+  const subjectMap = useMemo(() => new Map((subjects as any[]).map((s: any) => [s.id, s.name])), [subjects])
+  const teacherMap = useMemo(() => new Map((allUsers as any[]).map((u: any) => [u.id, u.name])), [allUsers])
+  const roomMap    = useMemo(() => new Map((rooms as any[]).map((r: any) => [r.id, r.name])), [rooms])
 
   const weekDays = getWeekDays(weekStart)
 
@@ -124,29 +147,21 @@ export default function SchedulePage() {
       {/* Filters for Director/MUP */}
       {canManage && (
         <div className="flex items-center gap-2 mb-4 flex-wrap shrink-0">
-          <select
-            value={filterTeacherId}
-            onChange={(e) => setFilterTeacher(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:border-primary-400 h-8"
-          >
-            <option value="">Все преподаватели</option>
-            {teachers.map((t: any) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-          <select
-            value={filterRoomId}
-            onChange={(e) => setFilterRoom(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:border-primary-400 h-8"
-          >
-            <option value="">Все кабинеты</option>
-            {(rooms as any[]).map((r: any) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
-          {(filterTeacherId || filterRoomId) && (
+          <MultiSelectFilter
+            label="Преподаватели"
+            items={teachers.map((t: any) => ({ id: t.id, name: t.name }))}
+            selected={filterTeacherIds}
+            onChange={setFilterTeacherIds}
+          />
+          <MultiSelectFilter
+            label="Кабинеты"
+            items={(rooms as any[]).filter((r: any) => r.isActive).map((r: any) => ({ id: r.id, name: r.name }))}
+            selected={filterRoomIds}
+            onChange={setFilterRoomIds}
+          />
+          {(filterTeacherIds.size > 0 || filterRoomIds.size > 0) && (
             <button
-              onClick={() => { setFilterTeacher(''); setFilterRoom('') }}
+              onClick={() => { setFilterTeacherIds(new Set()); setFilterRoomIds(new Set()) }}
               className="text-xs text-gray-400 hover:text-gray-600 underline"
             >
               Сбросить
@@ -225,7 +240,7 @@ export default function SchedulePage() {
                       />
                     ))}
 
-                    {/* Half-hour lines (lighter) */}
+                    {/* Half-hour lines */}
                     {HOURS.slice(0, -1).map((h) => (
                       <div
                         key={`h${h}`}
@@ -242,7 +257,11 @@ export default function SchedulePage() {
                       <CalendarLessonBlock
                         key={lesson.id}
                         lesson={lesson}
-                        onAddLesson={canManage ? (e) => { e.stopPropagation(); setDefaultDate(toIsoDate(day)); setShowForm(true) } : undefined}
+                        groupName={groupMap.get(lesson.groupId)}
+                        subjectName={lesson.subjectId ? subjectMap.get(lesson.subjectId) : undefined}
+                        teacherName={lesson.teacherId ? teacherMap.get(lesson.teacherId) : undefined}
+                        roomName={lesson.roomId ? roomMap.get(lesson.roomId) : undefined}
+                        onClick={() => setSelectedLesson(lesson)}
                       />
                     ))}
                   </div>
@@ -254,6 +273,20 @@ export default function SchedulePage() {
       </div>
 
       <LessonForm open={showForm} onOpenChange={setShowForm} defaultDate={defaultDate} />
+
+      {selectedLesson && (
+        <LessonDetailModal
+          lesson={selectedLesson}
+          groupName={groupMap.get(selectedLesson.groupId)}
+          subjectName={selectedLesson.subjectId ? subjectMap.get(selectedLesson.subjectId) : undefined}
+          teacherName={selectedLesson.teacherId ? teacherMap.get(selectedLesson.teacherId) : undefined}
+          roomName={selectedLesson.roomId ? roomMap.get(selectedLesson.roomId) : undefined}
+          teachers={(allUsers as any[]).filter((u: any) => u.role === 'teacher')}
+          activeRooms={(rooms as any[]).filter((r: any) => r.isActive)}
+          canManage={canManage}
+          onClose={() => setSelectedLesson(null)}
+        />
+      )}
     </div>
   )
 }
@@ -275,40 +308,39 @@ function TodayLine() {
 }
 
 function CalendarLessonBlock({
-  lesson,
-  onAddLesson,
+  lesson, groupName, subjectName, teacherName, roomName, onClick,
 }: {
   lesson: Lesson
-  onAddLesson?: (e: React.MouseEvent) => void
+  groupName?: string
+  subjectName?: string
+  teacherName?: string
+  roomName?: string
+  onClick?: () => void
 }) {
   const top    = lessonTopPx(lesson.startTime)
   const height = lessonHeightPx(lesson.startTime, lesson.endTime)
-  const isShort = height < 48
+  const isShort  = height < 36
+  const isMedium = height >= 36 && height < 56
 
-  const borderColors: Record<Lesson['status'], string> = {
-    scheduled:   'border-l-primary-500',
-    in_progress: 'border-l-warning-500',
-    conducted:   'border-l-success-500',
-    incomplete:  'border-l-danger-500',
-    cancelled:   'border-l-gray-400',
+  const borderColors: Record<string, string> = {
+    scheduled: 'border-l-primary-500',
+    completed: 'border-l-success-500',
+    cancelled: 'border-l-gray-400',
   }
-  const bgColors: Record<Lesson['status'], string> = {
-    scheduled:   'bg-primary-50 hover:bg-primary-100',
-    in_progress: 'bg-warning-50 hover:bg-warning-100',
-    conducted:   'bg-success-50 hover:bg-success-100',
-    incomplete:  'bg-danger-50 hover:bg-danger-100',
-    cancelled:   'bg-gray-50',
+  const bgColors: Record<string, string> = {
+    scheduled: 'bg-primary-50 hover:bg-primary-100',
+    completed: 'bg-success-50 hover:bg-success-100',
+    cancelled: 'bg-gray-50',
   }
 
   return (
-    <Link
-      href={`/lessons/${lesson.id}`}
-      onClick={(e) => e.stopPropagation()}
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick?.() }}
       className={cn(
-        'absolute left-1 right-1 rounded border-l-4 px-1.5 py-1 overflow-hidden transition-all z-10',
-        'shadow-xs hover:shadow-sm hover:z-20',
-        borderColors[lesson.status],
-        bgColors[lesson.status],
+        'absolute left-1 right-1 rounded border-l-4 px-1.5 py-1 overflow-hidden transition-all z-10 text-left',
+        'shadow-xs hover:shadow-sm hover:z-20 cursor-pointer',
+        borderColors[lesson.status] ?? 'border-l-gray-300',
+        bgColors[lesson.status] ?? 'bg-gray-50',
         lesson.status === 'cancelled' && 'opacity-50',
       )}
       style={{ top: top + 2, height: height - 4 }}
@@ -316,24 +348,321 @@ function CalendarLessonBlock({
       <div className="flex items-start gap-1 h-full">
         <div className="flex-1 min-w-0">
           <p className={cn('font-semibold leading-tight truncate', isShort ? 'text-[10px]' : 'text-xs')}>
-            {lesson.group.name}
+            {groupName || 'Урок'}
           </p>
-          {!isShort && (
-            <>
-              <p className="text-[10px] text-gray-500 leading-tight mt-0.5">
-                {lesson.startTime}–{lesson.endTime}
-              </p>
-              {lesson.room && (
-                <p className="text-[10px] text-gray-400 leading-tight truncate">{lesson.room.name}</p>
+          {!isShort && subjectName && (
+            <p className="text-[10px] text-primary-600 leading-tight truncate">{subjectName}</p>
+          )}
+          {!isShort && !isMedium && (
+            <div className="flex items-center gap-2 mt-0.5">
+              {teacherName && (
+                <p className="text-[10px] text-gray-500 leading-tight truncate">{teacherName}</p>
               )}
-              {lesson.status === 'incomplete' && (
-                <p className="text-[10px] text-danger-600 font-medium mt-0.5">⚠ Нет данных</p>
+              {roomName && (
+                <p className="text-[10px] text-gray-400 leading-tight truncate">{roomName}</p>
               )}
-            </>
+            </div>
           )}
         </div>
-        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0 mt-0.5', STATUS_DOT[lesson.status])} />
+        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0 mt-0.5', STATUS_DOT[lesson.status] ?? 'bg-gray-300')} />
       </div>
-    </Link>
+    </button>
+  )
+}
+
+// ── Lesson detail modal ─────────────────────────────────────────────────────
+
+function useDeleteLesson() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/lms/lessons/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lms', 'schedule'] })
+      toast.success('Урок удалён')
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Не удалось удалить'),
+  })
+}
+
+function LessonDetailModal({
+  lesson, groupName, subjectName, teacherName, roomName,
+  teachers, activeRooms, canManage, onClose,
+}: {
+  lesson: Lesson
+  groupName?: string; subjectName?: string; teacherName?: string; roomName?: string
+  teachers: any[]; activeRooms: any[]
+  canManage: boolean; onClose: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [editDate, setEditDate] = useState(lesson.date)
+  const [editStart, setEditStart] = useState(lesson.startTime)
+  const [editEnd, setEditEnd] = useState(lesson.endTime)
+  const [editTeacherId, setEditTeacherId] = useState(lesson.teacherId ?? '')
+  const [editRoomId, setEditRoomId] = useState(lesson.roomId ?? '')
+  const [editTopic, setEditTopic] = useState(lesson.topic ?? '')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const { mutate: updateLesson, isPending: saving } = useUpdateLesson()
+  const { mutate: deleteLesson, isPending: deleting } = useDeleteLesson()
+
+  const isCompleted = lesson.status === 'completed'
+  const isCancelled = lesson.status === 'cancelled'
+  const isPast = new Date(`${lesson.date}T${lesson.startTime}`) < new Date()
+  const canEdit = canManage && !isCompleted && !isPast
+  const canDelete = canManage && !isCompleted
+
+  const handleSave = () => {
+    updateLesson(
+      { id: lesson.id, data: {
+        date: editDate, startTime: editStart, endTime: editEnd,
+        teacherId: editTeacherId || undefined,
+        roomId: editRoomId || undefined,
+        topic: editTopic || undefined,
+      } as any },
+      { onSuccess: () => { setEditing(false); onClose() } },
+    )
+  }
+
+  const handleDelete = () => {
+    deleteLesson(lesson.id, { onSuccess: onClose })
+  }
+
+  const statusLabel = isCompleted ? 'Проведён' : isCancelled ? 'Отменён' : 'Запланирован'
+  const statusColor = isCompleted ? 'text-success-600 bg-success-50' : isCancelled ? 'text-gray-500 bg-gray-100' : 'text-primary-600 bg-primary-50'
+
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{editing ? 'Редактировать урок' : 'Информация об уроке'}</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          {editing ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Дата</label>
+                <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Начало</label>
+                  <Input type="time" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Конец</label>
+                  <Input type="time" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Преподаватель</label>
+                <select
+                  value={editTeacherId}
+                  onChange={(e) => setEditTeacherId(e.target.value)}
+                  className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:outline-none focus:border-primary-500 bg-white"
+                >
+                  <option value="">— Не выбран —</option>
+                  {teachers.map((t: any) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Кабинет</label>
+                <select
+                  value={editRoomId}
+                  onChange={(e) => setEditRoomId(e.target.value)}
+                  className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:outline-none focus:border-primary-500 bg-white"
+                >
+                  <option value="">— Не выбран —</option>
+                  {activeRooms.map((r: any) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Тема</label>
+                <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} placeholder="Тема урока" />
+              </div>
+            </div>
+          ) : confirmDelete ? (
+            <div className="text-center py-4">
+              <Trash2 className="w-10 h-10 text-danger-400 mx-auto mb-3" />
+              <p className="text-sm font-medium text-gray-900 mb-1">Удалить этот урок?</p>
+              <p className="text-xs text-gray-400">Это действие нельзя отменить</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Status */}
+              <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold', statusColor)}>
+                {statusLabel}
+              </span>
+
+              {/* Info rows */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Users className="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{groupName || '—'}</p>
+                    <p className="text-xs text-gray-400">Группа</p>
+                  </div>
+                </div>
+                {subjectName && (
+                  <div className="flex items-center gap-3">
+                    <BookOpen className="w-4 h-4 text-gray-400 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{subjectName}</p>
+                      <p className="text-xs text-gray-400">Предмет</p>
+                    </div>
+                  </div>
+                )}
+                {teacherName && (
+                  <div className="flex items-center gap-3">
+                    <Users className="w-4 h-4 text-gray-400 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{teacherName}</p>
+                      <p className="text-xs text-gray-400">Преподаватель</p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{lesson.date} · {lesson.startTime}–{lesson.endTime}</p>
+                    <p className="text-xs text-gray-400">Дата и время</p>
+                  </div>
+                </div>
+                {roomName && (
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{roomName}</p>
+                      <p className="text-xs text-gray-400">Кабинет</p>
+                    </div>
+                  </div>
+                )}
+                {lesson.topic && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-400 mb-0.5">Тема</p>
+                    <p className="text-sm text-gray-900">{lesson.topic}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogBody>
+        <DialogFooter>
+          {editing ? (
+            <>
+              <Button variant="secondary" onClick={() => setEditing(false)}>Отмена</Button>
+              <Button onClick={handleSave} loading={saving}>Сохранить</Button>
+            </>
+          ) : confirmDelete ? (
+            <>
+              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Отмена</Button>
+              <Button variant="danger" onClick={handleDelete} loading={deleting}>Удалить</Button>
+            </>
+          ) : (
+            <>
+              {canDelete && (
+                <Button variant="secondary" size="sm" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 className="w-4 h-4" />
+                  Удалить
+                </Button>
+              )}
+              {canEdit && (
+                <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+                  <Pencil className="w-4 h-4" />
+                  Редактировать
+                </Button>
+              )}
+              <Button variant="secondary" size="sm" onClick={onClose}>Закрыть</Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── MultiSelect filter dropdown ─────────────────────────────────────────────
+
+function MultiSelectFilter({
+  label, items, selected, onChange,
+}: {
+  label: string
+  items: { id: string; name: string }[]
+  selected: Set<string>
+  onChange: (v: Set<string>) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const toggle = (id: string) => {
+    const next = new Set(selected)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onChange(next)
+  }
+
+  const count = selected.size
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 h-8 transition-colors',
+          count > 0
+            ? 'border-primary-300 bg-primary-50 text-primary-700'
+            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300',
+        )}
+      >
+        {label}
+        {count > 0 && (
+          <span className="bg-primary-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+            {count}
+          </span>
+        )}
+        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 w-56 max-h-64 overflow-y-auto py-1">
+          {items.length === 0 ? (
+            <p className="text-xs text-gray-400 px-3 py-2">Нет данных</p>
+          ) : (
+            items.map((item) => {
+              const checked = selected.has(item.id)
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => toggle(item.id)}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors',
+                    checked ? 'bg-primary-50 text-primary-700' : 'hover:bg-gray-50 text-gray-700',
+                  )}
+                >
+                  <div className={cn(
+                    'w-4 h-4 rounded border flex items-center justify-center shrink-0',
+                    checked ? 'bg-primary-600 border-primary-600' : 'border-gray-300',
+                  )}>
+                    {checked && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <span className="truncate">{item.name}</span>
+                </button>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
   )
 }

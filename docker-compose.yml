@@ -77,6 +77,7 @@ services:
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend/src:/app/src   # hot reload в dev режиме
+      - ./backend/gcp_keys.json:/app/gcp_keys.json:ro
     ports:
       - "8000:8000"
     env_file: ./backend/.env

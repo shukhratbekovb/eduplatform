@@ -20,11 +20,12 @@ interface FormState {
   dateOfBirth: string
   parentName:  string
   parentPhone: string
+  address:     string
 }
 
 const empty: FormState = {
   fullName: '', phone: '', email: '', password: '',
-  dateOfBirth: '', parentName: '', parentPhone: '',
+  dateOfBirth: '', parentName: '', parentPhone: '', address: '',
 }
 
 export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
@@ -46,6 +47,7 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
         dateOfBirth: student.dateOfBirth ?? '',
         parentName:  student.parentName ?? '',
         parentPhone: student.parentPhone ?? '',
+        address:     (student as any).address ?? '',
       } : empty)
       setShowPassword(false)
     }
@@ -68,6 +70,7 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
       dateOfBirth: form.dateOfBirth || undefined,
       parentName:  form.parentName.trim() || undefined,
       parentPhone: form.parentPhone.trim() || undefined,
+      address:     form.address.trim() || undefined,
     }
 
     if (isEdit && student) {
@@ -104,7 +107,7 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
               <Input value={form.phone} onChange={set('phone')} placeholder="+7 (999) 000-00-00" type="tel" />
             </div>
-            {isEdit && (
+            {(
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <Input value={form.email} onChange={set('email')} placeholder="student@example.com" type="email" />
@@ -173,6 +176,11 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
                 <Input value={form.parentPhone} onChange={set('parentPhone')} placeholder="+7 (999) 000-00-00" type="tel" />
               </div>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Адрес</label>
+            <Input value={form.address} onChange={set('address')} placeholder="Город, улица, дом" />
           </div>
 
           <div className="flex gap-3 pt-2">

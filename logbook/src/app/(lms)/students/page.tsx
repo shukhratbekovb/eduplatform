@@ -1,7 +1,9 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { Search, Users, AlertTriangle, Plus } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api/axios'
 import { useStudents } from '@/lib/hooks/lms/useStudents'
 import { useDirections } from '@/lib/hooks/lms/useSettings'
 import { Input } from '@/components/ui/input'
@@ -11,7 +13,7 @@ import { RiskBadge } from '@/components/lms/students/RiskBadge'
 import { StudentForm } from '@/components/lms/students/StudentForm'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { useLmsStore } from '@/lib/stores/useLmsStore'
-import { useIsDirectorOrMup } from '@/lib/stores/useAuthStore'
+import { useIsDirectorOrMup, useCurrentUser } from '@/lib/stores/useAuthStore'
 import type { RiskLevel } from '@/types/lms'
 import { cn } from '@/lib/utils/cn'
 
@@ -27,13 +29,37 @@ export default function StudentsPage() {
   const filters    = useLmsStore((s) => s.studentFilters)
   const setFilters = useLmsStore((s) => s.setStudentFilters)
   const canManage  = useIsDirectorOrMup()
+  const user       = useCurrentUser()
+  const isTeacher  = user?.role === 'teacher'
 
   const [search, setSearch]   = useState(filters.search ?? '')
   const [showForm, setShowForm] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const { data: directions = [] } = useDirections()
-  const { data, isLoading }       = useStudents(filters)
+  // Teacher's directions (for filtering)
+  const { data: teacherDirs } = useQuery({
+    queryKey: ['lms', 'teacher-directions', user?.id],
+    queryFn: () => apiClient.get(`/lms/users/${user!.id}/directions`).then((r) => r.data as { id: string; name: string }[]),
+    enabled: isTeacher && !!user?.id,
+    staleTime: 10 * 60_000,
+  })
+
+  const { data: allDirections = [] } = useDirections()
+
+  // If teacher — show only their directions, otherwise all
+  const directions = useMemo(
+    () => isTeacher && teacherDirs ? teacherDirs : allDirections,
+    [isTeacher, teacherDirs, allDirections],
+  )
+
+  // Auto-inject teacherId for teachers
+  const apiFilters = useMemo(() => {
+    const f = { ...filters }
+    if (isTeacher && user?.id) (f as any).teacherId = user.id
+    return f
+  }, [filters, isTeacher, user?.id])
+
+  const { data, isLoading } = useStudents(apiFilters)
 
   const students  = (data as any)?.data ?? []
   const total     = (data as any)?.total ?? 0
@@ -148,7 +174,7 @@ export default function StudentsPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 hidden sm:table-cell">
-                    <span className="text-gray-500">{student.enrollments?.length ?? 0} гр.</span>
+                    <span className="text-gray-500">{student.groupCount ?? 0} гр.</span>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     <span className={cn('font-semibold', student.gpa && student.gpa < 6 ? 'text-danger-600' : 'text-gray-900')}>

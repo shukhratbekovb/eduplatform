@@ -166,16 +166,20 @@ async def analytics_sources(
         q = q.where(LeadModel.assigned_to == managerId)
     rows = (await db.execute(q.group_by(LeadModel.source_id))).all()
 
+    # Fetch source names in bulk
+    source_ids = {r.source_id for r in rows if r.source_id}
+    source_names: dict = {}  # type: ignore[type-arg]
+    if source_ids:
+        src_rows = (await db.execute(
+            select(LeadSourceModel.id, LeadSourceModel.name)
+            .where(LeadSourceModel.id.in_(source_ids))
+        )).all()
+        source_names = {s.id: s.name for s in src_rows}
+
     total = sum(r.cnt for r in rows)
     result = []
     for r in rows:
-        src_name = "Unknown"
-        if r.source_id:
-            src = (await db.execute(
-                select(LeadSourceModel.name).where(LeadSourceModel.id == r.source_id)
-            )).scalar()
-            if src:
-                src_name = src
+        src_name = source_names.get(r.source_id, "Unknown") if r.source_id else "Unknown"
         result.append(LeadSourceStatOut(
             sourceId=str(r.source_id) if r.source_id else None,
             sourceName=src_name,
@@ -219,31 +223,53 @@ async def analytics_managers(
         q = q.where(LeadModel.assigned_to == managerId)
     rows = (await db.execute(q.group_by(LeadModel.assigned_to))).all()
 
+    # Fetch all manager stats in a single query with conditional aggregation
+    manager_ids = [r.assigned_to for r in rows if r.assigned_to]
+    if not manager_ids:
+        return []
+
+    # Bulk fetch users
+    users_rows = (await db.execute(
+        select(UserModel).where(UserModel.id.in_(manager_ids))
+    )).scalars().all()
+    users_map = {u.id: u for u in users_rows}
+
+    # Single query for won/lost counts per manager
+    stats_q = (
+        select(
+            LeadModel.assigned_to,
+            func.count().filter(LeadModel.status == "won").label("won"),
+            func.count().filter(LeadModel.status == "lost").label("lost"),
+        )
+        .where(
+            LeadModel.assigned_to.in_(manager_ids),
+            LeadModel.created_at >= start,
+            LeadModel.created_at <= end,
+        )
+    )
+    if funnelId:
+        stats_q = stats_q.where(LeadModel.funnel_id == funnelId)
+    stats_rows = (await db.execute(stats_q.group_by(LeadModel.assigned_to))).all()
+    stats_map = {s.assigned_to: s for s in stats_rows}
+
+    # Build rows_map from the original grouped query
+    rows_map = {r.assigned_to: r.cnt for r in rows if r.assigned_to}
+
     result = []
-    for r in rows:
-        if not r.assigned_to:
-            continue
-        user = (await db.execute(select(UserModel).where(UserModel.id == r.assigned_to))).scalar_one_or_none()
-        won = (await db.execute(
-            select(func.count()).where(
-                LeadModel.assigned_to == r.assigned_to, LeadModel.status == "won",
-                LeadModel.created_at >= start, LeadModel.created_at <= end,
-            )
-        )).scalar() or 0
-        lost = (await db.execute(
-            select(func.count()).where(
-                LeadModel.assigned_to == r.assigned_to, LeadModel.status == "lost",
-                LeadModel.created_at >= start, LeadModel.created_at <= end,
-            )
-        )).scalar() or 0
+    for mid in manager_ids:
+        user = users_map.get(mid)
+        cnt = rows_map.get(mid, 0)
+        stats = stats_map.get(mid)
+        won = stats.won if stats else 0
+        lost = stats.lost if stats else 0
         result.append(ManagerStatOut(
-            userId=str(r.assigned_to),
+            userId=str(mid),
             userName=user.name if user else "Unknown",
             avatarUrl=user.avatar_url if user else None,
-            leadsHandled=r.cnt,
+            leadsHandled=cnt,
             leadsWon=won,
             leadsLost=lost,
-            wonRate=round(won / r.cnt, 3) if r.cnt else 0.0,
+            wonRate=round(won / cnt, 3) if cnt else 0.0,
             avgResponseTimeHours=0.0,
         ))
     return result
@@ -277,16 +303,21 @@ async def funnel_conversion(
     if len(stages) < 2:
         return []
 
+    # Single query to count leads per stage
+    stage_ids = [s.id for s in stages]
+    count_rows = (await db.execute(
+        select(LeadModel.stage_id, func.count(LeadModel.id).label("cnt"))
+        .where(LeadModel.stage_id.in_(stage_ids))
+        .group_by(LeadModel.stage_id)
+    )).all()
+    counts_map = {r.stage_id: r.cnt for r in count_rows}
+
     result = []
     for i in range(len(stages) - 1):
         from_stage = stages[i]
         to_stage = stages[i + 1]
-        from_count = (await db.execute(
-            select(func.count()).where(LeadModel.stage_id == from_stage.id)
-        )).scalar() or 0
-        to_count = (await db.execute(
-            select(func.count()).where(LeadModel.stage_id == to_stage.id)
-        )).scalar() or 0
+        from_count = counts_map.get(from_stage.id, 0)
+        to_count = counts_map.get(to_stage.id, 0)
         conv = round(to_count / from_count * 100, 1) if from_count > 0 else 0.0
         result.append(FunnelConversionOut(
             fromStageId=str(from_stage.id),
@@ -564,14 +595,20 @@ async def contracts_by_direction(
         .group_by(ContractModel.direction_id)
     )).all()
 
+    # Fetch direction names in bulk
+    dir_ids = {r.direction_id for r in rows if r.direction_id}
+    dir_names: dict = {}  # type: ignore[type-arg]
+    if dir_ids:
+        dir_rows = (await db.execute(
+            select(DirectionModel.id, DirectionModel.name)
+            .where(DirectionModel.id.in_(dir_ids))
+        )).all()
+        dir_names = {d.id: d.name for d in dir_rows}
+
     total = sum(r.cnt for r in rows)
     result = []
     for r in rows:
-        name = "Не указано"
-        if r.direction_id:
-            d = (await db.execute(select(DirectionModel.name).where(DirectionModel.id == r.direction_id))).scalar()
-            if d:
-                name = d
+        name = dir_names.get(r.direction_id, "Не указано") if r.direction_id else "Не указано"
         result.append({
             "directionId": str(r.direction_id) if r.direction_id else None,
             "directionName": name,

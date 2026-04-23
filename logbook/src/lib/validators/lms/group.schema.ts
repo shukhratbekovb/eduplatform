@@ -2,12 +2,13 @@ import { z } from 'zod'
 
 export const createGroupSchema = z.object({
   name:        z.string().min(2, 'Минимум 2 символа').max(100),
-  directionId: z.string().min(1, 'Выберите направление'),
-  subjectId:   z.string().min(1, 'Выберите предмет'),
-  teacherId:   z.string().min(1, 'Выберите преподавателя'),
-  startDate:   z.string().min(1, 'Выберите дату начала'),
-  endDate:     z.string().min(1, 'Выберите дату окончания'),
-}).refine((v) => v.startDate < v.endDate, {
+  directionId: z.string().optional(),
+  startDate:   z.string().optional(),
+  endDate:     z.string().optional(),
+}).refine((v) => {
+  if (v.startDate && v.endDate) return v.startDate < v.endDate
+  return true
+}, {
   message: 'Дата окончания должна быть позже даты начала',
   path: ['endDate'],
 })

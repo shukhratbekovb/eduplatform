@@ -405,3 +405,20 @@ async def get_contract(contract_id: UUID, current_user: CurrentUser, db: DbSessi
             out.createdByName = creator.name
 
     return out
+
+
+# ── Contracts by student ─────────────────────────────────────────────────────
+
+@router.get("/by-student/{student_id}", response_model=list[ContractOut])
+async def contracts_by_student(
+    student_id: UUID, current_user: CurrentUser, db: DbSession,
+) -> list[ContractOut]:
+    rows = (await db.execute(
+        select(ContractModel).where(ContractModel.student_id == student_id)
+        .order_by(ContractModel.created_at.desc())
+    )).scalars().all()
+    result = []
+    for m in rows:
+        d = await _resolve_direction(db, m.direction_id)
+        result.append(_contract_out(m, direction=d))
+    return result

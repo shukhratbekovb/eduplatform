@@ -290,10 +290,10 @@ function TeacherDashboard({ todayLessons, groupCount }: {
                 className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3 hover:bg-gray-50 transition-colors group"
               >
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">{lesson.group?.name}</p>
+                  <p className="text-sm font-semibold text-gray-900">{(lesson as any).group?.name ?? ""}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {lesson.startTime} – {lesson.endTime}
-                    {lesson.room && ` · ${lesson.room.name}`}
+                    {(lesson as any).room && ` · ${(lesson as any).room.name}`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -355,7 +355,7 @@ export default function DashboardPage() {
   const { data: lateData  } = useLateRequests(isDirOrMup ? { status: 'pending' } : undefined)
   const { data: taskData  } = useMupTasks(isMup ? { status: 'pending' } : undefined)
   const { data: schedule  } = useSchedule(weekStart)
-  const { data: groupsData } = useGroups(isTeacher && user ? { teacherId: user.id } : undefined)
+  const { data: groupsData } = useGroups()
 
   const pendingLate = (lateData as any)?.total ?? 0
   const openTasks   = Array.isArray(taskData) ? taskData.length : 0

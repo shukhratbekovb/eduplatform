@@ -83,9 +83,9 @@ async def get_dashboard(current_user: CurrentUser, db: DbSession) -> DashboardRe
 class LessonSummary(BaseModel):
     id: UUID
     group_id: UUID
-    lesson_date: date
-    start_time: str
-    end_time: str
+    date: str
+    startTime: str
+    endTime: str
     status: str
     topic: str | None
     is_online: bool
@@ -121,10 +121,10 @@ async def my_lessons(
 
     q = select(LessonModel).where(LessonModel.group_id.in_(group_ids))
     if date_from:
-        q = q.where(LessonModel.lesson_date >= date_from)
+        q = q.where(LessonModel.scheduled_at >= date_from)
     if date_to:
-        q = q.where(LessonModel.lesson_date <= date_to)
-    q = q.order_by(LessonModel.lesson_date)
+        q = q.where(LessonModel.scheduled_at <= date_to)
+    q = q.order_by(LessonModel.scheduled_at)
 
     lessons = (await db.execute(q)).scalars().all()
 
@@ -132,9 +132,9 @@ async def my_lessons(
         return LessonSummary(
             id=l.id,
             group_id=l.group_id,
-            lesson_date=l.lesson_date,
-            start_time=l.start_time,
-            end_time=l.end_time,
+            date=l.scheduled_at.strftime("%Y-%m-%d") if l.scheduled_at else "",
+            startTime=l.scheduled_at.strftime("%H:%M") if l.scheduled_at else "",
+            endTime=(l.scheduled_at + timedelta(minutes=l.duration_minutes or 60)).strftime("%H:%M") if l.scheduled_at else "",
             status=l.status,
             topic=l.topic,
             is_online=l.is_online,
@@ -185,10 +185,10 @@ async def my_homework(
             id=sub.id,
             assignment_id=assign.id,
             title=assign.title,
-            due_date=assign.deadline.isoformat() if assign.deadline else "",
+            due_date=assign.due_date.isoformat() if assign.due_date else "",
             status=sub.status,
-            score=float(sub.grade) if sub.grade is not None else None,
-            feedback=sub.teacher_comment,
+            score=float(sub.score) if sub.score is not None else None,
+            feedback=sub.feedback,
         ))
     return result
 
@@ -365,10 +365,10 @@ async def my_schedule(
         try:
             ws_date = date.fromisoformat(weekStart)
             we_date = ws_date + timedelta(days=7)
-            q = q.where(LessonModel.lesson_date >= ws_date, LessonModel.lesson_date < we_date)
+            q = q.where(LessonModel.scheduled_at >= ws_date, LessonModel.scheduled_at < we_date)
         except ValueError:
             pass
-    q = q.order_by(LessonModel.lesson_date, LessonModel.start_time)
+    q = q.order_by(LessonModel.scheduled_at)
     lessons = (await db.execute(q)).scalars().all()
 
     result = []
@@ -377,11 +377,11 @@ async def my_schedule(
             select(GroupModel).where(GroupModel.id == l.group_id)
         )).scalar_one_or_none()
         subject_name = ""
-        subject_id = None
-        if group and group.subject_id:
-            subject_id = str(group.subject_id)
+        subject_id_str = None
+        if l.subject_id:
+            subject_id_str = str(l.subject_id)
             subj = (await db.execute(
-                select(SubjectModel).where(SubjectModel.id == group.subject_id)
+                select(SubjectModel).where(SubjectModel.id == l.subject_id)
             )).scalar_one_or_none()
             subject_name = subj.name if subj else ""
         teacher_name = ""
@@ -393,11 +393,11 @@ async def my_schedule(
         result.append(ScheduleLesson(
             id=l.id,
             subjectName=subject_name,
-            subjectId=subject_id,
+            subjectId=subject_id_str,
             teacherName=teacher_name,
-            startTime=l.start_time,
-            endTime=l.end_time,
-            weekDate=l.lesson_date.isoformat(),
+            startTime=l.scheduled_at.strftime("%H:%M") if l.scheduled_at else "",
+            endTime=(l.scheduled_at + timedelta(minutes=l.duration_minutes or 60)).strftime("%H:%M") if l.scheduled_at else "",
+            weekDate=l.scheduled_at.strftime("%Y-%m-%d") if l.scheduled_at else "",
             groupNumber=group.name if group else "",
             room=None,
             isOnline=l.is_online,
@@ -498,14 +498,13 @@ async def my_assignments(
         teacher_name = ""
         lesson_date = ""
         if lesson:
-            lesson_date = lesson.lesson_date.isoformat() if lesson.lesson_date else ""
+            lesson_date = lesson.scheduled_at.isoformat() if lesson.scheduled_at else ""
             if lesson.teacher_id:
                 u = (await db.execute(select(UserModel.name).where(UserModel.id == lesson.teacher_id))).scalar()
                 teacher_name = u or ""
-            group = (await db.execute(select(GroupModel).where(GroupModel.id == lesson.group_id))).scalar_one_or_none()
-            if group and group.subject_id:
-                subject_id = str(group.subject_id)
-                subj = (await db.execute(select(SubjectModel).where(SubjectModel.id == group.subject_id))).scalar_one_or_none()
+            if lesson.subject_id:
+                subject_id = str(lesson.subject_id)
+                subj = (await db.execute(select(SubjectModel).where(SubjectModel.id == lesson.subject_id))).scalar_one_or_none()
                 subject_name = subj.name if subj else ""
         result.append(AssignmentOut(
             id=sub.id,
@@ -516,12 +515,12 @@ async def my_assignments(
             teacherName=teacher_name,
             description=assign.description,
             lessonDate=lesson_date,
-            deadline=assign.deadline.isoformat() if assign.deadline else "",
+            deadline=assign.due_date.isoformat() if assign.due_date else "",
             status=sub.status,
-            grade=float(sub.grade) if sub.grade is not None else None,
-            teacherComment=sub.teacher_comment,
-            submittedFileUrl=sub.submitted_file_url,
-            materialsCount=assign.materials_count,
+            grade=float(sub.score) if sub.score is not None else None,
+            teacherComment=sub.feedback,
+            submittedFileUrl=sub.file_url,
+            materialsCount=0,
         ))
     return result
 
@@ -558,7 +557,7 @@ async def submit_assignment(
     sub.status = "submitted"
     sub.submitted_at = datetime.now(timezone.utc)
     if body.fileUrl:
-        sub.submitted_file_url = body.fileUrl
+        sub.file_url = body.fileUrl
     await db.commit()
     await db.refresh(sub)
 
@@ -574,12 +573,12 @@ async def submit_assignment(
         teacherName="",
         description=assign.description if assign else None,
         lessonDate="",
-        deadline=assign.deadline.isoformat() if assign and assign.deadline else "",
+        deadline=assign.due_date.isoformat() if assign and assign.due_date else "",
         status=sub.status,
-        grade=float(sub.grade) if sub.grade is not None else None,
-        teacherComment=sub.teacher_comment,
-        submittedFileUrl=sub.submitted_file_url,
-        materialsCount=assign.materials_count if assign else 0,
+        grade=float(sub.score) if sub.score is not None else None,
+        teacherComment=sub.feedback,
+        submittedFileUrl=sub.file_url,
+        materialsCount=0 if assign else 0,
     )
 
 
@@ -612,14 +611,18 @@ async def my_subjects(current_user: CurrentUser, db: DbSession) -> list[SubjectO
     result = []
     for gid in group_ids:
         group = (await db.execute(select(GroupModel).where(GroupModel.id == gid))).scalar_one_or_none()
-        if not group or not group.subject_id:
+        # Find subject through lessons of this group
+        lesson_subj_id = (await db.execute(
+            select(LessonModel.subject_id).where(LessonModel.group_id == gid, LessonModel.subject_id != None).limit(1)  # noqa: E711
+        )).scalar()
+        if not lesson_subj_id:
             continue
-        subj = (await db.execute(select(SubjectModel).where(SubjectModel.id == group.subject_id))).scalar_one_or_none()
+        subj = (await db.execute(select(SubjectModel).where(SubjectModel.id == lesson_subj_id))).scalar_one_or_none()
         if not subj:
             continue
         teacher_name = ""
-        if group.teacher_id:
-            u = (await db.execute(select(UserModel.name).where(UserModel.id == group.teacher_id))).scalar()
+        if subj.teacher_id:
+            u = (await db.execute(select(UserModel.name).where(UserModel.id == subj.teacher_id))).scalar()
             teacher_name = u or ""
         # Average grade for this subject
         lesson_ids = (await db.execute(
@@ -628,7 +631,7 @@ async def my_subjects(current_user: CurrentUser, db: DbSession) -> list[SubjectO
         avg_grade = 0.0
         if lesson_ids:
             avg = (await db.execute(
-                select(func.avg(GradeRecordModel.value)).where(
+                select(func.avg(GradeRecordModel.score)).where(
                     GradeRecordModel.student_id == student.id,
                     GradeRecordModel.lesson_id.in_(lesson_ids),
                 )
@@ -700,8 +703,8 @@ async def subject_performance(subject_id: UUID, current_user: CurrentUser, db: D
             break
 
     teacher_name = ""
-    if subject_group and subject_group.teacher_id:
-        u = (await db.execute(select(UserModel.name).where(UserModel.id == subject_group.teacher_id))).scalar()
+    if subj.teacher_id:
+        u = (await db.execute(select(UserModel.name).where(UserModel.id == subj.teacher_id))).scalar()
         teacher_name = u or ""
 
     lesson_ids: list = []
@@ -716,7 +719,7 @@ async def subject_performance(subject_id: UUID, current_user: CurrentUser, db: D
         ).order_by(GradeRecordModel.graded_at)
     )).scalars().all() if lesson_ids else []
 
-    avg_grade = round(sum(float(g.value) for g in grade_rows) / len(grade_rows), 2) if grade_rows else 0.0
+    avg_grade = round(sum(float(g.score) for g in grade_rows) / len(grade_rows), 2) if grade_rows else 0.0
 
     # Attendance
     att_rows = (await db.execute(
@@ -769,7 +772,7 @@ async def subject_performance(subject_id: UUID, current_user: CurrentUser, db: D
             date=g.graded_at.date().isoformat(),
             subjectId=str(subject_id),
             type=g.type,
-            value=float(g.value),
+            value=float(g.score),
         ) for g in grade_rows],
         attendanceCalendar=[AttendanceEntry(
             date=a.created_at.date().isoformat() if a.created_at else "",
@@ -830,8 +833,7 @@ async def my_materials(
     for lid in lesson_ids:
         lesson = (await db.execute(select(LessonModel).where(LessonModel.id == lid))).scalar_one_or_none()
         if lesson:
-            group = (await db.execute(select(GroupModel).where(GroupModel.id == lesson.group_id))).scalar_one_or_none()
-            lesson_subject[str(lid)] = str(group.subject_id) if group and group.subject_id else None
+            lesson_subject[str(lid)] = str(lesson.subject_id) if lesson.subject_id else None
 
     result = []
     for m in rows:
@@ -884,23 +886,26 @@ async def my_contacts(current_user: CurrentUser, db: DbSession) -> list[ContactO
     seen_ids: set = set()
     for gid in group_ids:
         group = (await db.execute(select(GroupModel).where(GroupModel.id == gid))).scalar_one_or_none()
-        if not group or not group.teacher_id:
+        # Find subject through lessons of this group
+        lesson_subj_id = (await db.execute(
+            select(LessonModel.subject_id).where(LessonModel.group_id == gid, LessonModel.subject_id != None).limit(1)  # noqa: E711
+        )).scalar()
+        if not lesson_subj_id:
             continue
-        if group.teacher_id in seen_ids:
+        subj = (await db.execute(select(SubjectModel).where(SubjectModel.id == lesson_subj_id))).scalar_one_or_none()
+        if not subj or not subj.teacher_id:
             continue
-        seen_ids.add(group.teacher_id)
-        teacher = (await db.execute(select(UserModel).where(UserModel.id == group.teacher_id))).scalar_one_or_none()
+        if subj.teacher_id in seen_ids:
+            continue
+        seen_ids.add(subj.teacher_id)
+        teacher = (await db.execute(select(UserModel).where(UserModel.id == subj.teacher_id))).scalar_one_or_none()
         if not teacher:
             continue
-        subject_name = None
-        if group.subject_id:
-            subj = (await db.execute(select(SubjectModel).where(SubjectModel.id == group.subject_id))).scalar_one_or_none()
-            subject_name = subj.name if subj else None
         result.append(ContactOut(
             id=teacher.id,
             fullName=teacher.name,
             role="teacher",
-            subject=subject_name,
+            subject=subj.name,
             photo=None,
             email=teacher.email,
             phone=None,

@@ -8,15 +8,15 @@ export const crmKeys = {
   sources:      ()         => ['crm', 'sources'] as const,
 
   leads: (params: Partial<LeadsFilters> & { funnelId?: string; page?: number }) =>
-    ['crm', 'leads', params] as const,
-  lead:  (id: string) => ['crm', 'leads', id] as const,
+    ['crm', 'leads', JSON.stringify(params)] as const,
+  lead:  (id: string) => ['crm', 'leads', 'detail', id] as const,
 
   timeline: (leadId: string, page?: number) =>
-    ['crm', 'leads', leadId, 'timeline', page] as const,
+    ['crm', 'leads', 'detail', leadId, 'timeline', page] as const,
 
   tasks: (params: Partial<TasksFilters> & { all?: boolean }) =>
-    ['crm', 'tasks', params] as const,
-  task:  (id: string) => ['crm', 'tasks', id] as const,
+    ['crm', 'tasks', JSON.stringify(params)] as const,
+  task:  (id: string) => ['crm', 'tasks', 'detail', id] as const,
 
   managers:      () => ['crm', 'managers'] as const,
 
