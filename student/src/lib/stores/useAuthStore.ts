@@ -28,6 +28,10 @@ export const useAuthStore = create<AuthStore>()(
       partialize: (s) => ({ student: s.student, token: s.token }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true)
+        // Sync cookie from localStorage for middleware auth check
+        if (typeof document !== 'undefined' && state?.token) {
+          document.cookie = `student-auth-token=${state.token}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
+        }
       },
     }
   )

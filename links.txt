@@ -1,0 +1,5 @@
+website -> shukhratebekov.uz
+crm -> crm.shukhratebekov.uz
+logbook -> lms.shukhratebekov.uz
+student -> student.shukhratebekov.uz
+api -> api.shukhratebekov.uz
