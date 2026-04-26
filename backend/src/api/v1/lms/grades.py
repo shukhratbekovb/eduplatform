@@ -1,4 +1,25 @@
-"""Grades API — record grades and recalculate student GPA."""
+"""API управления оценками и пересчёта GPA студентов.
+
+Предоставляет эндпоинты для создания оценок (одиночно и массово),
+получения истории оценок студента. Автоматически пересчитывает
+GPA по 10-балльной шкале после каждого изменения.
+
+Допустимые типы оценок (grade_type):
+    - homework: домашнее задание.
+    - exam: экзамен.
+    - quiz: контрольная работа.
+    - project: проект.
+    - participation: работа на уроке.
+
+Формула GPA: avg(score / max_score * 10) по всем оценкам студента.
+
+Доступ: директор, МУП, преподаватель (TeacherGuard).
+
+Роуты:
+    POST /grades — создание одной оценки.
+    POST /grades/bulk — массовое создание оценок.
+    GET /grades/students/{student_id} — история оценок студента.
+"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -16,11 +37,27 @@ from src.infrastructure.persistence.models.lms import GradeRecordModel, StudentM
 router = APIRouter(prefix="/grades", tags=["LMS - Grades"])
 
 TeacherGuard = Annotated[object, Depends(require_roles("director", "mup", "teacher"))]
+"""Гвард: доступ для директора, МУП и преподавателя."""
 
 VALID_TYPES = {"homework", "exam", "quiz", "project", "participation"}
+"""Допустимые типы оценок."""
 
 
 class GradeOut(BaseModel):
+    """Ответ с данными оценки.
+
+    Attributes:
+        id: UUID записи оценки.
+        student_id: UUID студента.
+        subject_id: UUID предмета.
+        lesson_id: UUID урока (None для экзаменов).
+        type: Тип оценки (homework, exam, quiz, project, participation).
+        score: Набранный балл.
+        max_score: Максимально возможный балл.
+        comment: Комментарий преподавателя.
+        graded_by: UUID преподавателя, выставившего оценку.
+        graded_at: Дата и время выставления (ISO формат).
+    """
     id: UUID
     student_id: UUID
     subject_id: UUID
@@ -34,6 +71,17 @@ class GradeOut(BaseModel):
 
 
 class GradeIn(BaseModel):
+    """Входные данные для создания оценки.
+
+    Attributes:
+        student_id: UUID студента.
+        subject_id: UUID предмета.
+        lesson_id: UUID урока (опционально).
+        type: Тип оценки (по умолчанию "homework").
+        score: Набранный балл (>= 0).
+        max_score: Максимальный балл (по умолчанию 100.0).
+        comment: Комментарий (опционально).
+    """
     student_id: UUID
     subject_id: UUID
     lesson_id: UUID | None = None
@@ -44,11 +92,33 @@ class GradeIn(BaseModel):
 
 
 class BulkGradeIn(BaseModel):
+    """Запрос на массовое создание оценок.
+
+    Attributes:
+        grades: Список оценок для создания.
+    """
     grades: list[GradeIn]
 
 
 @router.post("", response_model=GradeOut, status_code=201)
 async def create_grade(body: GradeIn, _: TeacherGuard, current_user: CurrentUser, db: DbSession) -> GradeOut:
+    """Создание одной оценки.
+
+    Создаёт запись оценки и автоматически пересчитывает GPA студента.
+    Валидирует тип оценки и диапазон баллов.
+
+    Args:
+        body: Данные оценки (student_id, subject_id, score и т.д.).
+        _: Гвард доступа.
+        current_user: Текущий пользователь (записывается в graded_by).
+        db: Асинхронная сессия SQLAlchemy.
+
+    Returns:
+        GradeOut: Созданная оценка.
+
+    Raises:
+        HTTPException: 400 — если тип невалиден или score вне диапазона [0, max_score].
+    """
     if body.type not in VALID_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid grade type. Must be one of {sorted(VALID_TYPES)}")
     if body.score < 0 or body.score > body.max_score:
@@ -80,6 +150,23 @@ async def create_grade(body: GradeIn, _: TeacherGuard, current_user: CurrentUser
 async def create_bulk_grades(
     body: BulkGradeIn, _: TeacherGuard, current_user: CurrentUser, db: DbSession
 ) -> list[GradeOut]:
+    """Массовое создание оценок.
+
+    Создаёт несколько записей оценок за одну транзакцию и
+    пересчитывает GPA для всех затронутых студентов.
+
+    Args:
+        body: Список оценок для создания.
+        _: Гвард доступа.
+        current_user: Текущий пользователь (graded_by).
+        db: Асинхронная сессия SQLAlchemy.
+
+    Returns:
+        list[GradeOut]: Список созданных оценок.
+
+    Raises:
+        HTTPException: 400 — если любая оценка имеет невалидный тип или score.
+    """
     for g in body.grades:
         if g.type not in VALID_TYPES:
             raise HTTPException(status_code=400, detail=f"Invalid type: {g.type!r}")
@@ -124,6 +211,21 @@ async def list_student_grades(
     subject_id: UUID | None = None,
     type: str | None = None,
 ) -> list[GradeOut]:
+    """Получение истории оценок студента.
+
+    Поддерживает фильтрацию по предмету и типу оценки.
+    Сортировка по дате выставления (сначала последние).
+
+    Args:
+        student_id: UUID студента.
+        current_user: Текущий авторизованный пользователь.
+        db: Асинхронная сессия SQLAlchemy.
+        subject_id: Фильтр по UUID предмета (опционально).
+        type: Фильтр по типу оценки (опционально).
+
+    Returns:
+        list[GradeOut]: Список оценок студента.
+    """
     q = select(GradeRecordModel).where(GradeRecordModel.student_id == student_id)
     if subject_id:
         q = q.where(GradeRecordModel.subject_id == subject_id)
@@ -135,10 +237,18 @@ async def list_student_grades(
 
 
 async def _recalculate_gpa(student_id: UUID, db: DbSession) -> None:
-    """Average of (score / max_score * 12) across all grade records → 12-point GPA."""
+    """Пересчитывает GPA студента по 10-балльной шкале.
+
+    Формула: avg(score / max_score * 10) по всем записям grade_records.
+    Включает все типы оценок: participation, homework, exam, quiz, project.
+
+    Args:
+        student_id: UUID студента для пересчёта GPA.
+        db: Асинхронная сессия SQLAlchemy.
+    """
     result = await db.execute(
         select(
-            func.avg(GradeRecordModel.score / GradeRecordModel.max_score * 12)
+            func.avg(GradeRecordModel.score / GradeRecordModel.max_score * 10)
         ).where(GradeRecordModel.student_id == student_id)
     )
     avg = result.scalar_one_or_none()
@@ -152,6 +262,14 @@ async def _recalculate_gpa(student_id: UUID, db: DbSession) -> None:
 
 
 def _out(m: GradeRecordModel) -> GradeOut:
+    """Преобразует ORM-модель GradeRecordModel в ответ GradeOut.
+
+    Args:
+        m: ORM-модель записи оценки.
+
+    Returns:
+        GradeOut: Сериализованный ответ для API.
+    """
     return GradeOut(
         id=m.id,
         student_id=m.student_id,

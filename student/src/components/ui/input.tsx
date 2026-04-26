@@ -1,3 +1,4 @@
+import { forwardRef } from 'react'
 import { cn } from '@/lib/utils/cn'
 import type { InputHTMLAttributes } from 'react'
 
@@ -5,9 +6,10 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: boolean
 }
 
-export function Input({ error, className, ...props }: InputProps) {
-  return (
+export const Input = forwardRef<HTMLInputElement, InputProps>(
+  ({ error, className, ...props }, ref) => (
     <input
+      ref={ref}
       className={cn(
         'w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors',
         'placeholder:text-gray-400',
@@ -18,4 +20,5 @@ export function Input({ error, className, ...props }: InputProps) {
       {...props}
     />
   )
-}
+)
+Input.displayName = 'Input'

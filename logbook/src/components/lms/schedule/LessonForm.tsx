@@ -7,6 +7,8 @@ import { useGroups } from '@/lib/hooks/lms/useGroups'
 import { useDirections, useSubjects, useRooms, useLmsUsers } from '@/lib/hooks/lms/useSettings'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils/cn'
 import type { Group, Direction, Subject, Room } from '@/types/lms'
 
@@ -15,16 +17,6 @@ interface LessonFormProps {
   onOpenChange:  (v: boolean) => void
   defaultDate?:  string
 }
-
-const WEEKDAYS = [
-  { label: 'Пн', iso: 1 },
-  { label: 'Вт', iso: 2 },
-  { label: 'Ср', iso: 3 },
-  { label: 'Чт', iso: 4 },
-  { label: 'Пт', iso: 5 },
-  { label: 'Сб', iso: 6 },
-  { label: 'Вс', iso: 7 },
-]
 
 function generateDatesInRange(startDate: string, endDate: string, weekdays: number[]): string[] {
   if (!startDate || !endDate || weekdays.length === 0) return []
@@ -71,6 +63,18 @@ function SelectInput({
 }
 
 export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps) {
+  const t = useT()
+
+  const WEEKDAYS = useMemo(() => [
+    { label: t('weekday.mon'), iso: 1 },
+    { label: t('weekday.tue'), iso: 2 },
+    { label: t('weekday.wed'), iso: 3 },
+    { label: t('weekday.thu'), iso: 4 },
+    { label: t('weekday.fri'), iso: 5 },
+    { label: t('weekday.sat'), iso: 6 },
+    { label: t('weekday.sun'), iso: 7 },
+  ], [t])
+
   const { data: directions = [] } = useDirections()
   const { data: allGroups  = [] } = useGroups()
   const { data: rooms      = [] } = useRooms()
@@ -193,6 +197,12 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
   const isPending   = creatingOne || creatingBulk
   const activeRooms = (rooms as Room[]).filter((r) => r.isActive)
 
+  const lessonCountLabel = (n: number) => {
+    if (n === 1) return t('schedule.lessonOne')
+    if (n >= 2 && n <= 4) return t('schedule.lessonFew')
+    return t('schedule.lessonMany')
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={() => onOpenChange(false)} />
@@ -200,7 +210,7 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">Новый урок</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('schedule.newLesson')}</h2>
           <button onClick={() => onOpenChange(false)} className="p-1 rounded hover:bg-gray-100 text-gray-400">
             <X className="w-5 h-5" />
           </button>
@@ -209,8 +219,8 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
 
           {/* 1. Direction */}
-          <Field label="Направление *">
-            <SelectInput value={directionId} onChange={handleDirectionChange} placeholder="Выберите направление">
+          <Field label={`${t('schedule.direction')} *`}>
+            <SelectInput value={directionId} onChange={handleDirectionChange} placeholder={t('schedule.selectDirection')}>
               {(directions as Direction[]).map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
@@ -218,12 +228,12 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
           </Field>
 
           {/* 2. Group */}
-          <Field label="Группа *">
+          <Field label={`${t('schedule.group')} *`}>
             <SelectInput
               value={groupId}
               onChange={handleGroupChange}
               disabled={!directionId}
-              placeholder={directionId ? 'Выберите группу' : 'Сначала выберите направление'}
+              placeholder={directionId ? t('schedule.selectGroup') : t('schedule.selectDirectionFirst')}
             >
               {filteredGroups.map((g) => (
                 <option key={g.id} value={g.id}>{g.name}</option>
@@ -232,12 +242,12 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
           </Field>
 
           {/* 3. Subject */}
-          <Field label="Предмет *">
+          <Field label={`${t('schedule.subject')} *`}>
             <SelectInput
               value={subjectId}
               onChange={handleSubjectChange}
               disabled={!directionId}
-              placeholder={directionId ? 'Выберите предмет' : 'Сначала выберите направление'}
+              placeholder={directionId ? t('schedule.selectSubject') : t('schedule.selectDirectionFirst')}
             >
               {(dirSubjects as Subject[]).map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -246,12 +256,12 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
           </Field>
 
           {/* 4. Teacher */}
-          <Field label="Преподаватель *">
+          <Field label={`${t('schedule.teacher')} *`}>
             <SelectInput
               value={teacherId}
               onChange={setTeacherId}
               disabled={!subjectId}
-              placeholder={subjectId ? 'Выберите преподавателя' : 'Сначала выберите предмет'}
+              placeholder={subjectId ? t('schedule.selectTeacher') : t('schedule.selectSubjectFirst')}
             >
               {filteredTeachers.map((t: any) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
@@ -260,8 +270,8 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
           </Field>
 
           {/* 5. Room */}
-          <Field label="Кабинет">
-            <SelectInput value={roomId} onChange={setRoomId} placeholder="Не указан">
+          <Field label={t('schedule.room')}>
+            <SelectInput value={roomId} onChange={setRoomId} placeholder={t('schedule.notSpecified')}>
               {activeRooms.map((r) => (
                 <option key={r.id} value={r.id}>{r.name}</option>
               ))}
@@ -270,17 +280,17 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
 
           {/* 6. Time */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Начало *">
+            <Field label={`${t('schedule.start')} *`}>
               <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </Field>
-            <Field label="Конец *">
+            <Field label={`${t('schedule.end')} *`}>
               <Input
                 type="time" value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 error={!timeValid && !!endTime}
               />
               {!timeValid && !!endTime && (
-                <p className="mt-1 text-xs text-danger-500">Конец должен быть позже начала</p>
+                <p className="mt-1 text-xs text-danger-500">{t('schedule.endAfterStart')}</p>
               )}
             </Field>
           </div>
@@ -294,7 +304,7 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
                 mode === 'single' ? 'bg-primary-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
               )}
             >
-              Один урок
+              {t('schedule.singleLesson')}
             </button>
             <button
               type="button" onClick={() => setMode('series')}
@@ -304,14 +314,14 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
               )}
             >
               <CalendarRange className="w-4 h-4" />
-              Серия уроков
+              {t('schedule.seriesLessons')}
             </button>
           </div>
 
           {/* Single: date */}
           {mode === 'single' && (
-            <Field label="Дата *">
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Field label={`${t('schedule.date')} *`}>
+              <DatePicker value={date} onChange={setDate} />
             </Field>
           )}
 
@@ -319,16 +329,16 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
           {mode === 'series' && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="С *">
-                  <Input type="date" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} />
+                <Field label={`${t('schedule.fromDate')} *`}>
+                  <DatePicker value={rangeStart} onChange={setRangeStart} />
                 </Field>
-                <Field label="По *">
-                  <Input type="date" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} />
+                <Field label={`${t('schedule.toDate')} *`}>
+                  <DatePicker value={rangeEnd} onChange={setRangeEnd} />
                 </Field>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Дни недели *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('schedule.weekdaysLabel')} *</label>
                 <div className="flex gap-1.5">
                   {WEEKDAYS.map(({ label, iso }) => (
                     <button
@@ -349,15 +359,15 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
               {previewDates.length > 0 && (
                 <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg">
                   <p className="text-sm font-medium text-primary-700">
-                    Будет создано {previewDates.length}&nbsp;
-                    {previewDates.length === 1 ? 'урок' : previewDates.length < 5 ? 'урока' : 'уроков'}
+                    {t('schedule.willCreate')} {previewDates.length}&nbsp;
+                    {lessonCountLabel(previewDates.length)}
                   </p>
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {previewDates.slice(0, 10).map((d) => (
                       <span key={d} className="text-xs bg-white border border-primary-200 rounded px-1.5 py-0.5 text-primary-700">{d}</span>
                     ))}
                     {previewDates.length > 10 && (
-                      <span className="text-xs text-primary-500">+{previewDates.length - 10} ещё</span>
+                      <span className="text-xs text-primary-500">+{previewDates.length - 10} {t('schedule.more')}</span>
                     )}
                   </div>
                 </div>
@@ -369,7 +379,7 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
         {/* Footer */}
         <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
           <Button variant="secondary" className="flex-1" onClick={() => onOpenChange(false)}>
-            Отмена
+            {t('common.cancel')}
           </Button>
           <Button
             className="flex-1"
@@ -378,8 +388,8 @@ export function LessonForm({ open, onOpenChange, defaultDate }: LessonFormProps)
             onClick={handleSubmit}
           >
             {mode === 'series' && previewDates.length > 0
-              ? `Создать ${previewDates.length} уроков`
-              : 'Создать урок'
+              ? `${t('schedule.createLessons')} ${previewDates.length} ${lessonCountLabel(previewDates.length)}`
+              : t('schedule.createLesson')
             }
           </Button>
         </div>

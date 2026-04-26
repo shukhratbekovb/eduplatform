@@ -250,7 +250,6 @@ export default function LeadDetailPage() {
         defaultFunnelId={lead.funnelId}
         funnels={activeFunnels}
         stages={stages}
-        sources={sources}
         managers={managers}
       />
 

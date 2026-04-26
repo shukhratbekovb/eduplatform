@@ -1,5 +1,6 @@
 'use client'
 import { cn } from '@/lib/utils/cn'
+import { useT } from '@/lib/i18n'
 import { UserAvatar } from '@/components/ui/avatar'
 import type { Student } from '@/types/lms'
 
@@ -26,6 +27,8 @@ function gradeColor(grade: number | null) {
 }
 
 export function GradeInputTable({ rows, onChange, readonly }: GradeInputTableProps) {
+  const t = useT()
+
   return (
     <div className="space-y-2">
       {rows.map((row) => (
@@ -83,14 +86,14 @@ export function GradeInputTable({ rows, onChange, readonly }: GradeInputTablePro
                     type="text"
                     value={row.comment}
                     onChange={(e) => onChange(row.studentId, 'comment', e.target.value)}
-                    placeholder="Обязательный комментарий для оценки < 6…"
+                    placeholder={t('grade.commentRequired')}
                     className={cn(
                       'w-full text-xs border rounded px-2 py-1.5 focus:outline-none focus:border-primary-400',
                       !row.comment ? 'border-danger-300 bg-danger-50' : 'border-gray-200'
                     )}
                   />
                   {!row.comment && (
-                    <p className="text-[10px] text-danger-500 mt-0.5">Комментарий обязателен для оценки ниже 6</p>
+                    <p className="text-[10px] text-danger-500 mt-0.5">{t('grade.commentError')}</p>
                   )}
                 </div>
               )}
@@ -99,7 +102,7 @@ export function GradeInputTable({ rows, onChange, readonly }: GradeInputTablePro
                   type="text"
                   value={row.comment}
                   onChange={(e) => onChange(row.studentId, 'comment', e.target.value)}
-                  placeholder="Комментарий (необязательно)"
+                  placeholder={t('grade.commentOptional')}
                   className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-primary-400"
                 />
               )}

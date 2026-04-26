@@ -2,7 +2,8 @@
 import Link from 'next/link'
 import { Clock, MapPin, Users } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { lessonStatusBorderColor, lessonStatusLabel, lessonStatusTextColor, lessonStatusBgColor } from '@/lib/utils/lessonWindow'
+import { useT } from '@/lib/i18n'
+import { lessonStatusBorderColor, lessonStatusTextColor } from '@/lib/utils/lessonWindow'
 import type { Lesson } from '@/types/lms'
 
 interface LessonCardProps {
@@ -16,7 +17,14 @@ const statusDotColor: Record<string, string> = {
   cancelled: 'bg-gray-400',
 }
 
+const statusKeyMap: Record<string, string> = {
+  scheduled: 'lesson.scheduled',
+  completed: 'lesson.conducted',
+  cancelled: 'lesson.cancelled',
+}
+
 export function LessonCard({ lesson, compact }: LessonCardProps) {
+  const t = useT()
   const isCancelled = lesson.status === 'cancelled'
 
   return (
@@ -46,7 +54,7 @@ export function LessonCard({ lesson, compact }: LessonCardProps) {
 
       {compact && (
         <p className={cn('text-xs font-medium mt-1', lessonStatusTextColor(lesson.status))}>
-          {lessonStatusLabel(lesson.status)}
+          {t(statusKeyMap[lesson.status] ?? lesson.status)}
         </p>
       )}
     </Link>

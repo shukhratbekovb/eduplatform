@@ -28,6 +28,7 @@ export const en: Record<string, string> = {
   'common.open':       'Open',
   'common.days':       'd.',
   'common.inDev':      'In Development',
+  'common.saving':     'Saving...',
 
   // Theme / Language
   'theme.light':  'Light',
@@ -48,6 +49,10 @@ export const en: Record<string, string> = {
   'login.password.hide':  'Hide password',
   'login.error.invalid':  'Invalid email or password',
   'login.error.server':   'Server error. Please try again later.',
+  'login.error.notStudent': 'This portal is for students only.',
+  'login.error.userNotFound': 'No user found with this email.',
+  'login.error.wrongPassword': 'Wrong password.',
+  'login.error.accountDeactivated': 'Account is deactivated. Contact administrator.',
 
   // Profile dropdown
   'profile.title':          'Profile',
@@ -64,6 +69,12 @@ export const en: Record<string, string> = {
   'profile.cancelChanges':  'Cancel Changes',
   'profile.getCertificate': 'Get Certificate',
   'profile.logout':         'Sign Out',
+  'profile.titleAndAccess':       'Profile & Access',
+  'profile.error.fillAll':        'Please fill in all fields',
+  'profile.error.mismatch':       'Passwords do not match',
+  'profile.error.tooShort':       'Password must be at least 8 characters',
+  'profile.error.changeFailed':   'Failed to change password',
+  'profile.success.passwordChanged': 'Password changed successfully',
 
   // Dashboard
   'dashboard.title':              'Dashboard',
@@ -90,6 +101,12 @@ export const en: Record<string, string> = {
   'dashboard.leaderboard.all':    'All time',
   'dashboard.leaderboard.hint':   'Stars and crystals are counted for the last 30 days, excluding shop purchases',
   'dashboard.noActivity':         'No activity yet',
+  'dashboard.noGrades':           'No grades',
+  'dashboard.todaySchedule':      "Today's Schedule",
+  'dashboard.noLessonsToday':     'No lessons today',
+  'dashboard.now':                'Now',
+  'dashboard.upcomingDeadlines':  'Upcoming Deadlines',
+  'dashboard.noActiveAssignments':'No active assignments',
 
   // Homework
   'homework.title':         'Homework',
@@ -118,13 +135,27 @@ export const en: Record<string, string> = {
   'homework.teacherComment':'Teacher Comment',
   'homework.noComment':     'No comment',
   'homework.description':   'Assignment Description',
+  'homework.fileUploaded':   'File uploaded',
+  'homework.fileUploadError':'Upload failed',
+  'homework.submitError':    'Submit failed',
+  'homework.taskFiles':      'Task files',
+  'homework.answerSubmitted':'Your answer submitted',
+  'homework.awaitingReview': 'Awaiting teacher review',
+  'homework.yourText':       'Your text',
+  'homework.yourFile':       'Your attached file',
+  'homework.uploading':      'Uploading...',
+  'homework.attachFile':     'Attach file',
 
   // Assignment types
-  'assignment.type.class':       'Class Work',
-  'assignment.type.independent': 'Independent Work',
-  'assignment.type.control':     'Control Work',
-  'assignment.type.thematic':    'Thematic Work',
-  'assignment.type.homework':    'Homework',
+  'assignment.type.class':         'Class Work',
+  'assignment.type.independent':   'Independent Work',
+  'assignment.type.control':       'Control Work',
+  'assignment.type.thematic':      'Thematic Work',
+  'assignment.type.homework':      'Homework',
+  'assignment.type.participation': 'Lesson',
+  'assignment.type.exam':          'Exam',
+  'assignment.type.quiz':          'Quiz',
+  'assignment.type.project':       'Project',
 
   // Assignment statuses
   'assignment.status.pending':   'To Do',
@@ -144,8 +175,15 @@ export const en: Record<string, string> = {
   'performance.pendingTasks':       'Tasks to complete',
   'performance.overdueTasks':       'Overdue tasks',
   'performance.avgGradeChart':      'Average Grade',
+  'performance.avgGrade':           'Avg grade',
   'performance.attendance':         'Attendance',
   'performance.grades':             'Grades',
+  'performance.noSubjects':         'No subjects',
+  'performance.noGrades':           'No grades',
+  'performance.allGrades':          'All grades',
+  'performance.date':               'Date',
+  'performance.type':               'Type',
+  'performance.grade':              'Grade',
 
   // Schedule
   'schedule.title':       'Schedule',
@@ -168,6 +206,7 @@ export const en: Record<string, string> = {
   'schedule.days.short.4':'Fri',
   'schedule.days.short.5':'Sat',
   'schedule.days.short.6':'Sun',
+  'schedule.today':       'Today',
 
   // Materials
   'materials.title':       'Study Materials',
@@ -179,11 +218,16 @@ export const en: Record<string, string> = {
   'materials.lang.uz':     'Uzbek',
   'materials.type.pdf':    'PDF',
   'materials.type.video':  'Video',
+  'materials.type.link':   'Link',
+  'materials.type.image':  'Image',
   'materials.type.article':'Article',
   'materials.type.presentation': 'Presentation',
+  'materials.type.other':  'File',
   'materials.empty':       'No materials',
   'materials.emptyHint':   'Try changing the filters',
   'materials.open':        'Open',
+  'materials.lessons':     'lessons',
+  'materials.files':       'files',
 
   // Achievements
   'achievements.title':              'Achievements',
@@ -203,23 +247,64 @@ export const en: Record<string, string> = {
   'shop.balance':    'Your Balance',
   'shop.stars':      'stars',
   'shop.crystals':   'crystals',
+  'shop.purchased':  'Purchased',
+  'shop.purchaseError': 'Purchase failed',
+  'shop.shopTitle':  'Rewards Shop',
+  'shop.shopEmpty':  'Shop is empty',
+  'shop.stockLeft':  'Left',
+  'shop.outOfStock': 'Out of stock',
+  'shop.notEnough':  'Not enough',
+  'shop.buy':        'Buy',
 
   // Payment
   'payment.title':            'Tuition Payment',
   'payment.tab.upcoming':     'Upcoming Payments',
   'payment.tab.history':      'Payment History',
+  'payment.tab.contracts':    'By Contract',
   'payment.col.period':       'Period',
   'payment.col.description':  'Description',
   'payment.col.amount':       'Amount',
   'payment.col.status':       'Status',
   'payment.col.due':          'Date',
   'payment.totalUpcoming':    'Total Due',
+  'payment.totalPaid':        'Total Paid',
+  'payment.remaining':        'Remaining',
   'payment.count':            'Payments',
+  'payment.overdue':          'Overdue',
   'payment.empty.upcoming':   'No upcoming payments',
   'payment.empty.history':    'No payment history',
+  'payment.empty.contracts':  'No active contracts',
   'payment.status.paid':      'Paid',
   'payment.status.pending':   'Pending',
   'payment.status.overdue':   'Overdue',
+  'payment.status.ok':        'Up to date',
+  'payment.status.has_debt':  'Has debt',
+  'payment.partial':          'paid',
+  'payment.paymentN':         'Payment',
+  'payment.type.monthly':     'mo',
+  'payment.type.quarterly':   'quarter',
+  'payment.type.semiannual':  'half-year',
+  'payment.type.annual':      'year',
+  'payment.overduePayment':   'Overdue Payment',
+  'payment.nextPayment':      'Next Payment',
+  'payment.by':               'by',
+  'payment.paid':             'paid',
+
+  // Deadline
+  'deadline.overdue':    'Overdue',
+  'deadline.today':      'Today!',
+  'deadline.tomorrow':   'Tomorrow',
+  'deadline.daysLeft':   '{n} days left',
+
+  // TopBar
+  'topbar.notifications': 'Notifications',
+
+  // Grade types (short)
+  'grade.type.participation': 'Lesson',
+  'grade.type.homework':      'HW',
+  'grade.type.exam':          'Exam',
+  'grade.type.quiz':          'Quiz',
+  'grade.type.project':       'Project',
 
   // Contacts
   'contacts.title':           'Contacts',

@@ -1,5 +1,6 @@
 'use client'
 import { cn } from '@/lib/utils/cn'
+import { useT } from '@/lib/i18n'
 import { UserAvatar } from '@/components/ui/avatar'
 import type { Student, AttendanceStatus } from '@/types/lms'
 
@@ -16,21 +17,30 @@ interface AttendanceTableProps {
   readonly?: boolean
 }
 
-const statuses: { value: AttendanceStatus; label: string; color: string }[] = [
-  { value: 'present', label: 'Присутствует', color: 'bg-success-50 text-success-700 border-success-200' },
-  { value: 'late',    label: 'Опоздал',      color: 'bg-warning-50 text-warning-700 border-warning-200' },
-  { value: 'absent',  label: 'Отсутствует',  color: 'bg-danger-50 text-danger-700 border-danger-200' },
+const statusColors: Record<AttendanceStatus, string> = {
+  present: 'bg-success-50 text-success-700 border-success-200',
+  late:    'bg-warning-50 text-warning-700 border-warning-200',
+  absent:  'bg-danger-50 text-danger-700 border-danger-200',
+  excused: 'bg-gray-50 text-gray-700 border-gray-200',
+}
+
+const statusKeys: { value: AttendanceStatus; key: string }[] = [
+  { value: 'present', key: 'att.present' },
+  { value: 'late',    key: 'att.late' },
+  { value: 'absent',  key: 'att.absent' },
 ]
 
 export function AttendanceTable({ rows, onChange, readonly }: AttendanceTableProps) {
+  const t = useT()
+
   return (
     <div className="overflow-x-auto rounded-md border border-gray-200">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
-            <th className="text-left px-4 py-2.5 font-medium text-gray-600 w-48">Студент</th>
-            <th className="text-left px-4 py-2.5 font-medium text-gray-600">Статус</th>
-            {!readonly && <th className="text-left px-4 py-2.5 font-medium text-gray-600">Примечание</th>}
+            <th className="text-left px-4 py-2.5 font-medium text-gray-600 w-48">{t('att.student')}</th>
+            <th className="text-left px-4 py-2.5 font-medium text-gray-600">{t('common.status')}</th>
+            {!readonly && <th className="text-left px-4 py-2.5 font-medium text-gray-600">{t('att.note')}</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -47,13 +57,13 @@ export function AttendanceTable({ rows, onChange, readonly }: AttendanceTablePro
               <td className="px-4 py-2">
                 {readonly ? (
                   <span className={cn('inline-flex px-2 py-0.5 rounded-full text-xs font-medium border',
-                    statuses.find((s) => s.value === row.status)?.color ?? ''
+                    statusColors[row.status] ?? ''
                   )}>
-                    {statuses.find((s) => s.value === row.status)?.label}
+                    {t(`att.${row.status}` as any)}
                   </span>
                 ) : (
                   <div className="flex gap-1.5">
-                    {statuses.map((s) => (
+                    {statusKeys.map((s) => (
                       <button
                         key={s.value}
                         type="button"
@@ -61,11 +71,11 @@ export function AttendanceTable({ rows, onChange, readonly }: AttendanceTablePro
                         className={cn(
                           'px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
                           row.status === s.value
-                            ? s.color + ' ring-1 ring-offset-1 ' + s.color.split(' ')[2]
+                            ? statusColors[s.value] + ' ring-1 ring-offset-1 ' + statusColors[s.value].split(' ')[2]
                             : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
                         )}
                       >
-                        {s.label}
+                        {t(s.key)}
                       </button>
                     ))}
                   </div>
@@ -77,7 +87,7 @@ export function AttendanceTable({ rows, onChange, readonly }: AttendanceTablePro
                     type="text"
                     value={row.note}
                     onChange={(e) => onChange(row.studentId, 'note', e.target.value)}
-                    placeholder="Комментарий…"
+                    placeholder={t('att.comment')}
                     className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-primary-400 bg-transparent placeholder:text-gray-300"
                   />
                 </td>

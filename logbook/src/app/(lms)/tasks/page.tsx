@@ -1,6 +1,18 @@
 'use client'
+
+/**
+ * Страница задач МУП в формате Kanban-доски.
+ *
+ * Три колонки: Ожидание / В работе / Готово.
+ * Поддерживает drag-and-drop перемещение задач между колонками
+ * через библиотеку @dnd-kit. Создание новых задач через модальное окно.
+ *
+ * @module MupTasksPage
+ */
+
 import { useState } from 'react'
 import { Plus, Kanban } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import {
   DndContext,
   PointerSensor,
@@ -22,14 +34,19 @@ import { TaskColumn } from '@/components/lms/tasks/TaskColumn'
 import { TaskCard } from '@/components/lms/tasks/TaskCard'
 import type { MupTask } from '@/types/lms'
 
-const COLUMNS: { id: string; label: string }[] = [
-  { id: 'pending',     label: 'К выполнению' },
-  { id: 'in_progress', label: 'В работе' },
-  { id: 'done',        label: 'Готово' },
-]
-
+/**
+ * Kanban-доска задач для МУП (менеджера учебного процесса).
+ * Загружает задачи, группирует по статусу и позволяет drag-and-drop перемещение.
+ */
 export default function MupTasksPage() {
+  const t = useT()
   const user = useCurrentUser()
+
+  const COLUMNS: { id: string; label: string }[] = [
+    { id: 'pending',     label: t('tasks.pending') },
+    { id: 'in_progress', label: t('tasks.inProgress') },
+    { id: 'done',        label: t('tasks.done') },
+  ]
   const { data: tasks = [], isLoading } = useMupTasks({})
   const { mutate: moveTask }            = useMoveMupTask()
   const { mutate: createTask, isPending: creating } = useCreateMupTask()
@@ -44,6 +61,7 @@ export default function MupTasksPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
+  // Группировка задач по статусу для отображения в колонках Kanban
   const grouped = COLUMNS.reduce((acc, col) => {
     acc[col.id] = (tasks as MupTask[]).filter((t) => t.status === col.id)
     return acc
@@ -88,11 +106,11 @@ export default function MupTasksPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
           <Kanban className="w-5 h-5 text-primary-600" />
-          Задачи МУП
+          {t('tasks.title')}
         </h1>
         <Button size="sm" onClick={() => setShowForm(true)}>
           <Plus className="w-4 h-4" />
-          Создать задачу
+          {t('tasks.create')}
         </Button>
       </div>
 
@@ -131,34 +149,34 @@ export default function MupTasksPage() {
       <Dialog open={showForm} onOpenChange={(o) => !o && setShowForm(false)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Новая задача</DialogTitle>
+            <DialogTitle>{t('tasks.newTask')}</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Название *</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('tasks.nameRequired')}</label>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Название задачи…"
+                  placeholder={t('tasks.namePlaceholder')}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Описание</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.description')}</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDesc(e.target.value)}
                   rows={3}
-                  placeholder="Подробности…"
+                  placeholder={t('tasks.details')}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary-500"
                 />
               </div>
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setShowForm(false)}>Отмена</Button>
+            <Button variant="secondary" onClick={() => setShowForm(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleCreate} disabled={!title.trim() || creating}>
-              {creating ? 'Создание…' : 'Создать'}
+              {creating ? t('tasks.creating') : t('common.create')}
             </Button>
           </DialogFooter>
         </DialogContent>

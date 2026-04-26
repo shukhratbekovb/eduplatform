@@ -273,12 +273,18 @@ def upgrade() -> None:
         sa.Column("created_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("title", sa.String(255), nullable=False),
         sa.Column("description", sa.Text, nullable=True),
-        sa.Column("due_date", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("due_date", sa.DateTime(timezone=True), nullable=True),
         sa.Column("is_done", sa.Boolean, nullable=False, server_default="false"),
+        sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
+        sa.Column("priority", sa.String(20), nullable=False, server_default="medium"),
+        sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("category", sa.String(50), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
     )
     op.create_index("ix_mup_tasks_assigned_to", "mup_tasks", ["assigned_to"])
+    op.create_index("ix_mup_tasks_status", "mup_tasks", ["status"])
+    op.create_index("ix_mup_tasks_student_id", "mup_tasks", ["student_id"])
 
     op.create_table(
         "lms_notifications",
@@ -330,13 +336,17 @@ def upgrade() -> None:
         "payments",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("contract_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("contracts.id", ondelete="SET NULL"), nullable=True),
         sa.Column("group_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("groups.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("amount", sa.Numeric(10, 2), nullable=False),
+        sa.Column("description", sa.Text, nullable=True),
+        sa.Column("amount", sa.Numeric(12, 2), nullable=False),
         sa.Column("currency", sa.String(10), nullable=False, server_default="UZS"),
         sa.Column("status", sa.Enum("pending","paid","overdue","cancelled", name="payment_status", create_type=False), nullable=False, server_default="pending"),
-        sa.Column("due_date", sa.Date, nullable=False),
+        sa.Column("due_date", sa.Date, nullable=True),
         sa.Column("paid_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("method", sa.String(50), nullable=True),
+        sa.Column("paid_amount", sa.Numeric(12, 2), nullable=False, server_default="0"),
+        sa.Column("period_number", sa.Integer, nullable=True),
         sa.Column("receipt_url", sa.Text, nullable=True),
         sa.Column("created_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),

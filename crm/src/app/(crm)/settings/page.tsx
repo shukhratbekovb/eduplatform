@@ -158,7 +158,7 @@ function SourcesTab() {
       )
     } else {
       createSource(
-        { name: values.name, type: values.type, funnelId: values.funnelId || undefined },
+        { name: values.name, type: values.type as 'api' | 'landing', funnelId: values.funnelId || undefined },
         { onSuccess: () => setFormOpen(false) }
       )
     }
@@ -220,10 +220,11 @@ function SourcesTab() {
                   </td>
                   <td className="px-4 py-3">
                     {source.apiKey && (source.type === 'api' || source.type === 'landing') ? (() => {
-                      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+                      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+                      const websiteBase = process.env.NEXT_PUBLIC_WEBSITE_URL || 'http://localhost:3003'
                       const url = source.type === 'api'
-                        ? `${base}/public/api/${source.apiKey}/leads`
-                        : `${base}/public/forms/${source.apiKey}`
+                        ? `${apiBase}/public/api/${source.apiKey}/leads`
+                        : `${websiteBase}/form/${source.apiKey}`
                       return (
                         <div className="flex items-center gap-2">
                           <code className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded max-w-[260px] truncate block">
@@ -259,20 +260,24 @@ function SourcesTab() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-                      <button
-                        onClick={() => openEdit(source)}
-                        className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                        aria-label={t('common.edit')}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(source)}
-                        className="p-1.5 text-gray-400 hover:text-danger-500 hover:bg-danger-50 rounded transition-colors"
-                        aria-label={t('common.delete')}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {!source.isSystemSource && (
+                        <>
+                          <button
+                            onClick={() => openEdit(source)}
+                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+                            aria-label={t('common.edit')}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(source)}
+                            className="p-1.5 text-gray-400 hover:text-danger-500 hover:bg-danger-50 rounded transition-colors"
+                            aria-label={t('common.delete')}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

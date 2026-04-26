@@ -11,6 +11,8 @@ services:
       POSTGRES_PASSWORD: edu
     volumes:
       - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U edu -d eduplatform"]
       interval: 5s
@@ -77,6 +79,7 @@ services:
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend/src:/app/src   # hot reload в dev режиме
+      - ./backend/scripts:/app/scripts
       - ./backend/gcp_keys.json:/app/gcp_keys.json:ro
     ports:
       - "8000:8000"
@@ -121,11 +124,15 @@ services:
     build:
       context: ./crm
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        NEXT_PUBLIC_WEBSITE_URL: http://localhost:3003
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      NEXT_PUBLIC_WEBSITE_URL: http://localhost:3003
     depends_on:
       - api
 
@@ -152,6 +159,18 @@ services:
       NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
     depends_on:
       - api
+
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
 
 volumes:
   pgdata:

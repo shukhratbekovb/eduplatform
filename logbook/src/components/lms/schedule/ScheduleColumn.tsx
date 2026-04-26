@@ -5,6 +5,7 @@ import { LessonCard } from './LessonCard'
 import { isToday, parseISO } from 'date-fns'
 import { formatDate, formatWeekdayLong } from '@/lib/utils/dates'
 import { compareTimes } from '@/lib/utils/dates'
+import { useT } from '@/lib/i18n'
 import type { Lesson } from '@/types/lms'
 
 interface ScheduleColumnProps {
@@ -15,6 +16,7 @@ interface ScheduleColumnProps {
 }
 
 export function ScheduleColumn({ date, lessons, canCreate, onCreateLesson }: ScheduleColumnProps) {
+  const t = useT()
   const dateStr   = date.toISOString().split('T')[0]
   const today     = isToday(date)
   const sorted    = [...lessons].sort((a, b) => compareTimes(a.startTime, b.startTime))
@@ -40,7 +42,7 @@ export function ScheduleColumn({ date, lessons, canCreate, onCreateLesson }: Sch
         </p>
         {today && (
           <span className="inline-flex items-center mt-1 text-[10px] font-semibold uppercase tracking-wide text-primary-600 bg-primary-100 px-1.5 py-0.5 rounded-full">
-            Сегодня
+            {t('common.today')}
           </span>
         )}
       </div>
@@ -48,7 +50,7 @@ export function ScheduleColumn({ date, lessons, canCreate, onCreateLesson }: Sch
       {/* Lessons */}
       <div className="flex-1 p-2 space-y-2 overflow-y-auto">
         {sorted.length === 0 ? (
-          <p className="text-xs text-gray-400 text-center py-6">Нет уроков</p>
+          <p className="text-xs text-gray-400 text-center py-6">{t('lesson.noLessons')}</p>
         ) : (
           sorted.map((lesson) => (
             <LessonCard key={lesson.id} lesson={lesson} />
@@ -64,7 +66,7 @@ export function ScheduleColumn({ date, lessons, canCreate, onCreateLesson }: Sch
             className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors border border-dashed border-gray-200 hover:border-primary-300"
           >
             <Plus className="w-3.5 h-3.5" />
-            Добавить урок
+            {t('lesson.addLesson')}
           </button>
         </div>
       )}

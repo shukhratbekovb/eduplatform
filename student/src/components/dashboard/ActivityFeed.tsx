@@ -57,7 +57,7 @@ export function ActivityFeed({ events, isLoading }: Props) {
       ) : events.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-4">{t('dashboard.noActivity')}</p>
       ) : (
-        <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+        <div className="space-y-3 max-h-52 overflow-y-auto pr-1 scrollbar-thin">
           {dates.map((date) => (
             <div key={date}>
               <p className="text-xs font-medium text-gray-400 mb-2 capitalize">{formatShortDate(date, lang)}</p>

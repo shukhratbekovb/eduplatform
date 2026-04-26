@@ -8,30 +8,32 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { formatDate } from '@/lib/utils/dates'
 import { cn } from '@/lib/utils/cn'
-
-const STATUS_FILTERS = [
-  { value: '',           label: 'Все' },
-  { value: 'pending',    label: 'Ожидает' },
-  { value: 'approved',   label: 'Одобрено' },
-  { value: 'rejected',   label: 'Отклонено' },
-]
+import { useT } from '@/lib/i18n'
 
 function getStatus(isApproved: boolean | null): 'pending' | 'approved' | 'rejected' {
   if (isApproved === null || isApproved === undefined) return 'pending'
   return isApproved ? 'approved' : 'rejected'
 }
 
-const STATUS_CFG = {
-  pending:  { label: 'Ожидает',   variant: 'warning' as const },
-  approved: { label: 'Одобрено',  variant: 'success' as const },
-  rejected: { label: 'Отклонено', variant: 'danger' as const },
-}
-
 export default function LateRequestsPage() {
+  const t = useT()
   const canReview = useIsDirectorOrMup()
   const user      = useCurrentUser()
 
   const [statusFilter, setStatusFilter] = useState<string>('pending')
+
+  const STATUS_FILTERS = [
+    { value: '',           label: t('late.all') },
+    { value: 'pending',    label: t('late.pending') },
+    { value: 'approved',   label: t('late.approved') },
+    { value: 'rejected',   label: t('late.rejected') },
+  ]
+
+  const STATUS_CFG = {
+    pending:  { label: t('late.pending'),  variant: 'warning' as const },
+    approved: { label: t('late.approved'), variant: 'success' as const },
+    rejected: { label: t('late.rejected'), variant: 'danger' as const },
+  }
 
   const filters = canReview
     ? { status: statusFilter || undefined }
@@ -46,7 +48,7 @@ export default function LateRequestsPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
           <ClockAlert className="w-5 h-5 text-warning-600" />
-          {canReview ? 'Запросы на позднее внесение' : 'Мои запросы'}
+          {canReview ? t('late.title') : t('nav.lateRequests')}
           <span className="text-sm font-normal text-gray-400">({total})</span>
         </h1>
       </div>
@@ -77,13 +79,13 @@ export default function LateRequestsPage() {
       ) : requests.length === 0 ? (
         <EmptyState
           icon={ClockAlert}
-          title="Нет запросов"
-          description={canReview ? 'Все запросы обработаны' : 'У вас нет запросов'}
+          title={t('late.noRequests')}
+          description=""
         />
       ) : (
         <div className="space-y-2">
           {requests.map((req: any) => (
-            <LateRequestCard key={req.id} request={req} canReview={canReview} />
+            <LateRequestCard key={req.id} request={req} canReview={canReview} statusCfg={STATUS_CFG} />
           ))}
         </div>
       )}
@@ -91,12 +93,13 @@ export default function LateRequestsPage() {
   )
 }
 
-function LateRequestCard({ request, canReview }: { request: any; canReview: boolean }) {
+function LateRequestCard({ request, canReview, statusCfg }: { request: any; canReview: boolean; statusCfg: Record<string, { label: string; variant: 'warning' | 'success' | 'danger' }> }) {
+  const t = useT()
   const [expanded, setExpanded] = useState(false)
   const { mutate: review, isPending } = useReviewLateRequest()
 
   const status = getStatus(request.isApproved)
-  const cfg = STATUS_CFG[status]
+  const cfg = statusCfg[status]
 
   const handleApprove = () => review({ id: request.id, data: { approved: true } })
   const handleReject = () => review({ id: request.id, data: { approved: false } })
@@ -109,7 +112,7 @@ function LateRequestCard({ request, canReview }: { request: any; canReview: bool
       >
         <div>
           <p className="text-sm font-medium text-gray-900">
-            {request.teacherName ?? 'Преподаватель'}
+            {request.teacherName ?? t('role.teacher')}
           </p>
           <p className="text-xs text-gray-400 mt-0.5">
             {request.groupName && `${request.groupName} · `}
@@ -127,13 +130,13 @@ function LateRequestCard({ request, canReview }: { request: any; canReview: bool
       {expanded && (
         <div className="px-4 pb-4 border-t border-gray-100 pt-3">
           <div className="mb-3">
-            <p className="text-xs font-medium text-gray-500 mb-1">Причина запроса</p>
+            <p className="text-xs font-medium text-gray-500 mb-1">{t('late.reason')}</p>
             <p className="text-sm text-gray-700">{request.reason}</p>
           </div>
 
           {request.reviewedByName && (
             <p className="text-xs text-gray-400 mb-3">
-              {status === 'approved' ? 'Одобрил' : 'Отклонил'}: {request.reviewedByName}
+              {status === 'approved' ? t('late.approved') : t('late.rejected')}: {request.reviewedByName}
               {request.reviewedAt && ` · ${formatDate(request.reviewedAt)}`}
             </p>
           )}
@@ -142,11 +145,11 @@ function LateRequestCard({ request, canReview }: { request: any; canReview: bool
             <div className="flex gap-2 mt-3">
               <Button size="sm" onClick={handleApprove} disabled={isPending} className="flex items-center gap-1.5">
                 <Check className="w-3.5 h-3.5" />
-                Одобрить
+                {t('late.approve')}
               </Button>
               <Button size="sm" variant="danger" onClick={handleReject} disabled={isPending} className="flex items-center gap-1.5">
                 <X className="w-3.5 h-3.5" />
-                Отклонить
+                {t('late.reject')}
               </Button>
             </div>
           )}

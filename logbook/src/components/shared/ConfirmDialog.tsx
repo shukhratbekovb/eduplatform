@@ -1,6 +1,7 @@
 'use client'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { Button } from '@/components/ui/button'
+import { useT } from '@/lib/i18n'
 
 interface ConfirmDialogProps {
   open:          boolean
@@ -16,9 +17,11 @@ interface ConfirmDialogProps {
 
 export function ConfirmDialog({
   open, onOpenChange, title, description,
-  confirmLabel = 'Подтвердить', cancelLabel = 'Отмена',
+  confirmLabel, cancelLabel,
   variant = 'danger', onConfirm, loading,
 }: ConfirmDialogProps) {
+  const t = useT()
+
   return (
     <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
       <AlertDialog.Portal>
@@ -34,11 +37,11 @@ export function ConfirmDialog({
           )}
           <div className="flex justify-end gap-2">
             <AlertDialog.Cancel asChild>
-              <Button variant="secondary" size="sm">{cancelLabel}</Button>
+              <Button variant="secondary" size="sm">{cancelLabel ?? t('common.cancel')}</Button>
             </AlertDialog.Cancel>
             <AlertDialog.Action asChild>
               <Button variant={variant} size="sm" loading={loading} onClick={onConfirm}>
-                {confirmLabel}
+                {confirmLabel ?? t('common.confirm')}
               </Button>
             </AlertDialog.Action>
           </div>

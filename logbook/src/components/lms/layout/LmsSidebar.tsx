@@ -1,4 +1,19 @@
 'use client'
+
+/**
+ * Боковая навигационная панель (Sidebar) LMS.
+ *
+ * Отображает меню навигации с ролевым разграничением:
+ * - Основные пункты (расписание, студенты, группы и т.д.) видны всем
+ * - Раздел управления (МУП) виден директору и МУП
+ * - Раздел кассы виден только кассиру
+ * - Раздел директора (персонал, финансы, настройки) виден только директору
+ *
+ * Поддерживает свёрнутый режим (collapsed) с тултипами на иконках.
+ *
+ * @module LmsSidebar
+ */
+
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -7,53 +22,60 @@ import {
   UserCheck, FileText, FileCheck, LayoutDashboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { useT } from '@/lib/i18n'
 import { useIsDirector, useIsDirectorOrMup, useIsTeacher, useIsCashier } from '@/lib/stores/useAuthStore'
 import { usePendingLateRequestsCount } from '@/lib/hooks/lms/useLateRequests'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { useState } from 'react'
 
-// ── Nav structure ────────────────────────────────────────────────────────────
+// ── Структура навигации ──────────────────────────────────────────────────────
 
 type NavItem = {
   href: string
-  label: string
+  labelKey: string
   icon: React.ElementType
   badge?: boolean
-  children?: { href: string; label: string }[]
   roleCheck?: 'teacher' | 'dirOrMup' | 'director'
 }
 
 const mainNav: NavItem[] = [
-  { href: '/dashboard',   label: 'Главная',             icon: LayoutDashboard },
-  { href: '/schedule',    label: 'Расписание',          icon: CalendarDays },
-  { href: '/attendance',  label: 'Посещаемость',        icon: UserCheck },
-  { href: '/students',    label: 'Студенты',            icon: Users },
-  { href: '/groups',      label: 'Группы',              icon: BookOpen },
-  { href: '/homework',    label: 'Домашние задания',    icon: ClipboardList },
-  { href: '/materials',   label: 'Материалы',           icon: FileText },
+  { href: '/dashboard',   labelKey: 'nav.dashboard',   icon: LayoutDashboard },
+  { href: '/schedule',    labelKey: 'nav.schedule',     icon: CalendarDays },
+  { href: '/attendance',  labelKey: 'nav.attendance',   icon: UserCheck },
+  { href: '/students',    labelKey: 'nav.students',     icon: Users },
+  { href: '/groups',      labelKey: 'nav.groups',       icon: BookOpen },
+  { href: '/homework',    labelKey: 'nav.homework',     icon: ClipboardList },
+  { href: '/materials',   labelKey: 'nav.materials',    icon: FileText },
 ]
 
 const reportsNav: NavItem[] = [
-  { href: '/reports',     label: 'Отчёты',              icon: BarChart2 },
-  { href: '/exams',       label: 'Экзамены',            icon: GraduationCap },
-  { href: '/works',       label: 'Работы студентов',    icon: FileCheck },
+  { href: '/reports',     labelKey: 'nav.reports',      icon: BarChart2 },
+  { href: '/exams',       labelKey: 'nav.exams',        icon: GraduationCap },
+  { href: '/works',       labelKey: 'nav.works',        icon: FileCheck },
 ]
 
 const mupNav: NavItem[] = [
-  { href: '/late-requests', label: 'Поздние запросы', icon: Clock, badge: true },
-  { href: '/tasks',         label: 'Мои задачи',      icon: CheckSquare },
-  { href: '/analytics',     label: 'Аналитика',       icon: BarChart2 },
+  { href: '/late-requests', labelKey: 'nav.lateRequests', icon: Clock, badge: true },
+  { href: '/tasks',         labelKey: 'nav.tasks',        icon: CheckSquare },
+  { href: '/analytics',     labelKey: 'nav.analytics',    icon: BarChart2 },
 ]
 
 const directorNav: NavItem[] = [
-  { href: '/staff',        label: 'Персонал',      icon: Users },
-  { href: '/finance',      label: 'Финансы',       icon: Banknote },
-  { href: '/compensation', label: 'Компенсации',   icon: Banknote },
-  { href: '/settings',     label: 'Настройки',     icon: Settings },
+  { href: '/staff',        labelKey: 'nav.staff',         icon: Users },
+  { href: '/finance',      labelKey: 'nav.finance',       icon: Banknote },
+  { href: '/compensation', labelKey: 'nav.compensation',  icon: Banknote },
+  { href: '/settings',     labelKey: 'nav.settings',      icon: Settings },
 ]
 
-// ── Tooltip wrapper ──────────────────────────────────────────────────────────
+// ── Обёртка тултипа ─────────────────────────────────────────────────────────
 
+/**
+ * Обёртка Radix Tooltip для элементов навигации в свёрнутом режиме.
+ * Показывает название пункта меню при наведении на иконку.
+ *
+ * @param label - текст тултипа
+ * @param children - элемент, к которому привязан тултип
+ */
 function NavTooltip({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <Tooltip.Provider delayDuration={200}>
@@ -74,8 +96,19 @@ function NavTooltip({ label, children }: { label: string; children: React.ReactN
   )
 }
 
-// ── Single nav item ──────────────────────────────────────────────────────────
+// ── Элемент навигации ────────────────────────────────────────────────────────
 
+/**
+ * Отдельный пункт меню навигации.
+ * Подсвечивает активный маршрут, показывает badge (значок с числом)
+ * для запросов, ожидающих обработки, и тултип в свёрнутом режиме.
+ *
+ * @param href - путь маршрута
+ * @param label - отображаемое название
+ * @param icon - иконка Lucide
+ * @param collapsed - свёрнут ли sidebar
+ * @param badgeCount - число для отображения в badge (например, кол-во запросов)
+ */
 function NavItem({
   href, label, icon: Icon, collapsed, badgeCount,
 }: {
@@ -133,8 +166,17 @@ function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean 
   )
 }
 
-// ── Main sidebar ─────────────────────────────────────────────────────────────
+// ── Основной компонент sidebar ───────────────────────────────────────────────
 
+/**
+ * Боковая панель навигации LMS.
+ *
+ * Собирает секции навигации в зависимости от роли текущего пользователя.
+ * Загружает количество ожидающих запросов на позднее внесение для badge.
+ *
+ * @param collapsed - свёрнут ли sidebar (ширина 60px vs 220px)
+ * @param onToggle - обработчик переключения свёрнутого режима
+ */
 export function LmsSidebar({
   collapsed,
   onToggle,
@@ -142,6 +184,7 @@ export function LmsSidebar({
   collapsed: boolean
   onToggle: () => void
 }) {
+  const t = useT()
   const isDirector = useIsDirector()
   const isDirOrMup = useIsDirectorOrMup()
   const isTeacher  = useIsTeacher()
@@ -175,7 +218,7 @@ export function LmsSidebar({
           <div key={item.href} className="mb-0.5">
             <NavItem
               href={item.href}
-              label={item.label}
+              label={t(item.labelKey)}
               icon={item.icon}
               collapsed={collapsed}
             />
@@ -183,12 +226,12 @@ export function LmsSidebar({
         ))}
 
         {/* Reports section */}
-        <SectionLabel label="Отчёты" collapsed={collapsed} />
+        <SectionLabel label={t('nav.reports')} collapsed={collapsed} />
         {reportsNav.map((item) => (
           <div key={item.href} className="mb-0.5">
             <NavItem
               href={item.href}
-              label={item.label}
+              label={t(item.labelKey)}
               icon={item.icon}
               collapsed={collapsed}
             />
@@ -198,12 +241,12 @@ export function LmsSidebar({
         {/* MUP section */}
         {isDirOrMup && (
           <>
-            <SectionLabel label="Управление" collapsed={collapsed} />
+            <SectionLabel label={t('nav.management')} collapsed={collapsed} />
             {mupNav.map((item) => (
               <div key={item.href} className="mb-0.5">
                 <NavItem
                   href={item.href}
-                  label={item.label}
+                  label={t(item.labelKey)}
                   icon={item.icon}
                   collapsed={collapsed}
                   badgeCount={item.badge ? pendingLateCount : undefined}
@@ -216,9 +259,9 @@ export function LmsSidebar({
         {/* Cashier section */}
         {isCashier && (
           <>
-            <SectionLabel label="Касса" collapsed={collapsed} />
+            <SectionLabel label={t('nav.cashDesk')} collapsed={collapsed} />
             <div className="mb-0.5">
-              <NavItem href="/finance" label="Финансы" icon={Banknote} collapsed={collapsed} />
+              <NavItem href="/finance" label={t('nav.finance')} icon={Banknote} collapsed={collapsed} />
             </div>
           </>
         )}
@@ -226,12 +269,12 @@ export function LmsSidebar({
         {/* Director section */}
         {isDirector && (
           <>
-            <SectionLabel label="Директор" collapsed={collapsed} />
+            <SectionLabel label={t('role.director')} collapsed={collapsed} />
             {directorNav.map((item) => (
               <div key={item.href} className="mb-0.5">
                 <NavItem
                   href={item.href}
-                  label={item.label}
+                  label={t(item.labelKey)}
                   icon={item.icon}
                   collapsed={collapsed}
                 />

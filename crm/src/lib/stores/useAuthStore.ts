@@ -5,12 +5,10 @@ import type { User } from '@/types/crm'
 interface AuthStore {
   user: User | null
   token: string | null
-  isDemoMode: boolean
   _hasHydrated: boolean
 
   setAuth: (user: User, token: string) => void
   logout: () => void
-  enableDemo: (user: User, token: string) => void
   setHasHydrated: (v: boolean) => void
 }
 
@@ -19,17 +17,15 @@ export const useAuthStore = create<AuthStore>()(
     (set) => ({
       user: null,
       token: null,
-      isDemoMode: false,
       _hasHydrated: false,
 
-      setAuth:    (user, token) => set({ user, token, isDemoMode: false }),
-      logout:     () => set({ user: null, token: null, isDemoMode: false }),
-      enableDemo: (user, token) => set({ user, token, isDemoMode: true }),
+      setAuth:    (user, token) => set({ user, token }),
+      logout:     () => set({ user: null, token: null }),
       setHasHydrated: (v) => set({ _hasHydrated: v }),
     }),
     {
       name: 'edu-auth',
-      partialize: (s) => ({ token: s.token, user: s.user, isDemoMode: s.isDemoMode }),
+      partialize: (s) => ({ token: s.token, user: s.user }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true)
       },

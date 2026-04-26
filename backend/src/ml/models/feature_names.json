@@ -1,0 +1,16 @@
+[
+  "attendance_rate_14d",
+  "attendance_rate_30d",
+  "absence_streak",
+  "late_ratio_14d",
+  "gpa_overall",
+  "avg_grade_last5",
+  "grade_trend",
+  "exam_fail_rate",
+  "homework_completion_rate",
+  "overdue_rate",
+  "missed_homework_streak",
+  "has_overdue_payment",
+  "max_debt_days",
+  "overdue_payment_count"
+]

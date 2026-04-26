@@ -12,9 +12,11 @@ import { useSubjects, useDirections } from '@/lib/hooks/lms/useSettings'
 import { UserAvatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
+import { useT } from '@/lib/i18n'
 
 // ── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +29,7 @@ function useStaffDetail(id: string) {
 }
 
 function useUpdateStaff() {
+  const t = useT()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, any> }) =>
@@ -34,9 +37,9 @@ function useUpdateStaff() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['lms', 'staff', vars.id] })
       qc.invalidateQueries({ queryKey: ['lms', 'staff'] })
-      toast.success('Данные обновлены')
+      toast.success(t('staff.dataUpdated'))
     },
-    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Ошибка'),
+    onError: (err: any) => toast.error(err?.response?.data?.detail || t('common.error')),
   })
 }
 
@@ -47,48 +50,44 @@ function useResetPassword() {
 }
 
 function useBulkAssignSubjects() {
+  const t = useT()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ userId, subjectIds }: { userId: string; subjectIds: string[] }) =>
       apiClient.put(`/lms/users/${userId}/subjects`, { subjectIds }).then((r) => r.data),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['lms', 'staff', vars.userId] })
-      toast.success('Предметы назначены')
+      toast.success(t('staff.subjectsAssigned'))
     },
-    onError: () => toast.error('Не удалось назначить предметы'),
+    onError: () => toast.error(t('staff.subjectsAssignError')),
   })
 }
 
 function useUnassignSubject() {
+  const t = useT()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ userId, subjectId }: { userId: string; subjectId: string }) =>
       apiClient.delete(`/lms/users/${userId}/subjects/${subjectId}`).then((r) => r.data),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['lms', 'staff', vars.userId] })
-      toast.success('Предмет убран')
+      toast.success(t('staff.subjectRemoved'))
     },
-    onError: () => toast.error('Ошибка'),
+    onError: () => toast.error(t('common.error')),
   })
 }
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
-const ROLE_CFG: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'danger' }> = {
-  director:      { label: 'Директор',        variant: 'danger'  },
-  mup:           { label: 'МУП',             variant: 'warning' },
-  teacher:       { label: 'Преподаватель',   variant: 'success' },
-  sales_manager: { label: 'Менеджер продаж', variant: 'default' },
-  cashier:       { label: 'Кассир',          variant: 'default' },
+const ROLE_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'danger'> = {
+  director:      'danger',
+  mup:           'warning',
+  teacher:       'success',
+  sales_manager: 'default',
+  cashier:       'default',
 }
 
-const ASSIGNABLE_ROLES = [
-  { value: 'teacher', label: 'Преподаватель' },
-  { value: 'mup', label: 'МУП' },
-  { value: 'sales_manager', label: 'Менеджер продаж' },
-  { value: 'cashier', label: 'Кассир' },
-  { value: 'director', label: 'Директор' },
-]
+const ASSIGNABLE_ROLE_VALUES = ['teacher', 'mup', 'sales_manager', 'cashier', 'director']
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
@@ -96,6 +95,7 @@ export default function StaffDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const canManage = useIsDirectorOrMup()
+  const t = useT()
 
   const { data: detail, isLoading } = useStaffDetail(id)
   const { mutate: updateUser, isPending: saving } = useUpdateStaff()
@@ -110,7 +110,8 @@ export default function StaffDetailPage() {
   const [showSubjectPicker, setShowSubjectPicker] = useState(false)
 
   const d = detail as any
-  const cfg = d ? ROLE_CFG[d.role] ?? { label: d.role, variant: 'default' as const } : null
+  const roleVariant = d ? ROLE_VARIANT[d.role] ?? 'default' : 'default'
+  const roleLabel = d ? t(`role.${d.role}`) : ''
 
   const startEdit = () => {
     if (!d) return
@@ -136,9 +137,9 @@ export default function StaffDetailPage() {
     resetPw(id, {
       onSuccess: (data: any) => {
         setNewPassword(data.generatedPassword)
-        toast.success('Пароль сброшен')
+        toast.success(t('staff.passwordReset'))
       },
-      onError: () => toast.error('Ошибка'),
+      onError: () => toast.error(t('common.error')),
     })
   }
 
@@ -160,7 +161,7 @@ export default function StaffDetailPage() {
     <div className="max-w-3xl mx-auto">
       <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4">
         <ArrowLeft className="w-4 h-4" />
-        Назад к персоналу
+        {t('staff.backToStaff')}
       </button>
 
       {/* Header card */}
@@ -174,7 +175,7 @@ export default function StaffDetailPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
                   <h1 className="text-xl font-bold text-gray-900">{d.name}</h1>
-                  <Badge variant={cfg!.variant}>{cfg!.label}</Badge>
+                  <Badge variant={roleVariant}>{roleLabel}</Badge>
                 </div>
 
                 <div className="space-y-1 mt-2">
@@ -199,11 +200,11 @@ export default function StaffDetailPage() {
                 <div className="flex gap-2">
                   <Button variant="secondary" size="sm" onClick={startEdit}>
                     <Pencil className="w-4 h-4" />
-                    Редактировать
+                    {t('common.edit')}
                   </Button>
                   <Button variant="secondary" size="sm" onClick={handleResetPassword} loading={resetting}>
                     <KeyRound className="w-4 h-4" />
-                    Сбросить пароль
+                    {t('profile.resetPassword')}
                   </Button>
                 </div>
               )}
@@ -213,7 +214,7 @@ export default function StaffDetailPage() {
             {newPassword && (
               <div className="mt-4 bg-warning-50 border border-warning-200 rounded-lg p-3 flex items-center gap-3">
                 <div className="flex-1">
-                  <p className="text-xs font-medium text-warning-700">Новый пароль:</p>
+                  <p className="text-xs font-medium text-warning-700">{t('profile.newPassword')}</p>
                   <code className="text-sm font-mono text-warning-900">{newPassword}</code>
                 </div>
                 <button onClick={copyPw} className="text-warning-600 hover:text-warning-800 p-1">
@@ -230,11 +231,11 @@ export default function StaffDetailPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="w-4 h-4 text-primary-500" />
-            <h2 className="text-sm font-semibold text-gray-700">Статистика за текущий месяц</h2>
+            <h2 className="text-sm font-semibold text-gray-700">{t('staff.monthlyStats')}</h2>
           </div>
           <div className="bg-primary-50 rounded-xl p-5 text-center">
             <p className="text-3xl font-bold text-primary-700">{d.lessonsThisMonth ?? 0}</p>
-            <p className="text-xs text-gray-500 mt-1">Уроков проведено</p>
+            <p className="text-xs text-gray-500 mt-1">{t('staff.lessonsConducted')}</p>
           </div>
         </div>
       )}
@@ -264,40 +265,41 @@ function EditForm({
   setForm: (fn: (f: typeof form) => typeof form) => void
   saving: boolean; onSave: () => void; onCancel: () => void
 }) {
+  const t = useT()
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-900">Редактирование</h2>
+      <h2 className="text-lg font-semibold text-gray-900">{t('staff.editing')}</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">ФИО</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('staff.fullName')}</label>
           <Input value={form.name} onChange={set('name')} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('staff.email')}</label>
           <Input type="email" value={form.email} onChange={set('email')} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Телефон</label>
-          <Input value={form.phone} onChange={set('phone')} placeholder="+998..." />
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('staff.phone')}</label>
+          <Input value={form.phone} onChange={set('phone')} placeholder={t('staff.phonePlaceholder')} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Дата рождения</label>
-          <Input type="date" value={form.dateOfBirth} onChange={set('dateOfBirth')} />
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('staff.dob')}</label>
+          <DatePicker value={form.dateOfBirth} onChange={(v) => set('dateOfBirth')({ target: { value: v } } as any)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Роль</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('staff.role')}</label>
           <select value={form.role} onChange={set('role')}
             className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:outline-none focus:border-primary-500 bg-white">
-            {ASSIGNABLE_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            {ASSIGNABLE_ROLE_VALUES.map((v) => <option key={v} value={v}>{t(`role.${v}`)}</option>)}
           </select>
         </div>
       </div>
       <div className="flex gap-3 pt-2">
-        <Button variant="secondary" onClick={onCancel}>Отмена</Button>
-        <Button onClick={onSave} loading={saving}>Сохранить</Button>
+        <Button variant="secondary" onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button onClick={onSave} loading={saving}>{t('common.save')}</Button>
       </div>
     </div>
   )
@@ -312,10 +314,11 @@ function SubjectsSection({
   showPicker: boolean; onShowPicker: (v: boolean) => void
   onBulkAssign: (ids: string[]) => void; onUnassign: (id: string) => void
 }) {
+  const t = useT()
   // Group subjects by direction
   const grouped: Record<string, { directionName: string; items: any[] }> = {}
   for (const s of subjects) {
-    const key = s.directionName || 'Без направления'
+    const key = s.directionName || t('settings.noDirection')
     if (!grouped[key]) grouped[key] = { directionName: key, items: [] }
     grouped[key].items.push(s)
   }
@@ -326,12 +329,12 @@ function SubjectsSection({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-primary-500" />
-          <h2 className="text-sm font-semibold text-gray-700">Предметы</h2>
+          <h2 className="text-sm font-semibold text-gray-700">{t('staff.subjects')}</h2>
         </div>
         {canManage && (
           <Button size="sm" variant="secondary" onClick={() => onShowPicker(true)}>
             <Plus className="w-4 h-4" />
-            Назначить
+            {t('staff.assign')}
           </Button>
         )}
       </div>
@@ -366,7 +369,7 @@ function SubjectsSection({
           ))}
         </div>
       ) : (
-        <p className="text-sm text-gray-400 text-center py-6">Нет назначенных предметов</p>
+        <p className="text-sm text-gray-400 text-center py-6">{t('staff.noSubjects')}</p>
       )}
 
       <AssignSubjectsDialog
@@ -387,6 +390,7 @@ function AssignSubjectsDialog({
   open: boolean; onOpenChange: (v: boolean) => void
   assignedIds: string[]; onAssign: (ids: string[]) => void
 }) {
+  const t = useT()
   const { data: directions = [] } = useDirections()
   const { data: allSubjects = [] } = useSubjects()
   const [selectedDir, setSelectedDir] = useState<string>('')
@@ -424,19 +428,19 @@ function AssignSubjectsDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Назначить предметы</DialogTitle>
+          <DialogTitle>{t('staff.assignSubjects')}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <div className="space-y-4">
             {/* Direction filter */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Направление</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('staff.direction')}</label>
               <select
                 value={selectedDir}
                 onChange={(e) => { setSelectedDir(e.target.value); setSelected(new Set()) }}
                 className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:outline-none focus:border-primary-500 bg-white"
               >
-                <option value="">Все направления</option>
+                <option value="">{t('staff.allDirections')}</option>
                 {(directions as any[]).map((d: any) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
@@ -446,11 +450,11 @@ function AssignSubjectsDialog({
             {/* Subjects multiselect */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
-                Предметы {selected.size > 0 && <span className="text-primary-600">({selected.size} выбрано)</span>}
+                {t('staff.subjects')} {selected.size > 0 && <span className="text-primary-600">({selected.size} {t('staff.selected')})</span>}
               </label>
               {available.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-6">
-                  {selectedDir ? 'Нет доступных предметов в этом направлении' : 'Все предметы уже назначены'}
+                  {selectedDir ? t('staff.noSubjectsInDirection') : t('staff.allSubjectsAssigned')}
                 </p>
               ) : (
                 <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto divide-y divide-gray-100">
@@ -479,9 +483,9 @@ function AssignSubjectsDialog({
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button variant="secondary" onClick={handleClose}>Отмена</Button>
+          <Button variant="secondary" onClick={handleClose}>{t('common.cancel')}</Button>
           <Button onClick={handleSave} disabled={selected.size === 0}>
-            Назначить ({selected.size})
+            {t('staff.assign')} ({selected.size})
           </Button>
         </DialogFooter>
       </DialogContent>

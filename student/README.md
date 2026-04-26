@@ -1,36 +1,110 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Student Portal — Личный кабинет студента
 
-## Getting Started
+Веб-приложение для студентов: расписание, оценки, домашние задания, геймификация, магазин наград.
 
-First, run the development server:
+**Порт:** 3002 | **URL:** http://localhost:3002
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Роли
+
+Доступ только для пользователей с ролью **student**.
+
+## Технологии
+
+| Библиотека | Версия | Назначение |
+|-----------|--------|-----------|
+| Next.js | 14.2.35 | React-фреймворк (App Router) |
+| React | ^18 | UI-библиотека |
+| TypeScript | ^5 | Типизация |
+| Tailwind CSS | ^3.4 | Утилитарные стили |
+| Zustand | ^5.0 | State management (auth, i18n, portal) |
+| TanStack React Query | ^5.97 | Серверное состояние |
+| Axios | ^1.15 | HTTP-клиент |
+| Radix UI | ^1-2 | Dialog, DropdownMenu, Tabs, Tooltip, Progress |
+| Lucide React | ^0.468 | Иконки |
+| Recharts | ^2.15 | Графики успеваемости |
+| date-fns | ^4.1 | Работа с датами |
+| react-hook-form + zod | ^7.72 / ^3.25 | Формы (логин) |
+| sonner | ^1.7 | Toast-уведомления |
+
+## Структура
+
+```
+student/
+├── src/
+│   ├── app/
+│   │   ├── (auth)/
+│   │   │   └── login/page.tsx         Страница входа
+│   │   ├── (portal)/
+│   │   │   ├── layout.tsx             Layout с auth guard + sidebar
+│   │   │   ├── dashboard/page.tsx     Дашборд (7 виджетов)
+│   │   │   ├── schedule/page.tsx      Расписание (недельный календарь)
+│   │   │   ├── homework/page.tsx      Домашние задания (сдача + файлы)
+│   │   │   ├── performance/page.tsx   Успеваемость (оценки по предметам)
+│   │   │   ├── materials/page.tsx     Материалы уроков (скачивание)
+│   │   │   ├── achievements/page.tsx  Достижения (unlocked/locked)
+│   │   │   ├── shop/page.tsx          Магазин наград
+│   │   │   ├── payment/page.tsx       Платежи (3 вкладки)
+│   │   │   └── contacts/page.tsx      Контакты учебного центра
+│   │   ├── page.tsx                   Публичная landing-страница
+│   │   └── layout.tsx                 Root layout
+│   │
+│   ├── components/
+│   │   ├── dashboard/
+│   │   │   ├── StatsCards.tsx         GPA, посещаемость, задания
+│   │   │   ├── GradesWidget.tsx       Последние оценки
+│   │   │   ├── AttendanceWidget.tsx   Pie-chart посещаемости
+│   │   │   ├── TodaySchedule.tsx      Расписание на сегодня
+│   │   │   ├── UpcomingDeadlines.tsx   Ближайшие дедлайны
+│   │   │   ├── ActivityFeed.tsx       Лента начислений звёзд/кристаллов
+│   │   │   └── Leaderboard.tsx        Рейтинг по звёздам
+│   │   ├── layout/
+│   │   │   ├── Sidebar.tsx            Боковая навигация
+│   │   │   ├── TopBar.tsx             Верхняя панель (звёзды, кристаллы)
+│   │   │   └── ProfileDropdown.tsx    Профиль + смена пароля
+│   │   └── ui/                        Переиспользуемые UI-компоненты
+│   │
+│   ├── lib/
+│   │   ├── api/                       API-клиенты (axios instance)
+│   │   ├── stores/                    auth, i18n, portal stores
+│   │   ├── i18n/                      Словари RU/EN (~300 ключей)
+│   │   └── utils/                     cn, dates
+│   │
+│   └── types/                         TypeScript типы
+│
+├── package.json
+├── Dockerfile
+└── README.md                          (этот файл)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Запуск
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# Docker
+docker compose up -d --build student
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Dev (локально)
+cd student
+npm install
+npm run dev    # http://localhost:3002
+```
 
-## Learn More
+## Виджеты дашборда
 
-To learn more about Next.js, take a look at the following resources:
+1. **StatsCards** — GPA, посещаемость %, задания к выполнению, выполнено вовремя
+2. **GradesWidget** — последние оценки с типом (Урок / ДЗ / Экзамен)
+3. **AttendanceWidget** — pie-chart (present / absent / late %)
+4. **TodaySchedule** — расписание на сегодня с подсветкой текущего урока
+5. **UpcomingDeadlines** — ближайшие дедлайны (overdue / urgent / обратный отсчёт)
+6. **ActivityFeed** — лента начислений звёзд и кристаллов
+7. **Leaderboard** — рейтинг по звёздам в группе
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Геймификация
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **TopBar** — звёзды + кристаллы (live из dashboard API)
+- **Achievements** — каталог ачивок (цветные unlocked + серые locked)
+- **Shop** — товары с ценами, баланс, кнопка "Купить"
+- **Badge** — уровень (Bronze → Diamond) в профиле
 
-## Deploy on Vercel
+## i18n
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Переключатель RU/EN в меню профиля. Язык сохраняется в localStorage.

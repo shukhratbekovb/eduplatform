@@ -28,6 +28,7 @@ export const ru: Record<string, string> = {
   'common.open':       'Открыть',
   'common.days':       'д.',
   'common.inDev':      'В разработке',
+  'common.saving':     'Сохранение...',
 
   // Theme / Language
   'theme.light':  'Светлая',
@@ -48,6 +49,10 @@ export const ru: Record<string, string> = {
   'login.password.hide':  'Скрыть пароль',
   'login.error.invalid':  'Неверный email или пароль',
   'login.error.server':   'Ошибка сервера. Попробуйте позже.',
+  'login.error.notStudent': 'Этот портал только для студентов.',
+  'login.error.userNotFound': 'Пользователь с таким email не найден.',
+  'login.error.wrongPassword': 'Неверный пароль.',
+  'login.error.accountDeactivated': 'Аккаунт деактивирован. Обратитесь к администратору.',
 
   // Profile dropdown
   'profile.title':        'Профиль',
@@ -64,6 +69,12 @@ export const ru: Record<string, string> = {
   'profile.cancelChanges':'Отменить изменения',
   'profile.getCertificate': 'Получить справку',
   'profile.logout':       'Выйти',
+  'profile.titleAndAccess':       'Профиль и доступы',
+  'profile.error.fillAll':        'Заполните все поля',
+  'profile.error.mismatch':       'Пароли не совпадают',
+  'profile.error.tooShort':       'Пароль должен быть не менее 8 символов',
+  'profile.error.changeFailed':   'Ошибка смены пароля',
+  'profile.success.passwordChanged': 'Пароль успешно изменён',
 
   // Dashboard
   'dashboard.title':              'Главная',
@@ -90,6 +101,12 @@ export const ru: Record<string, string> = {
   'dashboard.leaderboard.all':    'Весь период',
   'dashboard.leaderboard.hint':   'Звёзды и кристаллы считаются за последние 30 дней, включая сегодня, без учёта расходов в магазине',
   'dashboard.noActivity':         'Активности пока нет',
+  'dashboard.noGrades':           'Нет оценок',
+  'dashboard.todaySchedule':      'Расписание на сегодня',
+  'dashboard.noLessonsToday':     'Нет уроков на сегодня',
+  'dashboard.now':                'Сейчас',
+  'dashboard.upcomingDeadlines':  'Ближайшие дедлайны',
+  'dashboard.noActiveAssignments':'Нет активных заданий',
 
   // Homework
   'homework.title':         'Домашние задания',
@@ -118,13 +135,27 @@ export const ru: Record<string, string> = {
   'homework.teacherComment':'Комментарий преподавателя',
   'homework.noComment':     'Комментария нет',
   'homework.description':   'Описание задания',
+  'homework.fileUploaded':   'Файл загружен',
+  'homework.fileUploadError':'Ошибка загрузки файла',
+  'homework.submitError':    'Ошибка отправки',
+  'homework.taskFiles':      'Файлы задания',
+  'homework.answerSubmitted':'Ваш ответ отправлен',
+  'homework.awaitingReview': 'Ожидает проверки преподавателем',
+  'homework.yourText':       'Ваш текст',
+  'homework.yourFile':       'Ваш прикреплённый файл',
+  'homework.uploading':      'Загрузка...',
+  'homework.attachFile':     'Прикрепить файл',
 
   // Assignment types
-  'assignment.type.class':       'Классная работа',
-  'assignment.type.independent': 'Самостоятельная работа',
-  'assignment.type.control':     'Контрольная работа',
-  'assignment.type.thematic':    'Тематическая работа',
-  'assignment.type.homework':    'Домашнее задание',
+  'assignment.type.class':         'Классная работа',
+  'assignment.type.independent':   'Самостоятельная работа',
+  'assignment.type.control':       'Контрольная работа',
+  'assignment.type.thematic':      'Тематическая работа',
+  'assignment.type.homework':      'Домашнее задание',
+  'assignment.type.participation': 'Урок',
+  'assignment.type.exam':          'Экзамен',
+  'assignment.type.quiz':          'Тест',
+  'assignment.type.project':       'Проект',
 
   // Assignment statuses
   'assignment.status.pending':   'К выполнению',
@@ -144,8 +175,15 @@ export const ru: Record<string, string> = {
   'performance.pendingTasks':       'Задания к выполнению',
   'performance.overdueTasks':       'Задания просрочены',
   'performance.avgGradeChart':      'Средний балл',
+  'performance.avgGrade':           'Ср. балл',
   'performance.attendance':         'Посещаемость',
   'performance.grades':             'Оценки',
+  'performance.noSubjects':         'Нет предметов',
+  'performance.noGrades':           'Нет оценок',
+  'performance.allGrades':          'Все оценки',
+  'performance.date':               'Дата',
+  'performance.type':               'Тип',
+  'performance.grade':              'Оценка',
 
   // Schedule
   'schedule.title':       'Расписание',
@@ -168,6 +206,7 @@ export const ru: Record<string, string> = {
   'schedule.days.short.4':'Пт',
   'schedule.days.short.5':'Сб',
   'schedule.days.short.6':'Вс',
+  'schedule.today':       'Сегодня',
 
   // Materials
   'materials.title':       'Учебные материалы',
@@ -179,11 +218,16 @@ export const ru: Record<string, string> = {
   'materials.lang.uz':     'Узбекский',
   'materials.type.pdf':    'PDF',
   'materials.type.video':  'Видео',
+  'materials.type.link':   'Ссылка',
+  'materials.type.image':  'Изображение',
   'materials.type.article':'Статья',
   'materials.type.presentation': 'Презентация',
+  'materials.type.other':  'Файл',
   'materials.empty':       'Нет материалов',
   'materials.emptyHint':   'Попробуйте изменить фильтры',
   'materials.open':        'Открыть',
+  'materials.lessons':     'уроков',
+  'materials.files':       'файлов',
 
   // Achievements
   'achievements.title':              'Награды',
@@ -203,23 +247,64 @@ export const ru: Record<string, string> = {
   'shop.balance':    'Ваш баланс',
   'shop.stars':      'звёзд',
   'shop.crystals':   'кристаллов',
+  'shop.purchased':  'Куплено',
+  'shop.purchaseError': 'Ошибка покупки',
+  'shop.shopTitle':  'Магазин наград',
+  'shop.shopEmpty':  'Магазин пуст',
+  'shop.stockLeft':  'Осталось',
+  'shop.outOfStock': 'Нет в наличии',
+  'shop.notEnough':  'Недостаточно',
+  'shop.buy':        'Купить',
 
   // Payment
   'payment.title':            'Оплата обучения',
   'payment.tab.upcoming':     'Предстоящие платежи',
   'payment.tab.history':      'История платежей',
+  'payment.tab.contracts':    'По договорам',
   'payment.col.period':       'Период',
   'payment.col.description':  'Назначение',
   'payment.col.amount':       'Сумма',
   'payment.col.status':       'Статус',
   'payment.col.due':          'Дата',
   'payment.totalUpcoming':    'Итого к оплате',
+  'payment.totalPaid':        'Оплачено',
+  'payment.remaining':        'Остаток',
   'payment.count':            'Платежей',
+  'payment.overdue':          'Просрочено',
   'payment.empty.upcoming':   'Нет предстоящих платежей',
   'payment.empty.history':    'История платежей пуста',
+  'payment.empty.contracts':  'Нет активных договоров',
   'payment.status.paid':      'Оплачено',
   'payment.status.pending':   'Ожидается',
   'payment.status.overdue':   'Просрочено',
+  'payment.status.ok':        'В порядке',
+  'payment.status.has_debt':  'Есть задолженность',
+  'payment.partial':          'внесено',
+  'payment.paymentN':         'Платёж',
+  'payment.type.monthly':     'мес',
+  'payment.type.quarterly':   'квартал',
+  'payment.type.semiannual':  'полугодие',
+  'payment.type.annual':      'год',
+  'payment.overduePayment':   'Просроченный платёж',
+  'payment.nextPayment':      'Ближайший платёж',
+  'payment.by':               'до',
+  'payment.paid':             'оплачено',
+
+  // Deadline
+  'deadline.overdue':    'Просрочено',
+  'deadline.today':      'Сегодня!',
+  'deadline.tomorrow':   'Завтра',
+  'deadline.daysLeft':   'Осталось {n} дн.',
+
+  // TopBar
+  'topbar.notifications': 'Уведомления',
+
+  // Grade types (short)
+  'grade.type.participation': 'Урок',
+  'grade.type.homework':      'Д/З',
+  'grade.type.exam':          'Экзамен',
+  'grade.type.quiz':          'Тест',
+  'grade.type.project':       'Проект',
 
   // Contacts
   'contacts.title':           'Контакты',

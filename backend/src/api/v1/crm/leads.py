@@ -1,11 +1,14 @@
 """CRM Leads router — full CRUD + workflow actions."""
 from __future__ import annotations
 
+import csv
+import io
+import json
 import secrets
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Response, Depends, HTTPException, Query, status
+from fastapi import APIRouter, File, Form, Response, Depends, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select, update, delete
 
@@ -220,6 +223,12 @@ async def create_lead(body: CreateLeadRequest, current_user: CurrentUser, db: Db
         db.add(contact)
         await db.flush()
 
+    # ── Auto-assign manual source if not provided ─────────────────────────
+    source_id = body.sourceId or body.source_id
+    if not source_id:
+        manual_src = await _get_or_create_singleton_source("manual", "Ручной ввод", db)
+        source_id = manual_src.id
+
     # ── Create lead ──────────────────────────────────────────────────────────
     uc = CreateLeadUseCase(SqlLeadRepository(db), SqlStageRepository(db))
     try:
@@ -229,7 +238,7 @@ async def create_lead(body: CreateLeadRequest, current_user: CurrentUser, db: Db
             funnel_id=body.resolved_funnel_id(),
             stage_id=body.resolved_stage_id(),
             assigned_to=assigned_to,
-            source_id=body.sourceId or body.source_id,
+            source_id=source_id,
             email=body.email,
         ))
     except ValueError as e:
@@ -491,6 +500,7 @@ class LeadSourceOut(BaseModel):
     name: str
     type: str
     isActive: bool
+    isSystemSource: bool = False
     funnelId: UUID | None = None
     apiKey: str | None = None
     webhookUrl: str | None = None
@@ -500,7 +510,7 @@ class LeadSourceOut(BaseModel):
 
 class CreateLeadSourceRequest(BaseModel):
     name: str
-    type: str = "manual"
+    type: str = "landing"
     funnelId: UUID | None = None
     webhookUrl: str | None = None
 
@@ -512,12 +522,20 @@ class UpdateLeadSourceRequest(BaseModel):
     webhookUrl: str | None = None
 
 
+class ImportResult(BaseModel):
+    imported: int
+    skipped: int
+    total: int
+    errors: list[dict]  # type: ignore[type-arg]
+
+
 def _src_out(s: LeadSourceModel) -> LeadSourceOut:
     return LeadSourceOut(
         id=s.id,
         name=s.name,
         type=s.type,
         isActive=s.is_active,
+        isSystemSource=s.type in ("manual", "import"),
         funnelId=s.funnel_id,
         apiKey=s.api_key,
         webhookUrl=s.webhook_url,
@@ -526,8 +544,34 @@ def _src_out(s: LeadSourceModel) -> LeadSourceOut:
     )
 
 
+async def _get_or_create_singleton_source(source_type: str, name: str, db) -> LeadSourceModel:  # type: ignore[no-untyped-def]
+    """Находит или создаёт системный singleton-источник."""
+    from datetime import datetime, timezone
+    result = await db.execute(
+        select(LeadSourceModel).where(LeadSourceModel.type == source_type).limit(1)
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        return existing
+    s = LeadSourceModel(
+        id=uuid4(), name=name, type=source_type, is_active=True,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(s)
+    await db.flush()
+    return s
+
+
+async def _ensure_singletons(db) -> None:  # type: ignore[no-untyped-def]
+    """Гарантирует наличие системных источников (manual + import)."""
+    await _get_or_create_singleton_source("manual", "Ручной ввод", db)
+    await _get_or_create_singleton_source("import", "CSV импорт", db)
+    await db.commit()
+
+
 @router.get("/lead-sources", response_model=list[LeadSourceOut])
 async def list_sources(current_user: CurrentUser, db: DbSession) -> list[LeadSourceOut]:
+    await _ensure_singletons(db)
     rows = (await db.execute(select(LeadSourceModel).order_by(LeadSourceModel.created_at))).scalars().all()
     return [_src_out(s) for s in rows]
 
@@ -535,6 +579,14 @@ async def list_sources(current_user: CurrentUser, db: DbSession) -> list[LeadSou
 @router.post("/lead-sources", response_model=LeadSourceOut, status_code=status.HTTP_201_CREATED)
 async def create_source(body: CreateLeadSourceRequest, _: CrmGuard, db: DbSession) -> LeadSourceOut:
     from datetime import datetime, timezone
+
+    # Block creating manual/import sources — they are singletons
+    if body.type in ("manual", "import"):
+        existing = (await db.execute(
+            select(LeadSourceModel).where(LeadSourceModel.type == body.type)
+        )).scalar_one_or_none()
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Системный источник '{body.type}' уже существует")
 
     # For api/landing types — auto-generate api_key
     api_key = None
@@ -546,6 +598,7 @@ async def create_source(body: CreateLeadSourceRequest, _: CrmGuard, db: DbSessio
         raise HTTPException(status_code=422, detail="funnelId is required for api/landing sources")
 
     s = LeadSourceModel(
+        id=uuid4(),
         name=body.name,
         type=body.type,
         funnel_id=body.funnelId,
@@ -585,6 +638,8 @@ async def delete_source(source_id: UUID, _: CrmGuard, db: DbSession) -> Response
     s = result.scalar_one_or_none()
     if s is None:
         raise HTTPException(status_code=404, detail="Lead source not found")
+    if s.type in ("manual", "import"):
+        raise HTTPException(status_code=403, detail="Системные источники нельзя удалить")
     await db.delete(s)
     await db.commit()
     return Response(status_code=204)
@@ -600,6 +655,127 @@ async def regenerate_api_key(source_id: UUID, _: CrmGuard, db: DbSession) -> Lea
     await db.commit()
     await db.refresh(s)
     return _src_out(s)
+
+
+# ── CSV Import ────────────────────────────────────────────────────────────────
+
+@router.post("/leads/import", response_model=ImportResult)
+async def import_leads_csv(
+    _: CrmGuard,
+    db: DbSession,
+    file: UploadFile = File(...),
+    funnelId: str = Form(...),
+    stageId: str = Form(...),
+    columnMap: str = Form(...),
+) -> ImportResult:
+    """Импорт лидов из CSV. columnMap — JSON: {"phone":"csv_col","fullName":"csv_col","email":"csv_col"}."""
+    from datetime import datetime, timezone
+    from src.infrastructure.persistence.models.crm import CrmContactModel, StageModel
+
+    # Parse column mapping
+    try:
+        col_map: dict = json.loads(columnMap)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=422, detail="Invalid columnMap JSON")
+
+    phone_col = col_map.get("phone")
+    if not phone_col:
+        raise HTTPException(status_code=422, detail="phone mapping is required")
+    name_col = col_map.get("fullName")
+    email_col = col_map.get("email")
+
+    # Validate funnel/stage
+    funnel_uuid = UUID(funnelId)
+    stage_uuid = UUID(stageId)
+
+    # Get import source
+    import_source = await _get_or_create_singleton_source("import", "CSV импорт", db)
+
+    # Auto-assign manager helper
+    async def _pick_manager():  # type: ignore[no-untyped-def]
+        from sqlalchemy import func as fn, or_
+        managers = (await db.execute(
+            select(UserModel)
+            .where(or_(UserModel.role == "sales_manager", UserModel.role == "director"))
+            .where(UserModel.is_active == True)  # noqa: E712
+        )).scalars().all()
+        if not managers:
+            return None
+        manager_ids = [m.id for m in managers]
+        lead_counts = (await db.execute(
+            select(LeadModel.assigned_to, fn.count(LeadModel.id).label("cnt"))
+            .where(LeadModel.assigned_to.in_(manager_ids), LeadModel.status == "active")
+            .group_by(LeadModel.assigned_to)
+        )).all()
+        counts_map = {r.assigned_to: r.cnt for r in lead_counts}
+        best, best_count = None, float("inf")
+        for m in managers:
+            cnt = counts_map.get(m.id, 0)
+            if cnt < best_count:
+                best, best_count = m.id, cnt
+        return best
+
+    manager_id = await _pick_manager()
+
+    # Read and parse CSV
+    content = await file.read()
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+
+    imported = 0
+    skipped = 0
+    errors: list[dict] = []
+    now = datetime.now(timezone.utc)
+
+    for row_num, row in enumerate(reader, start=2):  # row 1 is header
+        phone = (row.get(phone_col) or "").strip()
+        if not phone:
+            skipped += 1
+            errors.append({"row": row_num, "reason": "Пустой телефон"})
+            continue
+
+        full_name = (row.get(name_col) or "").strip() if name_col else ""
+        email = (row.get(email_col) or "").strip() if email_col else None
+
+        # Find or create contact
+        existing_contact = (await db.execute(
+            select(CrmContactModel).where(CrmContactModel.phone == phone)
+        )).scalar_one_or_none()
+        if existing_contact:
+            contact = existing_contact
+            if full_name:
+                contact.full_name = full_name
+        else:
+            contact = CrmContactModel(
+                id=uuid4(), full_name=full_name or "Unknown", phone=phone, email=email,
+            )
+            db.add(contact)
+            await db.flush()
+
+        lead = LeadModel(
+            id=uuid4(),
+            full_name=full_name or "Unknown",
+            phone=phone,
+            email=email,
+            source_id=import_source.id,
+            funnel_id=funnel_uuid,
+            stage_id=stage_uuid,
+            contact_id=contact.id,
+            assigned_to=manager_id,
+            status="active",
+            custom_fields={},
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(lead)
+        imported += 1
+
+    await db.commit()
+    return ImportResult(imported=imported, skipped=skipped, total=imported + skipped, errors=errors)
 
 
 # ── CRM Contacts ─────────────────────────────────────────────────────────────

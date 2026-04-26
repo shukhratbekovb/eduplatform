@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
-import { CalendarDays } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { DatePicker } from '@/components/ui/date-picker'
 import { useT } from '@/lib/i18n'
 import type { AnalyticsPeriod, AnalyticsPeriodType } from '@/types/crm'
 
@@ -54,20 +54,19 @@ export function PeriodPicker({ value, onChange }: PeriodPickerProps) {
       {/* Custom date range */}
       {(showCustom || value.type === 'custom') && (
         <div className="flex items-center gap-2">
-          <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
-          <input
-            type="date"
+          <DatePicker
             value={value.from ?? ''}
-            onChange={(e) => onChange({ type: 'custom', from: e.target.value, to: value.to })}
-            className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+            onChange={(v) => onChange({ type: 'custom', from: v, to: value.to })}
+            placeholder="С"
+            className="w-44"
           />
           <span className="text-gray-400 text-sm">—</span>
-          <input
-            type="date"
+          <DatePicker
             value={value.to ?? ''}
-            min={value.from}
-            onChange={(e) => onChange({ type: 'custom', from: value.from, to: e.target.value })}
-            className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+            onChange={(v) => onChange({ type: 'custom', from: value.from, to: v })}
+            minDate={value.from}
+            placeholder="По"
+            className="w-44"
           />
         </div>
       )}

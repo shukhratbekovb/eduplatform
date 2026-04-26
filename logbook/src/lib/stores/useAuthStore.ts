@@ -1,17 +1,29 @@
+/**
+ * Стор аутентификации LMS (Zustand + persist).
+ *
+ * Хранит текущего пользователя и JWT-токен в localStorage.
+ * Поддерживает гидратацию на клиенте (SSR-safe).
+ *
+ * Экспортирует набор селекторов-хуков для проверки ролей:
+ * - useIsDirector, useIsMup, useIsTeacher, useIsCashier
+ * - useIsDirectorOrMup — для объединённых проверок
+ * - useIsAuthenticated — наличие токена и пользователя
+ *
+ * @module useAuthStore
+ */
+
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from '@/types/lms'
 
+/** Интерфейс стора аутентификации */
 interface AuthStore {
   user:            User | null
   token:           string | null
-  isDemoMode:      boolean
-  demoRole:        User['role'] | null
   _hasHydrated:    boolean
 
   setAuth:         (user: User, token: string) => void
   logout:          () => void
-  enableDemo:      (user: User, token: string) => void
   setHasHydrated:  (v: boolean) => void
 }
 
@@ -20,18 +32,16 @@ export const useAuthStore = create<AuthStore>()(
     (set) => ({
       user:            null,
       token:           null,
-      isDemoMode:      false,
-      demoRole:        null,
       _hasHydrated:    false,
 
-      setAuth:    (user, token) => set({ user, token, isDemoMode: false, demoRole: null }),
-      logout:     () => set({ user: null, token: null, isDemoMode: false, demoRole: null }),
-      enableDemo: (user, token) => set({ user, token, isDemoMode: true, demoRole: user.role }),
+      setAuth:    (user, token) => set({ user, token }),
+      logout:     () => set({ user: null, token: null }),
       setHasHydrated: (v) => set({ _hasHydrated: v }),
     }),
     {
       name: 'edu-lms-auth',
-      partialize: (s) => ({ token: s.token, user: s.user, isDemoMode: s.isDemoMode }),
+      partialize: (s) => ({ token: s.token, user: s.user }),
+      // Колбэк после восстановления данных из localStorage (SSR-safe)
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true)
       },
@@ -39,7 +49,7 @@ export const useAuthStore = create<AuthStore>()(
   )
 )
 
-// Selectors
+// ── Селекторы-хуки для удобного доступа к данным и проверки ролей ─────────
 export const useCurrentUser    = () => useAuthStore((s) => s.user)
 export const useUserRole       = () => useAuthStore((s) => s.user?.role)
 export const useIsDirector     = () => useAuthStore((s) => s.user?.role === 'director')

@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, CalendarDays, RefreshCw, Pencil, Trash2, BookOpen, Users, MapPin, Clock, X, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, CalendarDays, RefreshCw, Pencil, Trash2, BookOpen, Users, UserCheck, MapPin, Clock, X, Check } from 'lucide-react'
 import { addWeeks, subWeeks, parseISO, format, isToday } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { useSchedule, useUpdateLesson, useCancelLesson } from '@/lib/hooks/lms/useSchedule'
@@ -8,11 +8,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api/axios'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { toast } from 'sonner'
 import { useGroups } from '@/lib/hooks/lms/useGroups'
 import { useRooms, useLmsUsers, useSubjects } from '@/lib/hooks/lms/useSettings'
 import { useLmsStore } from '@/lib/stores/useLmsStore'
 import { useIsDirectorOrMup, useCurrentUser } from '@/lib/stores/useAuthStore'
+import { useT } from '@/lib/i18n'
 import { LessonForm } from '@/components/lms/schedule/LessonForm'
 import { Button } from '@/components/ui/button'
 import { getWeekDays, toIsoDate } from '@/lib/utils/dates'
@@ -27,8 +29,6 @@ const TOTAL_HOURS = HOUR_END - HOUR_START
 const GRID_HEIGHT = TOTAL_HOURS * HOUR_HEIGHT
 
 const HOURS = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => HOUR_START + i)
-
-const DAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
 const STATUS_DOT: Record<string, string> = {
   scheduled: 'bg-primary-500',
@@ -52,10 +52,13 @@ function lessonHeightPx(startTime: string, endTime: string) {
 }
 
 export default function SchedulePage() {
+  const t            = useT()
   const weekStart    = useLmsStore((s) => s.scheduleWeekStart)
   const setWeekStart = useLmsStore((s) => s.setScheduleWeekStart)
   const canManage    = useIsDirectorOrMup()
   const user         = useCurrentUser()
+
+  const DAY_LABELS = [t('weekday.mon'), t('weekday.tue'), t('weekday.wed'), t('weekday.thu'), t('weekday.fri'), t('weekday.sat'), t('weekday.sun')]
 
   const [showForm, setShowForm]           = useState(false)
   const [defaultDate, setDefaultDate]     = useState<string>()
@@ -121,11 +124,11 @@ export default function SchedulePage() {
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <CalendarDays className="w-5 h-5 text-primary-600" />
-            Расписание
+            {t('schedule.title')}
           </h1>
           <div className="flex items-center gap-1">
             <Button variant="secondary" size="icon-sm" onClick={goBack}><ChevronLeft className="w-4 h-4" /></Button>
-            <Button variant="secondary" size="sm" onClick={goToday} className="text-xs px-3">Сегодня</Button>
+            <Button variant="secondary" size="sm" onClick={goToday} className="text-xs px-3">{t('common.today')}</Button>
             <Button variant="secondary" size="icon-sm" onClick={goForward}><ChevronRight className="w-4 h-4" /></Button>
           </div>
           <span className="text-sm font-medium text-gray-600">{weekLabel}</span>
@@ -138,7 +141,7 @@ export default function SchedulePage() {
           {canManage && (
             <Button size="sm" onClick={() => { setDefaultDate(undefined); setShowForm(true) }}>
               <Plus className="w-4 h-4" />
-              Добавить урок
+              {t('schedule.addLesson')}
             </Button>
           )}
         </div>
@@ -148,13 +151,13 @@ export default function SchedulePage() {
       {canManage && (
         <div className="flex items-center gap-2 mb-4 flex-wrap shrink-0">
           <MultiSelectFilter
-            label="Преподаватели"
-            items={teachers.map((t: any) => ({ id: t.id, name: t.name }))}
+            label={t('schedule.teachers')}
+            items={teachers.map((tc: any) => ({ id: tc.id, name: tc.name }))}
             selected={filterTeacherIds}
             onChange={setFilterTeacherIds}
           />
           <MultiSelectFilter
-            label="Кабинеты"
+            label={t('schedule.rooms')}
             items={(rooms as any[]).filter((r: any) => r.isActive).map((r: any) => ({ id: r.id, name: r.name }))}
             selected={filterRoomIds}
             onChange={setFilterRoomIds}
@@ -164,7 +167,7 @@ export default function SchedulePage() {
               onClick={() => { setFilterTeacherIds(new Set()); setFilterRoomIds(new Set()) }}
               className="text-xs text-gray-400 hover:text-gray-600 underline"
             >
-              Сбросить
+              {t('common.reset')}
             </button>
           )}
         </div>
@@ -317,10 +320,11 @@ function CalendarLessonBlock({
   roomName?: string
   onClick?: () => void
 }) {
+  const t      = useT()
   const top    = lessonTopPx(lesson.startTime)
   const height = lessonHeightPx(lesson.startTime, lesson.endTime)
-  const isShort  = height < 36
-  const isMedium = height >= 36 && height < 56
+  const isShort  = height < 40
+  const isMedium = height >= 40 && height < 64
 
   const borderColors: Record<string, string> = {
     scheduled: 'border-l-primary-500',
@@ -337,7 +341,7 @@ function CalendarLessonBlock({
     <button
       onClick={(e) => { e.stopPropagation(); onClick?.() }}
       className={cn(
-        'absolute left-1 right-1 rounded border-l-4 px-1.5 py-1 overflow-hidden transition-all z-10 text-left',
+        'absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 overflow-hidden transition-all z-10 text-left',
         'shadow-xs hover:shadow-sm hover:z-20 cursor-pointer',
         borderColors[lesson.status] ?? 'border-l-gray-300',
         bgColors[lesson.status] ?? 'bg-gray-50',
@@ -347,24 +351,36 @@ function CalendarLessonBlock({
     >
       <div className="flex items-start gap-1 h-full">
         <div className="flex-1 min-w-0">
-          <p className={cn('font-semibold leading-tight truncate', isShort ? 'text-[10px]' : 'text-xs')}>
-            {groupName || 'Урок'}
-          </p>
+          <div className="flex items-center gap-1">
+            <Users className="w-3 h-3 text-gray-400 shrink-0" />
+            <p className={cn('font-semibold leading-tight truncate', isShort ? 'text-xs' : 'text-sm')}>
+              {groupName || t('schedule.group')}
+            </p>
+          </div>
           {!isShort && subjectName && (
-            <p className="text-[10px] text-primary-600 leading-tight truncate">{subjectName}</p>
+            <div className="flex items-center gap-1 mt-0.5">
+              <BookOpen className="w-3 h-3 text-primary-400 shrink-0" />
+              <p className="text-xs text-primary-600 leading-tight truncate">{subjectName}</p>
+            </div>
           )}
           {!isShort && !isMedium && (
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="flex items-center gap-3 mt-0.5">
               {teacherName && (
-                <p className="text-[10px] text-gray-500 leading-tight truncate">{teacherName}</p>
+                <div className="flex items-center gap-1 min-w-0">
+                  <UserCheck className="w-3 h-3 text-gray-400 shrink-0" />
+                  <p className="text-xs text-gray-500 leading-tight truncate">{teacherName}</p>
+                </div>
               )}
               {roomName && (
-                <p className="text-[10px] text-gray-400 leading-tight truncate">{roomName}</p>
+                <div className="flex items-center gap-1 min-w-0">
+                  <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+                  <p className="text-xs text-gray-400 leading-tight truncate">{roomName}</p>
+                </div>
               )}
             </div>
           )}
         </div>
-        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0 mt-0.5', STATUS_DOT[lesson.status] ?? 'bg-gray-300')} />
+        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0 mt-1', STATUS_DOT[lesson.status] ?? 'bg-gray-300')} />
       </div>
     </button>
   )
@@ -373,14 +389,15 @@ function CalendarLessonBlock({
 // ── Lesson detail modal ─────────────────────────────────────────────────────
 
 function useDeleteLesson() {
+  const t = useT()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => apiClient.delete(`/lms/lessons/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lms', 'schedule'] })
-      toast.success('Урок удалён')
+      toast.success(t('schedule.lessonDeleted'))
     },
-    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Не удалось удалить'),
+    onError: (err: any) => toast.error(err?.response?.data?.detail || t('schedule.deleteFailed')),
   })
 }
 
@@ -393,6 +410,7 @@ function LessonDetailModal({
   teachers: any[]; activeRooms: any[]
   canManage: boolean; onClose: () => void
 }) {
+  const t = useT()
   const [editing, setEditing] = useState(false)
   const [editDate, setEditDate] = useState(lesson.date)
   const [editStart, setEditStart] = useState(lesson.startTime)
@@ -427,68 +445,68 @@ function LessonDetailModal({
     deleteLesson(lesson.id, { onSuccess: onClose })
   }
 
-  const statusLabel = isCompleted ? 'Проведён' : isCancelled ? 'Отменён' : 'Запланирован'
+  const statusLabel = isCompleted ? t('lesson.conducted') : isCancelled ? t('lesson.cancelled') : t('lesson.scheduled')
   const statusColor = isCompleted ? 'text-success-600 bg-success-50' : isCancelled ? 'text-gray-500 bg-gray-100' : 'text-primary-600 bg-primary-50'
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{editing ? 'Редактировать урок' : 'Информация об уроке'}</DialogTitle>
+          <DialogTitle>{editing ? t('schedule.editLesson') : t('schedule.lessonInfo')}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           {editing ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Дата</label>
-                <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('schedule.date')}</label>
+                <DatePicker value={editDate} onChange={setEditDate} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Начало</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t('schedule.start')}</label>
                   <Input type="time" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Конец</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t('schedule.end')}</label>
                   <Input type="time" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Преподаватель</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('schedule.teacher')}</label>
                 <select
                   value={editTeacherId}
                   onChange={(e) => setEditTeacherId(e.target.value)}
                   className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:outline-none focus:border-primary-500 bg-white"
                 >
-                  <option value="">— Не выбран —</option>
-                  {teachers.map((t: any) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                  <option value="">— {t('common.notSelected')} —</option>
+                  {teachers.map((tc: any) => (
+                    <option key={tc.id} value={tc.id}>{tc.name}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Кабинет</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('schedule.room')}</label>
                 <select
                   value={editRoomId}
                   onChange={(e) => setEditRoomId(e.target.value)}
                   className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:outline-none focus:border-primary-500 bg-white"
                 >
-                  <option value="">— Не выбран —</option>
+                  <option value="">— {t('common.notSelected')} —</option>
                   {activeRooms.map((r: any) => (
                     <option key={r.id} value={r.id}>{r.name}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Тема</label>
-                <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} placeholder="Тема урока" />
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('schedule.topic')}</label>
+                <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} placeholder={t('schedule.topic')} />
               </div>
             </div>
           ) : confirmDelete ? (
             <div className="text-center py-4">
               <Trash2 className="w-10 h-10 text-danger-400 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-900 mb-1">Удалить этот урок?</p>
-              <p className="text-xs text-gray-400">Это действие нельзя отменить</p>
+              <p className="text-sm font-medium text-gray-900 mb-1">{t('schedule.deleteConfirm')}</p>
+              <p className="text-xs text-gray-400">{t('schedule.deleteWarning')}</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -503,7 +521,7 @@ function LessonDetailModal({
                   <Users className="w-4 h-4 text-gray-400 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">{groupName || '—'}</p>
-                    <p className="text-xs text-gray-400">Группа</p>
+                    <p className="text-xs text-gray-400">{t('schedule.group')}</p>
                   </div>
                 </div>
                 {subjectName && (
@@ -511,7 +529,7 @@ function LessonDetailModal({
                     <BookOpen className="w-4 h-4 text-gray-400 shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">{subjectName}</p>
-                      <p className="text-xs text-gray-400">Предмет</p>
+                      <p className="text-xs text-gray-400">{t('schedule.subject')}</p>
                     </div>
                   </div>
                 )}
@@ -520,7 +538,7 @@ function LessonDetailModal({
                     <Users className="w-4 h-4 text-gray-400 shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">{teacherName}</p>
-                      <p className="text-xs text-gray-400">Преподаватель</p>
+                      <p className="text-xs text-gray-400">{t('schedule.teacher')}</p>
                     </div>
                   </div>
                 )}
@@ -528,7 +546,7 @@ function LessonDetailModal({
                   <Clock className="w-4 h-4 text-gray-400 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">{lesson.date} · {lesson.startTime}–{lesson.endTime}</p>
-                    <p className="text-xs text-gray-400">Дата и время</p>
+                    <p className="text-xs text-gray-400">{t('schedule.dateTime')}</p>
                   </div>
                 </div>
                 {roomName && (
@@ -536,13 +554,13 @@ function LessonDetailModal({
                     <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">{roomName}</p>
-                      <p className="text-xs text-gray-400">Кабинет</p>
+                      <p className="text-xs text-gray-400">{t('schedule.room')}</p>
                     </div>
                   </div>
                 )}
                 {lesson.topic && (
                   <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-400 mb-0.5">Тема</p>
+                    <p className="text-xs text-gray-400 mb-0.5">{t('schedule.topic')}</p>
                     <p className="text-sm text-gray-900">{lesson.topic}</p>
                   </div>
                 )}
@@ -553,29 +571,29 @@ function LessonDetailModal({
         <DialogFooter>
           {editing ? (
             <>
-              <Button variant="secondary" onClick={() => setEditing(false)}>Отмена</Button>
-              <Button onClick={handleSave} loading={saving}>Сохранить</Button>
+              <Button variant="secondary" onClick={() => setEditing(false)}>{t('common.cancel')}</Button>
+              <Button onClick={handleSave} loading={saving}>{t('common.save')}</Button>
             </>
           ) : confirmDelete ? (
             <>
-              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Отмена</Button>
-              <Button variant="danger" onClick={handleDelete} loading={deleting}>Удалить</Button>
+              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>{t('common.cancel')}</Button>
+              <Button variant="danger" onClick={handleDelete} loading={deleting}>{t('common.delete')}</Button>
             </>
           ) : (
             <>
               {canDelete && (
                 <Button variant="secondary" size="sm" onClick={() => setConfirmDelete(true)}>
                   <Trash2 className="w-4 h-4" />
-                  Удалить
+                  {t('common.delete')}
                 </Button>
               )}
               {canEdit && (
                 <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
                   <Pencil className="w-4 h-4" />
-                  Редактировать
+                  {t('common.edit')}
                 </Button>
               )}
-              <Button variant="secondary" size="sm" onClick={onClose}>Закрыть</Button>
+              <Button variant="secondary" size="sm" onClick={onClose}>{t('common.close')}</Button>
             </>
           )}
         </DialogFooter>
@@ -594,6 +612,7 @@ function MultiSelectFilter({
   selected: Set<string>
   onChange: (v: Set<string>) => void
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -637,7 +656,7 @@ function MultiSelectFilter({
       {open && (
         <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 w-56 max-h-64 overflow-y-auto py-1">
           {items.length === 0 ? (
-            <p className="text-xs text-gray-400 px-3 py-2">Нет данных</p>
+            <p className="text-xs text-gray-400 px-3 py-2">{t('common.noData')}</p>
           ) : (
             items.map((item) => {
               const checked = selected.has(item.id)

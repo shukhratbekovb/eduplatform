@@ -1,5 +1,6 @@
 'use client'
 import { useController, type Control } from 'react-hook-form'
+import { DatePicker } from '@/components/ui/date-picker'
 import type { CustomField } from '@/types/crm'
 import type { LeadFormValues } from '@/lib/validators/crm/lead.schema'
 
@@ -57,11 +58,9 @@ export function CustomFieldInput({ field, control }: Props) {
 
     case 'date':
       return (
-        <input
-          type="date"
-          className={inputClass}
+        <DatePicker
           value={formField.value ?? ''}
-          onChange={(e) => formField.onChange(e.target.value)}
+          onChange={(v) => formField.onChange(v)}
         />
       )
 

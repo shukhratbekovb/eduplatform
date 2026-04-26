@@ -9,7 +9,7 @@ import { useCreateLead, useUpdateLead } from '@/lib/hooks/crm/useLeads'
 import { useCustomFields } from '@/lib/hooks/crm/useFunnels'
 import { useT } from '@/lib/i18n'
 import { CustomFieldInput } from './CustomFieldInput'
-import type { Lead, Funnel, Stage, LeadSource, User } from '@/types/crm'
+import type { Lead, Funnel, Stage, User } from '@/types/crm'
 
 interface LeadFormProps {
   open: boolean
@@ -19,13 +19,12 @@ interface LeadFormProps {
   lead?: Lead           // если передан — режим редактирования
   funnels: Funnel[]
   stages: Stage[]
-  sources: LeadSource[]
   managers: User[]
 }
 
 export function LeadForm({
   open, onOpenChange, defaultStageId, defaultFunnelId,
-  lead, funnels, stages, sources, managers,
+  lead, funnels, stages, managers,
 }: LeadFormProps) {
   const t = useT()
   const { mutate: createLead, isPending: creating } = useCreateLead()
@@ -41,7 +40,6 @@ export function LeadForm({
       fullName:     lead.fullName,
       phone:        lead.phone,
       email:        lead.email ?? '',
-      sourceId:     lead.sourceId,
       funnelId:     lead.funnelId,
       stageId:      lead.stageId,
       assignedTo:   lead.assignedTo,
@@ -133,31 +131,17 @@ export function LeadForm({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field name="sourceId" label={t('leadForm.source')} required>
-              <select
-                {...register('sourceId')}
-                className={`w-full h-10 border rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 ${errors.sourceId ? 'border-danger-500' : 'border-gray-300'}`}
-              >
-                <option value="">{t('leadForm.placeholder.source')}</option>
-                {sources.filter((s) => s.isActive).map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </Field>
-
-            <Field name="assignedTo" label={t('leadForm.manager')} required>
-              <select
-                {...register('assignedTo')}
-                className={`w-full h-10 border rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 ${errors.assignedTo ? 'border-danger-500' : 'border-gray-300'}`}
-              >
-                <option value="">{t('leadForm.placeholder.manager')}</option>
-                {managers.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
+          <Field name="assignedTo" label={t('leadForm.manager')} required>
+            <select
+              {...register('assignedTo')}
+              className={`w-full h-10 border rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 ${errors.assignedTo ? 'border-danger-500' : 'border-gray-300'}`}
+            >
+              <option value="">{t('leadForm.placeholder.manager')}</option>
+              {managers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </Field>
 
           {/* ── Custom Fields ─────────────────────────────────────── */}
           {customFieldDefs.length > 0 && (

@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { cn } from '@/lib/utils/cn'
+import { useT } from '@/lib/i18n'
 import { UserAvatar } from '@/components/ui/avatar'
 import type { Student } from '@/types/lms'
 
@@ -34,6 +35,7 @@ function DiamondIcon({ filled, animated }: { filled: boolean; animated?: boolean
 }
 
 export function DiamondDistributor({ rows, onChange, readonly }: DiamondDistributorProps) {
+  const t = useT()
   const [animated, setAnimated] = useState<string | null>(null)
 
   const totalUsed = rows.reduce((sum, r) => sum + r.diamonds, 0)
@@ -58,14 +60,14 @@ export function DiamondDistributor({ rows, onChange, readonly }: DiamondDistribu
       {/* Pool indicator */}
       {!readonly && (
         <div className="flex items-center gap-2 mb-3 p-3 rounded-md bg-primary-50 border border-primary-100">
-          <span className="text-sm font-medium text-primary-700">Пул бриллиантов:</span>
+          <span className="text-sm font-medium text-primary-700">{t('diamond.pool')}</span>
           <div className="flex gap-0.5">
             {Array.from({ length: POOL_TOTAL }).map((_, i) => (
               <DiamondIcon key={i} filled={i < totalUsed} />
             ))}
           </div>
           <span className="text-sm text-primary-600 ml-auto">
-            {remaining} из {POOL_TOTAL} доступно
+            {remaining} {t('diamond.of')} {POOL_TOTAL} {t('diamond.available')}
           </span>
         </div>
       )}
@@ -94,7 +96,7 @@ export function DiamondDistributor({ rows, onChange, readonly }: DiamondDistribu
                     !isActive && remaining <= 0 && 'opacity-40',
                     animated === row.studentId && isActive && 'animate-diamond-pop',
                   )}
-                  aria-label={`${i + 1} бриллиант${i === 0 ? '' : 'а'}`}
+                  aria-label={`${i + 1} ${i === 0 ? t('diamond.ariaOne') : t('diamond.ariaMany')}`}
                 >
                   ◆
                 </button>
@@ -114,7 +116,7 @@ export function DiamondDistributor({ rows, onChange, readonly }: DiamondDistribu
 
           {row.diamonds > 0 && (
             <span className="ml-auto text-xs text-primary-600 font-medium">
-              +{row.diamonds * 10} монет
+              +{row.diamonds * 10} {t('diamond.coins')}
             </span>
           )}
         </div>

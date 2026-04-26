@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGroups, useEnrollStudent } from '@/lib/hooks/lms/useGroups'
+import { useT } from '@/lib/i18n'
 import type { Student } from '@/types/lms'
 
 interface TransferStudentFormProps {
@@ -12,6 +13,7 @@ interface TransferStudentFormProps {
 }
 
 export function TransferStudentForm({ open, onOpenChange, student }: TransferStudentFormProps) {
+  const t = useT()
   const [groupId, setGroupId] = useState('')
   const { data: groups = [] }          = useGroups()
   const { mutate: enroll, isPending }  = useEnrollStudent()
@@ -35,7 +37,7 @@ export function TransferStudentForm({ open, onOpenChange, student }: TransferStu
       <div className="absolute inset-0 bg-black/40" onClick={() => onOpenChange(false)} />
       <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">Записать в группу</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('profile.enrollToGroup')}</h2>
           <button onClick={() => onOpenChange(false)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
@@ -43,15 +45,15 @@ export function TransferStudentForm({ open, onOpenChange, student }: TransferStu
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <p className="text-sm text-gray-600">
-            Студент: <span className="font-medium text-gray-900">{student.fullName}</span>
+            {t('profile.studentLabel')} <span className="font-medium text-gray-900">{student.fullName}</span>
           </p>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Группа <span className="text-danger-500">*</span>
+              {t('profile.groupLabel')} <span className="text-danger-500">*</span>
             </label>
             {available.length === 0 ? (
-              <p className="text-sm text-gray-400">Нет доступных групп для записи</p>
+              <p className="text-sm text-gray-400">{t('profile.noAvailableGroups')}</p>
             ) : (
               <select
                 value={groupId}
@@ -59,7 +61,7 @@ export function TransferStudentForm({ open, onOpenChange, student }: TransferStu
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:border-primary-500"
                 required
               >
-                <option value="">Выберите группу…</option>
+                <option value="">{t('profile.selectGroup')}</option>
                 {available.map((g: any) => (
                   <option key={g.id} value={g.id}>
                     {g.name}
@@ -71,7 +73,7 @@ export function TransferStudentForm({ open, onOpenChange, student }: TransferStu
 
           <div className="flex gap-3">
             <Button type="button" variant="secondary" className="flex-1" onClick={() => onOpenChange(false)}>
-              Отмена
+              {t('common.cancel')}
             </Button>
             <Button
               type="submit"
@@ -79,7 +81,7 @@ export function TransferStudentForm({ open, onOpenChange, student }: TransferStu
               loading={isPending}
               disabled={!groupId || available.length === 0}
             >
-              Записать
+              {t('profile.enrollBtn')}
             </Button>
           </div>
         </form>

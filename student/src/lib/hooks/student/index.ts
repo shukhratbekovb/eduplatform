@@ -82,6 +82,14 @@ export function useMaterials(params: { subjectId?: string; language?: MaterialLa
   })
 }
 
+export function useLessonsMaterials() {
+  return useQuery({
+    queryKey: ['student', 'lessons-materials'],
+    queryFn:  materialsApi.lessonsMaterials,
+    staleTime: STALE,
+  })
+}
+
 // ── Achievements ──────────────────────────────────────────────────────────────
 export function useAchievements() {
   return useQuery({
@@ -91,11 +99,27 @@ export function useAchievements() {
   })
 }
 
+export function useAchievementCatalog() {
+  return useQuery({
+    queryKey: ['student', 'achievements-catalog'],
+    queryFn:  achievementsApi.catalog,
+    staleTime: STALE,
+  })
+}
+
 // ── Payments ──────────────────────────────────────────────────────────────────
 export function usePayments() {
   return useQuery({
     queryKey: ['student', 'payments'],
     queryFn:  paymentsApi.list,
+    staleTime: STALE,
+  })
+}
+
+export function useFinanceDashboard() {
+  return useQuery({
+    queryKey: ['student', 'finance'],
+    queryFn:  paymentsApi.finance,
     staleTime: STALE,
   })
 }

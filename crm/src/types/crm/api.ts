@@ -27,7 +27,7 @@ export interface CreateLeadDto {
   fullName: string
   phone: string
   email?: string
-  sourceId: string
+  sourceId?: string
   funnelId: string
   stageId: string
   assignedTo: string
@@ -66,7 +66,7 @@ export interface ReorderCustomFieldsDto { orderedIds: string[] }
 // ─── Source DTOs ──────────────────────────────────────────────────────────────
 export interface CreateSourceDto {
   name: string
-  type: LeadSourceType
+  type: 'api' | 'landing'
   funnelId?: string
 }
 export interface UpdateSourceDto {
@@ -100,9 +100,7 @@ export type UpdateTaskDto = Partial<CreateTaskDto & { status: TaskStatus }>
 export interface MoveTaskDto { status: TaskStatus }
 
 // ─── Import ───────────────────────────────────────────────────────────────────
-export interface ImportJobStatus {
-  jobId: string
-  status: 'pending' | 'processing' | 'done' | 'failed'
+export interface ImportResult {
   imported: number
   skipped: number
   total: number

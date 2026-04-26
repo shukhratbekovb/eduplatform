@@ -8,12 +8,14 @@ import { useSubjects } from '@/lib/hooks/lms/useSettings'
 import { useIsDirectorOrMup } from '@/lib/stores/useAuthStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { formatDate } from '@/lib/utils/dates'
 import { cn } from '@/lib/utils/cn'
 import { toast } from 'sonner'
+import { useT } from '@/lib/i18n'
 import type { Exam } from '@/types/lms'
 
 // ── Hooks ────────────────────────────────────────────────────────────────────
@@ -29,8 +31,7 @@ function useCreateExam() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: any) => apiClient.post<Exam>('/lms/exams', data).then((r) => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lms', 'exams'] }); toast.success('Экзамен создан') },
-    onError: () => toast.error('Не удалось создать экзамен'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lms', 'exams'] }) },
   })
 }
 
@@ -38,21 +39,14 @@ function useDeleteExam() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => apiClient.delete(`/lms/exams/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lms', 'exams'] }); toast.success('Экзамен удалён') },
-    onError: () => toast.error('Не удалось удалить'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lms', 'exams'] }) },
   })
-}
-
-const STATUS_CFG: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'danger' }> = {
-  upcoming:    { label: 'Предстоит',  variant: 'default' },
-  in_progress: { label: 'Идёт',       variant: 'warning' },
-  completed:   { label: 'Завершён',   variant: 'success' },
-  cancelled:   { label: 'Отменён',    variant: 'danger' },
 }
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function ExamsPage() {
+  const t = useT()
   const [showForm, setShowForm] = useState(false)
   const [gradeExamId, setGradeExamId] = useState<string | null>(null)
   const canManage = useIsDirectorOrMup()
@@ -60,20 +54,34 @@ export default function ExamsPage() {
   const { data: exams = [], isLoading } = useExams()
   const { mutate: deleteExam } = useDeleteExam()
 
+  const STATUS_CFG: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'danger' }> = {
+    upcoming:    { label: t('exams.statusUpcoming'),    variant: 'default' },
+    in_progress: { label: t('exams.statusInProgress'),  variant: 'warning' },
+    completed:   { label: t('exams.statusCompleted'),   variant: 'success' },
+    cancelled:   { label: t('exams.statusCancelled'),   variant: 'danger' },
+  }
+
   const upcoming = (exams as Exam[]).filter((e) => e.status === 'upcoming' || e.status === 'in_progress')
   const past     = (exams as Exam[]).filter((e) => e.status === 'completed' || e.status === 'cancelled')
+
+  const handleDelete = (id: string) => {
+    deleteExam(id, {
+      onSuccess: () => toast.success(t('exams.deleted')),
+      onError: () => toast.error(t('exams.deleteError')),
+    })
+  }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
           <GraduationCap className="w-5 h-5 text-primary-600" />
-          Экзамены
+          {t('exams.title')}
         </h1>
         {canManage && (
           <Button size="sm" onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4" />
-            Добавить экзамен
+            {t('exams.add')}
           </Button>
         )}
       </div>
@@ -83,16 +91,16 @@ export default function ExamsPage() {
       {isLoading ? (
         <div className="space-y-2">{[1,2,3].map((i) => <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse" />)}</div>
       ) : (exams as Exam[]).length === 0 ? (
-        <EmptyState icon={GraduationCap} title="Нет экзаменов" description="Экзамены появятся после добавления" />
+        <EmptyState icon={GraduationCap} title={t('exams.noExams')} description={t('exams.willAppear')} />
       ) : (
         <div className="space-y-6">
           {upcoming.length > 0 && (
             <section>
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Предстоящие</h2>
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">{t('exams.upcoming')}</h2>
               <div className="space-y-2">
                 {upcoming.map((exam) => (
-                  <ExamCard key={exam.id} exam={exam} canManage={canManage}
-                    onDelete={() => deleteExam(exam.id)}
+                  <ExamCard key={exam.id} exam={exam} canManage={canManage} statusCfg={STATUS_CFG}
+                    onDelete={() => handleDelete(exam.id)}
                     onGrade={() => setGradeExamId(exam.id)} />
                 ))}
               </div>
@@ -100,11 +108,11 @@ export default function ExamsPage() {
           )}
           {past.length > 0 && (
             <section>
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Прошедшие</h2>
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">{t('exams.past')}</h2>
               <div className="space-y-2">
                 {past.map((exam) => (
-                  <ExamCard key={exam.id} exam={exam} canManage={canManage}
-                    onDelete={() => deleteExam(exam.id)}
+                  <ExamCard key={exam.id} exam={exam} canManage={canManage} statusCfg={STATUS_CFG}
+                    onDelete={() => handleDelete(exam.id)}
                     onGrade={() => setGradeExamId(exam.id)} />
                 ))}
               </div>
@@ -122,10 +130,11 @@ export default function ExamsPage() {
 
 // ── Exam Card ────────────────────────────────────────────────────────────────
 
-function ExamCard({ exam, canManage, onDelete, onGrade }: {
-  exam: Exam; canManage: boolean; onDelete: () => void; onGrade: () => void
+function ExamCard({ exam, canManage, statusCfg, onDelete, onGrade }: {
+  exam: Exam; canManage: boolean; statusCfg: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'danger' }>; onDelete: () => void; onGrade: () => void
 }) {
-  const cfg = STATUS_CFG[exam.status] ?? STATUS_CFG.upcoming
+  const t = useT()
+  const cfg = statusCfg[exam.status] ?? statusCfg.upcoming
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-start justify-between gap-4">
       <div className="flex-1 min-w-0">
@@ -133,7 +142,7 @@ function ExamCard({ exam, canManage, onDelete, onGrade }: {
           <h3 className="font-semibold text-gray-900">{exam.title}</h3>
           <Badge variant={cfg.variant}>{cfg.label}</Badge>
           {exam.gradesCount > 0 && (
-            <span className="text-xs text-gray-400">{exam.gradesCount} оценок</span>
+            <span className="text-xs text-gray-400">{exam.gradesCount} {t('exams.grades')}</span>
           )}
         </div>
         <div className="flex items-center gap-3 text-sm text-gray-500 mb-2 flex-wrap">
@@ -159,7 +168,7 @@ function ExamCard({ exam, canManage, onDelete, onGrade }: {
       <div className="flex gap-1 shrink-0">
         {canManage && (
           <Button size="sm" variant="secondary" onClick={onGrade}>
-            Оценки
+            {t('exams.examGrades')}
           </Button>
         )}
         {canManage && exam.status === 'upcoming' && (
@@ -175,6 +184,7 @@ function ExamCard({ exam, canManage, onDelete, onGrade }: {
 // ── Create Form ──────────────────────────────────────────────────────────────
 
 function ExamForm({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const t = useT()
   const [form, setForm] = useState({
     title: '', groupId: '', subjectId: '', date: '', startTime: '10:00', endTime: '12:00', description: '', maxScore: '10',
   })
@@ -194,67 +204,72 @@ function ExamForm({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boo
       description: form.description.trim() || undefined,
       maxScore: Number(form.maxScore) || 10,
     }, {
-      onSuccess: () => { setForm({ title: '', groupId: '', subjectId: '', date: '', startTime: '10:00', endTime: '12:00', description: '', maxScore: '10' }); onOpenChange(false) },
+      onSuccess: () => {
+        toast.success(t('exams.created'))
+        setForm({ title: '', groupId: '', subjectId: '', date: '', startTime: '10:00', endTime: '12:00', description: '', maxScore: '10' })
+        onOpenChange(false)
+      },
+      onError: () => toast.error(t('exams.createError')),
     })
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Новый экзамен</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t('exams.newExam')}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit}>
           <DialogBody>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Название *</label>
-                <Input value={form.title} onChange={set('title')} placeholder="Промежуточный экзамен" required />
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('exams.nameRequired')}</label>
+                <Input value={form.title} onChange={set('title')} placeholder={t('exams.namePlaceholder')} required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Группа *</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t('exams.groupRequired')}</label>
                   <select value={form.groupId} onChange={set('groupId')} required
                     className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:outline-none focus:border-primary-500 bg-white">
-                    <option value="">Выберите…</option>
+                    <option value="">{t('exams.select')}</option>
                     {(groups as any[]).map((g: any) => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Предмет</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t('exams.subject')}</label>
                   <select value={form.subjectId} onChange={set('subjectId')}
                     className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:outline-none focus:border-primary-500 bg-white">
-                    <option value="">Авто</option>
+                    <option value="">{t('exams.auto')}</option>
                     {(subjects as any[]).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Дата *</label>
-                  <Input type="date" value={form.date} onChange={set('date')} required />
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t('exams.dateRequired')}</label>
+                  <DatePicker value={form.date} onChange={(v) => set('date')({ target: { value: v } } as any)} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Начало</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t('exams.start')}</label>
                   <Input type="time" value={form.startTime} onChange={set('startTime')} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Конец</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t('exams.end')}</label>
                   <Input type="time" value={form.endTime} onChange={set('endTime')} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Макс. балл</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('exams.maxScore')}</label>
                 <Input type="number" value={form.maxScore} onChange={set('maxScore')} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Описание</label>
-                <textarea value={form.description} onChange={set('description')} rows={2} placeholder="Темы, требования…"
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.description')}</label>
+                <textarea value={form.description} onChange={set('description')} rows={2} placeholder={t('exams.topics')}
                   className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 resize-none focus:outline-none focus:border-primary-500" />
               </div>
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Отмена</Button>
-            <Button type="submit" loading={isPending} disabled={!form.title || !form.groupId || !form.date}>Создать</Button>
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+            <Button type="submit" loading={isPending} disabled={!form.title || !form.groupId || !form.date}>{t('common.create')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -265,6 +280,7 @@ function ExamForm({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boo
 // ── Grade Exam Dialog ────────────────────────────────────────────────────────
 
 function GradeExamDialog({ examId, onClose }: { examId: string; onClose: () => void }) {
+  const t = useT()
   const qc = useQueryClient()
   const { data: exam } = useQuery({
     queryKey: ['lms', 'exams', examId],
@@ -300,10 +316,10 @@ function GradeExamDialog({ examId, onClose }: { examId: string; onClose: () => v
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lms', 'exams'] })
       qc.invalidateQueries({ queryKey: ['lms', 'exams', examId, 'grades'] })
-      toast.success('Оценки сохранены')
+      toast.success(t('exams.gradesSaved'))
       onClose()
     },
-    onError: () => toast.error('Ошибка сохранения'),
+    onError: () => toast.error(t('exams.gradesSaveError')),
   })
 
   const handleSave = () => {
@@ -321,17 +337,17 @@ function GradeExamDialog({ examId, onClose }: { examId: string; onClose: () => v
     <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Оценки за экзамен: {(exam as any)?.title}</DialogTitle>
+          <DialogTitle>{t('exams.gradesFor')}: {(exam as any)?.title}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           {students.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-6">Нет студентов</p>
+            <p className="text-sm text-gray-400 text-center py-6">{t('exams.noStudents')}</p>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
               <div className="flex items-center gap-3 px-2 text-xs font-medium text-gray-400">
-                <span className="flex-1">Студент</span>
-                <span className="w-20 text-center">Балл (/{maxScore})</span>
-                <span className="w-32">Комментарий</span>
+                <span className="flex-1">{t('exams.student')}</span>
+                <span className="w-20 text-center">{t('exams.score')} (/{maxScore})</span>
+                <span className="w-32">{t('exams.comment')}</span>
               </div>
               {students.map((s: any) => (
                 <div key={s.id} className="flex items-center gap-3 px-2">
@@ -345,7 +361,7 @@ function GradeExamDialog({ examId, onClose }: { examId: string; onClose: () => v
                   />
                   <Input
                     className="w-32 h-8 text-sm"
-                    placeholder="Коммент."
+                    placeholder={t('exams.comment')}
                     value={grades[s.id]?.comment ?? ''}
                     onChange={(e) => setGrades((p) => ({ ...p, [s.id]: { ...p[s.id], score: p[s.id]?.score ?? '', comment: e.target.value } }))}
                   />
@@ -355,10 +371,10 @@ function GradeExamDialog({ examId, onClose }: { examId: string; onClose: () => v
           )}
         </DialogBody>
         <DialogFooter>
-          <Button variant="secondary" onClick={onClose}>Отмена</Button>
+          <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
           <Button onClick={handleSave} loading={saveGrades.isPending}>
             <Check className="w-4 h-4" />
-            Сохранить оценки
+            {t('exams.saveGrades')}
           </Button>
         </DialogFooter>
       </DialogContent>

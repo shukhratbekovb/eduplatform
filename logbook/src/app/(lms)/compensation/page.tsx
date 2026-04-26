@@ -11,14 +11,17 @@ import { UserAvatar } from '@/components/ui/avatar'
 import { formatDate } from '@/lib/utils/dates'
 import { cn } from '@/lib/utils/cn'
 import type { CompensationModel, CompensationModelType } from '@/types/lms'
-
-const MODEL_OPTIONS: { value: CompensationModelType; label: string; hint: string }[] = [
-  { value: 'per_lesson',    label: 'За урок',      hint: 'Начисляется за каждый проведённый урок' },
-  { value: 'fixed_monthly', label: 'Фиксированная', hint: 'Фиксированная сумма ежемесячно' },
-  { value: 'per_student',   label: 'За студента',   hint: 'Рассчитывается по активным студентам' },
-]
+import { useT } from '@/lib/i18n'
 
 export default function CompensationPage() {
+  const t = useT()
+
+  const MODEL_OPTIONS: { value: CompensationModelType; label: string; hint: string }[] = [
+    { value: 'per_lesson',    label: t('comp.perLesson'),    hint: t('comp.perLessonHint') },
+    { value: 'fixed_monthly', label: t('comp.fixedMonthly'), hint: t('comp.fixedHint') },
+    { value: 'per_student',   label: t('comp.perStudent'),   hint: t('comp.perStudentHint') },
+  ]
+
   const { data: compensations = [], isLoading } = useCompensations()
   const { data: teachers = [] }                 = useTeachers()
   const { data: salaries = [] }                 = useSalaries()
@@ -30,19 +33,19 @@ export default function CompensationPage() {
 
   const getRateDisplay = (model: CompensationModel): string => {
     if (model.modelType === 'fixed_monthly' && model.fixedMonthlyRate != null) {
-      return `${model.fixedMonthlyRate.toLocaleString()} сум/мес`
+      return `${model.fixedMonthlyRate.toLocaleString()} UZS/${t('fin.paymentType.monthly')}`
     }
     if (model.modelType === 'per_lesson' && model.ratePerLesson) {
       const vals = Object.values(model.ratePerLesson)
       const avg = vals.reduce((s, v) => s + v, 0) / (vals.length || 1)
-      return `~${Math.round(avg).toLocaleString()} сум/урок`
+      return `~${Math.round(avg).toLocaleString()} UZS/${t('comp.perLessonSuffix').replace('/ ', '')}`
     }
     if (model.modelType === 'per_student' && model.ratePerStudent) {
       const vals = Object.values(model.ratePerStudent)
       const avg = vals.reduce((s, v) => s + v, 0) / (vals.length || 1)
-      return `~${Math.round(avg).toLocaleString()} сум/студент`
+      return `~${Math.round(avg).toLocaleString()} UZS/${t('comp.perStudentSuffix').replace('/ ', '')}`
     }
-    return 'Настройте модель'
+    return t('comp.notConfigured')
   }
 
   return (
@@ -50,10 +53,10 @@ export default function CompensationPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
           <Wallet className="w-5 h-5 text-primary-600" />
-          Компенсация преподавателей
+          {t('comp.teacherComp')}
         </h1>
         <Button variant="secondary" size="sm" onClick={() => setShowSalaries(true)}>
-          История расчётов
+          {t('comp.salaryHistory')}
         </Button>
       </div>
 
@@ -78,18 +81,18 @@ export default function CompensationPage() {
                         {MODEL_OPTIONS.find((m) => m.value === model.modelType)?.label} · {getRateDisplay(model)}
                       </p>
                     ) : (
-                      <p className="text-xs text-warning-600">Модель не настроена</p>
+                      <p className="text-xs text-warning-600">{t('comp.notConfigured')}</p>
                     )}
                   </div>
                 </div>
                 <Button size="sm" variant="secondary" onClick={() => setConfigTarget(teacher.id)}>
-                  Настроить
+                  {t('comp.configure')}
                 </Button>
               </div>
             )
           })}
           {(teachers as any[]).length === 0 && (
-            <div className="p-8 text-center text-sm text-gray-400">Нет преподавателей</div>
+            <div className="p-8 text-center text-sm text-gray-400">{t('comp.noTeachers')}</div>
           )}
         </div>
       )}
@@ -109,11 +112,11 @@ export default function CompensationPage() {
       <Dialog open={showSalaries} onOpenChange={(o) => !o && setShowSalaries(false)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>История расчётов зарплат</DialogTitle>
+            <DialogTitle>{t('comp.salaryHistoryTitle')}</DialogTitle>
           </DialogHeader>
           <DialogBody>
             {(salaries as any[]).length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">Расчёты ещё не проводились</p>
+              <p className="text-sm text-gray-400 text-center py-8">{t('comp.noCalc')}</p>
             ) : (
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {(salaries as any[]).map((s: any) => (
@@ -123,9 +126,9 @@ export default function CompensationPage() {
                       <p className="text-xs text-gray-400">{s.period}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900">{s.amount?.toLocaleString()} сум</p>
+                      <p className="text-sm font-bold text-gray-900">{s.amount?.toLocaleString()} UZS</p>
                       <Badge variant={s.isLocked ? 'success' : 'warning'}>
-                        {s.isLocked ? 'Выплачено' : 'Начислено'}
+                        {s.isLocked ? t('comp.paidOut') : t('comp.accrued')}
                       </Badge>
                     </div>
                   </div>
@@ -146,7 +149,14 @@ function CompensationConfigDialog({ open, teacherId, teacherName, currentModel, 
   currentModel?: CompensationModel
   onClose: () => void
 }) {
+  const t = useT()
   const { mutate: setModel, isPending } = useSetCompensation()
+
+  const MODEL_OPTIONS: { value: CompensationModelType; label: string; hint: string }[] = [
+    { value: 'per_lesson',    label: t('comp.perLesson'),    hint: t('comp.perLessonHint') },
+    { value: 'fixed_monthly', label: t('comp.fixedMonthly'), hint: t('comp.fixedHint') },
+    { value: 'per_student',   label: t('comp.perStudent'),   hint: t('comp.perStudentHint') },
+  ]
 
   const [modelType, setModelType]       = useState<CompensationModelType>(currentModel?.modelType ?? 'per_lesson')
   const [fixedRate, setFixedRate]       = useState(String(currentModel?.fixedMonthlyRate ?? ''))
@@ -170,12 +180,12 @@ function CompensationConfigDialog({ open, teacherId, teacherName, currentModel, 
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Компенсация — {teacherName}</DialogTitle>
+          <DialogTitle>{t('comp.compensation')} — {teacherName}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-2">Модель расчёта</label>
+              <label className="block text-xs font-medium text-gray-600 mb-2">{t('comp.calcModel')}</label>
               <div className="space-y-2">
                 {MODEL_OPTIONS.map((opt) => (
                   <button
@@ -199,23 +209,23 @@ function CompensationConfigDialog({ open, teacherId, teacherName, currentModel, 
 
             {modelType === 'fixed_monthly' ? (
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Сумма в месяц (сум)</label>
-                <Input type="number" value={fixedRate} onChange={(e) => setFixedRate(e.target.value)} placeholder="Например: 2000000" />
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('comp.monthlyAmount')}</label>
+                <Input type="number" value={fixedRate} onChange={(e) => setFixedRate(e.target.value)} placeholder={t('comp.exampleAmount')} />
               </div>
             ) : (
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Ставка по умолчанию (сум {modelType === 'per_lesson' ? '/ урок' : '/ студент'})
+                  {t('comp.defaultRate')} (UZS {modelType === 'per_lesson' ? t('comp.perLessonSuffix') : t('comp.perStudentSuffix')})
                 </label>
-                <Input type="number" value={defaultRate} onChange={(e) => setDefaultRate(e.target.value)} placeholder="Например: 50000" />
+                <Input type="number" value={defaultRate} onChange={(e) => setDefaultRate(e.target.value)} placeholder={t('comp.exampleRate')} />
               </div>
             )}
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button variant="secondary" onClick={onClose}>Отмена</Button>
+          <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
           <Button onClick={handleSave} disabled={!isValid || isPending}>
-            {isPending ? 'Сохранение…' : 'Сохранить'}
+            {isPending ? t('comp.saving') : t('common.save')}
           </Button>
         </DialogFooter>
       </DialogContent>

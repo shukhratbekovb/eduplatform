@@ -3,9 +3,11 @@
 Used by:
 - API-type lead sources: external systems push leads via api_key
 - Landing-type lead sources: public form page fetches fields and submits leads
+- Website form: auto-provisioned landing source for the website
 """
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -17,6 +19,12 @@ from src.api.dependencies import DbSession
 from src.infrastructure.persistence.models.crm import (
     CrmContactModel, CustomFieldModel, FunnelModel, LeadModel, LeadSourceModel, StageModel,
 )
+
+# Направления обучения — варианты для select-поля
+_DIRECTION_CHOICES = [
+    "Python", "JavaScript / Frontend", "Java", "Mobile", "DevOps",
+    "Data Science", "Кибербезопасность", "UI/UX Дизайн", "English for IT", "Робототехника",
+]
 
 router = APIRouter(prefix="/public", tags=["Public"])
 
@@ -224,4 +232,172 @@ async def submit_api_lead(api_key: str, body: PublicLeadSubmit, db: DbSession) -
         success=True,
         leadId=str(lead.id),
         message="Lead created successfully",
+    )
+
+
+# ── POST /public/website-lead — website form (auto-provisioned) ──────────
+
+_WEBSITE_SOURCE_NAME = "Веб-сайт (лендинг)"
+_DEFAULT_FUNNEL_NAME = "Заявки с сайта"
+
+_DEFAULT_STAGES = [
+    {"name": "Новый",            "color": "#6366F1", "order": 0, "win_probability": 10},
+    {"name": "Связались",        "color": "#3B82F6", "order": 1, "win_probability": 25},
+    {"name": "Консультация",     "color": "#F59E0B", "order": 2, "win_probability": 50},
+    {"name": "Пробный урок",     "color": "#10B981", "order": 3, "win_probability": 75},
+    {"name": "Договор",          "color": "#22C55E", "order": 4, "win_probability": 90},
+]
+
+
+class WebsiteLeadSubmit(BaseModel):
+    fullName: str
+    phone: str
+    email: str | None = None
+    direction: str | None = None
+    comment: str | None = None
+
+
+class _WebsiteInfra:
+    """Кэш ID кастомных полей, чтобы не делать лишние запросы после первого вызова."""
+    direction_field_id: str | None = None
+    comment_field_id: str | None = None
+
+_cache = _WebsiteInfra()
+
+
+async def _get_or_create_website_source(db) -> LeadSourceModel:  # type: ignore[no-untyped-def]
+    """Возвращает источник для лендинга, создавая воронку + этапы + кастомные поля + источник при первом вызове."""
+    result = await db.execute(
+        select(LeadSourceModel).where(
+            LeadSourceModel.name == _WEBSITE_SOURCE_NAME,
+            LeadSourceModel.type == "landing",
+            LeadSourceModel.is_active == True,  # noqa: E712
+        )
+    )
+    source = result.scalar_one_or_none()
+    if source is not None:
+        return source
+
+    now = datetime.now(timezone.utc)
+
+    # Создаём дефолтную воронку
+    funnel = FunnelModel(
+        id=uuid4(),
+        name=_DEFAULT_FUNNEL_NAME,
+        is_archived=False,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(funnel)
+    await db.flush()
+
+    # Создаём этапы
+    for stage_cfg in _DEFAULT_STAGES:
+        stage = StageModel(
+            id=uuid4(),
+            funnel_id=funnel.id,
+            name=stage_cfg["name"],
+            color=stage_cfg["color"],
+            order=stage_cfg["order"],
+            win_probability=stage_cfg["win_probability"],
+        )
+        db.add(stage)
+
+    # Создаём кастомные поля для воронки
+    direction_field = CustomFieldModel(
+        id=uuid4(),
+        funnel_id=funnel.id,
+        label="Направление",
+        type="select",
+        options={"choices": _DIRECTION_CHOICES},
+        order=0,
+        is_active=True,
+        created_at=now,
+    )
+    db.add(direction_field)
+
+    comment_field = CustomFieldModel(
+        id=uuid4(),
+        funnel_id=funnel.id,
+        label="Комментарий",
+        type="text",
+        options=None,
+        order=1,
+        is_active=True,
+        created_at=now,
+    )
+    db.add(comment_field)
+
+    await db.flush()
+
+    # Кэшируем ID полей
+    _cache.direction_field_id = str(direction_field.id)
+    _cache.comment_field_id = str(comment_field.id)
+
+    # Создаём источник
+    source = LeadSourceModel(
+        id=uuid4(),
+        name=_WEBSITE_SOURCE_NAME,
+        type="landing",
+        is_active=True,
+        funnel_id=funnel.id,
+        api_key=secrets.token_urlsafe(32),
+        created_at=now,
+    )
+    db.add(source)
+    await db.flush()
+
+    return source
+
+
+async def _get_custom_field_ids(funnel_id, db) -> tuple[str | None, str | None]:  # type: ignore[no-untyped-def]
+    """Возвращает (direction_field_id, comment_field_id) для воронки."""
+    if _cache.direction_field_id and _cache.comment_field_id:
+        return _cache.direction_field_id, _cache.comment_field_id
+
+    rows = (await db.execute(
+        select(CustomFieldModel).where(
+            CustomFieldModel.funnel_id == funnel_id,
+            CustomFieldModel.is_active == True,  # noqa: E712
+        ).order_by(CustomFieldModel.order)
+    )).scalars().all()
+
+    direction_id = None
+    comment_id = None
+    for row in rows:
+        if row.label == "Направление":
+            direction_id = str(row.id)
+        elif row.label == "Комментарий":
+            comment_id = str(row.id)
+
+    _cache.direction_field_id = direction_id
+    _cache.comment_field_id = comment_id
+    return direction_id, comment_id
+
+
+@router.post("/website-lead", response_model=PublicLeadResult)
+async def submit_website_lead(body: WebsiteLeadSubmit, db: DbSession) -> PublicLeadResult:
+    """Принимает заявку с лендинга. Автоматически создаёт воронку и источник при первом вызове."""
+    source = await _get_or_create_website_source(db)
+
+    direction_fid, comment_fid = await _get_custom_field_ids(source.funnel_id, db)
+
+    custom_fields: dict = {}
+    if body.direction and direction_fid:
+        custom_fields[direction_fid] = body.direction
+    if body.comment and comment_fid:
+        custom_fields[comment_fid] = body.comment
+
+    public_body = PublicLeadSubmit(
+        fullName=body.fullName,
+        phone=body.phone,
+        email=body.email,
+        customFields=custom_fields,
+    )
+
+    lead = await _create_lead_from_public(source, public_body, db)
+    return PublicLeadResult(
+        success=True,
+        leadId=str(lead.id),
+        message="Заявка успешно отправлена",
     )

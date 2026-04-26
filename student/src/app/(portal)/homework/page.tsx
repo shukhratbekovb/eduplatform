@@ -1,9 +1,13 @@
 'use client'
 import { useState, useRef } from 'react'
-import { Search, ChevronDown, X, Clock, Upload, FileText, ExternalLink } from 'lucide-react'
+import { Search, ChevronDown, X, Clock, FileText, Download, Upload, Paperclip } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { useI18nStore } from '@/lib/stores/useI18nStore'
-import { useAssignments, useSubmitAssignment } from '@/lib/hooks/student'
+import { format, parseISO } from 'date-fns'
+import { ru, enUS } from 'date-fns/locale'
+import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api/axios'
+import { useSubmitAssignment } from '@/lib/hooks/student'
 import { formatDate, daysUntil } from '@/lib/utils/dates'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/button'
@@ -13,12 +17,16 @@ import type { Assignment, AssignmentType } from '@/types/student'
 
 type Tab = 'pending' | 'submitted' | 'reviewed'
 
-const TYPE_COLORS: Record<AssignmentType, string> = {
-  class:       'bg-primary-500',
-  independent: 'bg-warning-500',
-  control:     'bg-danger-500',
-  thematic:    'bg-info-500',
-  homework:    'bg-success-500',
+const TYPE_COLORS: Record<string, string> = {
+  homework:      'bg-success-500',
+  participation: 'bg-primary-500',
+  exam:          'bg-danger-500',
+  quiz:          'bg-warning-500',
+  project:       'bg-info-500',
+  class:         'bg-primary-500',
+  independent:   'bg-warning-500',
+  control:       'bg-danger-500',
+  thematic:      'bg-info-500',
 }
 
 const STATUS_BADGE: Record<string, 'danger' | 'warning' | 'success' | 'default'> = {
@@ -37,10 +45,25 @@ export default function HomeworkPage() {
   const [typeFilter, setTypeFilter] = useState<AssignmentType | ''>('')
   const [selected, setSelected] = useState<Assignment | null>(null)
   const [text, setText]    = useState('')
-  const fileRef            = useRef<HTMLInputElement>(null)
+  const [uploadingFile, setUploadingFile] = useState(false)
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null)
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const statusParam = tab === 'pending' ? 'pending' : tab
-  const { data: assignments = [], isLoading } = useAssignments(statusParam as any)
+  // "pending" tab shows both pending + overdue (student must still do them)
+  const { data: allForTab = [], isLoading } = useQuery({
+    queryKey: ['student', 'assignments', tab],
+    queryFn: async () => {
+      if (tab === 'pending') {
+        const res = await apiClient.get('/student/assignments')
+        return (res.data as any[]).filter((a: any) => a.status === 'pending' || a.status === 'overdue')
+      }
+      const res = await apiClient.get('/student/assignments', { params: { status: tab } })
+      return res.data as any[]
+    },
+    staleTime: 5 * 60_000,
+  })
+  const assignments = allForTab
   const { mutate: submit, isPending: submitting } = useSubmitAssignment()
 
   const filtered = assignments.filter((a) => {
@@ -50,17 +73,41 @@ export default function HomeworkPage() {
     return matchQ && matchT
   })
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingFile(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('folder', 'homework')
+      const res = await apiClient.post('/files/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setUploadedFileUrl(res.data.url)
+      setUploadedFileName(res.data.filename)
+      toast.success(t('homework.fileUploaded'))
+    } catch {
+      toast.error(t('homework.fileUploadError'))
+    } finally {
+      setUploadingFile(false)
+    }
+  }
+
   const handleSubmit = () => {
     if (!selected) return
+    if (!text.trim() && !uploadedFileUrl) return
     submit(
-      { id: selected.id, data: { text } },
+      { id: selected.id, data: { text: text.trim() || undefined, fileUrl: uploadedFileUrl || undefined } },
       {
         onSuccess: () => {
           toast.success(t('homework.submitBtn') + ' ✓')
           setSelected(null)
           setText('')
+          setUploadedFileUrl(null)
+          setUploadedFileName(null)
         },
-        onError: () => toast.error('Ошибка отправки'),
+        onError: () => toast.error(t('homework.submitError')),
       }
     )
   }
@@ -110,7 +157,7 @@ export default function HomeworkPage() {
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-primary-100"
         >
           <option value="">{t('homework.filterType')}</option>
-          {(['class', 'independent', 'control', 'thematic', 'homework'] as AssignmentType[]).map((type) => (
+          {(['homework', 'participation', 'exam', 'quiz', 'project'] as AssignmentType[]).map((type) => (
             <option key={type} value={type}>{t(`assignment.type.${type}`)}</option>
           ))}
         </select>
@@ -171,64 +218,122 @@ export default function HomeworkPage() {
             </div>
 
             {/* Description */}
-            <div className="bg-gray-50 rounded-lg p-3 mb-3">
-              <p className="text-xs font-medium text-gray-500 mb-1">{t('homework.description')}</p>
-              <p className="text-sm text-gray-700">{selected.description}</p>
-            </div>
+            {selected.description && (
+              <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                <p className="text-xs font-medium text-gray-500 mb-1">{t('homework.description')}</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{selected.description}</p>
+              </div>
+            )}
 
-            {/* Open task */}
-            <Button variant="primary" size="sm" className="w-full mb-3">
-              <ExternalLink className="w-3.5 h-3.5" />
-              {t('homework.openTask')}
-            </Button>
+            {/* Assignment files (from teacher) */}
+            {selected.assignmentFiles && selected.assignmentFiles.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-500 mb-1.5">{t('homework.taskFiles')}</p>
+                <div className="space-y-1.5">
+                  {selected.assignmentFiles.map((f, i) => (
+                    <button key={i}
+                      onClick={async () => {
+                        const res = await apiClient.get('/files/download', {
+                          params: { key: (f as any).key || '', filename: f.filename },
+                          responseType: 'blob',
+                        })
+                        const url = URL.createObjectURL(res.data)
+                        const a = document.createElement('a'); a.href = url; a.download = f.filename; a.click()
+                        URL.revokeObjectURL(url)
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 bg-primary-50 border border-primary-100 rounded-lg text-sm text-primary-700 hover:bg-primary-100 transition-colors w-full text-left">
+                      <Download className="w-4 h-4 shrink-0" />
+                      <span className="truncate flex-1">{f.filename}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Deadline */}
             <DeadlineBanner deadline={selected.deadline} status={selected.status} t={t} />
 
-            {/* Reviewed: show grade */}
+            {/* Reviewed: show grade + feedback */}
             {selected.status === 'reviewed' && (
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between bg-success-50 rounded-lg px-3 py-2">
                   <span className="text-xs font-medium text-success-700">{t('homework.grade')}</span>
-                  <span className="text-xl font-bold text-success-700">{selected.grade}</span>
+                  <span className="text-xl font-bold text-success-700">{selected.grade}/10</span>
                 </div>
                 {selected.teacherComment && (
                   <div className="bg-gray-50 rounded-lg px-3 py-2">
                     <p className="text-xs text-gray-500 mb-0.5">{t('homework.teacherComment')}</p>
-                    <p className="text-sm text-gray-700">{selected.teacherComment}</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{selected.teacherComment}</p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Submit area (pending only) */}
-            {(selected.status === 'pending' || selected.status === 'overdue') && (
+            {/* Submitted: show what student sent */}
+            {selected.status === 'submitted' && (
               <div className="mt-3 space-y-2">
+                <div className="bg-blue-50 rounded-lg px-3 py-2">
+                  <p className="text-xs font-medium text-blue-600 mb-0.5">{t('homework.answerSubmitted')}</p>
+                  <p className="text-xs text-blue-500">{t('homework.awaitingReview')}</p>
+                </div>
+                {selected.submittedText && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs font-medium text-gray-500 mb-1">{t('homework.yourText')}</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{selected.submittedText}</p>
+                  </div>
+                )}
+                {selected.submittedFileUrl && (
+                  <a href={selected.submittedFileUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-primary-600 hover:bg-gray-100 transition-colors">
+                    <Paperclip className="w-4 h-4 shrink-0" />
+                    <span>{t('homework.yourFile')}</span>
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* Submit area (pending / overdue) */}
+            {(selected.status === 'pending' || selected.status === 'overdue') && (
+              <div className="mt-3 space-y-3">
                 <p className="text-xs font-medium text-gray-700">{t('homework.submitArea')}</p>
-                <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-lg p-4 cursor-pointer hover:border-primary-300 hover:bg-primary-50 transition-colors">
-                  <Upload className="w-5 h-5 text-gray-400 mb-1" />
-                  <span className="text-xs text-gray-500">{t('homework.dropFile')}</span>
-                  <span className="text-xs text-gray-400 mt-0.5">{t('homework.maxSize')}</span>
-                  <input ref={fileRef} type="file" className="hidden" />
-                </label>
+
+                {/* File upload */}
+                <div>
+                  <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+                  {uploadedFileName ? (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-success-50 border border-success-200 rounded-lg text-sm">
+                      <Paperclip className="w-4 h-4 text-success-600 shrink-0" />
+                      <span className="text-success-700 truncate flex-1">{uploadedFileName}</span>
+                      <button onClick={() => { setUploadedFileUrl(null); setUploadedFileName(null) }}
+                        className="text-gray-400 hover:text-gray-600">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
+                      className="flex items-center justify-center gap-2 w-full border-2 border-dashed border-gray-200 rounded-lg py-3 text-sm text-gray-500 hover:border-primary-300 hover:text-primary-600 hover:bg-primary-50 transition-colors disabled:opacity-50">
+                      <Upload className="w-4 h-4" />
+                      {uploadingFile
+                        ? t('homework.uploading')
+                        : t('homework.attachFile')}
+                    </button>
+                  )}
+                </div>
+
+                {/* Text answer */}
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder={t('homework.textAnswer')}
-                  rows={3}
+                  rows={4}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
                 />
-                <Button className="w-full" onClick={handleSubmit} loading={submitting}>
+                <Button className="w-full" onClick={handleSubmit} loading={submitting}
+                  disabled={!text.trim() && !uploadedFileUrl}>
                   {t('homework.submitBtn')}
                 </Button>
               </div>
             )}
-
-            {/* Materials */}
-            <div className="mt-3">
-              <p className="text-xs font-medium text-gray-500 mb-1">{t('homework.materials')} ({selected.materialsCount})</p>
-              {selected.materialsCount === 0 && <p className="text-xs text-gray-300">—</p>}
-            </div>
           </div>
         )}
       </div>
@@ -292,13 +397,11 @@ function DeadlineBanner({ deadline, status, t }: { deadline: string; status: str
   )
 }
 
-function groupByMonth(assignments: Assignment[], lang: string, t: (k: string) => string) {
-  const { format, parseISO } = require('date-fns')
-  const { ru, enUS } = require('date-fns/locale')
+function groupByMonth(assignments: Assignment[], lang: string, _t: (k: string) => string) {
   const locale = lang === 'ru' ? ru : enUS
-
   const groups: Record<string, Assignment[]> = {}
   for (const a of assignments) {
+    if (!a.lessonDate) continue
     const month = format(parseISO(a.lessonDate), 'LLLL', { locale })
     if (!groups[month]) groups[month] = []
     groups[month].push(a)

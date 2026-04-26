@@ -12,9 +12,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { formatDate } from '@/lib/utils/dates'
+import { useT } from '@/lib/i18n'
 import type { Group } from '@/types/lms'
 
 export default function GroupsPage() {
+  const t        = useT()
   const user       = useCurrentUser()
   const canManage  = useIsDirectorOrMup()
   const isTeacher  = user?.role === 'teacher'
@@ -56,13 +58,13 @@ export default function GroupsPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-primary-600" />
-          Группы
+          {t('groups.title')}
           <span className="ml-1 text-sm font-normal text-gray-400">({(groups as Group[]).length})</span>
         </h1>
         {canManage && (
           <Button size="sm" onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4" />
-            Создать группу
+            {t('groups.create')}
           </Button>
         )}
       </div>
@@ -71,7 +73,7 @@ export default function GroupsPage() {
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
-            placeholder="Поиск по названию…"
+            placeholder={t('groups.search')}
             className="pl-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -82,7 +84,7 @@ export default function GroupsPage() {
           onChange={(e) => setFilterDir(e.target.value)}
           className="h-10 border border-gray-300 rounded text-sm px-3 text-gray-700 focus:outline-none focus:border-primary-500 bg-white"
         >
-          <option value="">Все направления</option>
+          <option value="">{t('groups.allDirections')}</option>
           {(directions as any[]).map((d: any) => (
             <option key={d.id} value={d.id}>{d.name}</option>
           ))}
@@ -96,7 +98,7 @@ export default function GroupsPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon={BookOpen} title="Группы не найдены" description="Попробуйте изменить фильтры" />
+        <EmptyState icon={BookOpen} title={t('groups.notFound')} description={t('common.tryChangeFilters')} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((group) => (
@@ -111,6 +113,7 @@ export default function GroupsPage() {
 }
 
 function GroupCard({ group }: { group: Group }) {
+  const t = useT()
   return (
     <Link
       href={`/groups/${group.id}`}
@@ -126,7 +129,7 @@ function GroupCard({ group }: { group: Group }) {
       <div className="space-y-1 text-xs text-gray-400">
         <div className="flex items-center gap-1.5">
           <Users className="w-3.5 h-3.5" />
-          <span>{group.studentCount ?? 0} студентов</span>
+          <span>{group.studentCount ?? 0} {t('groups.students')}</span>
         </div>
         {(group.startDate || group.endDate) && (
           <div className="flex items-center gap-1.5">

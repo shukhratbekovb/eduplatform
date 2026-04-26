@@ -17,8 +17,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/utils/dates'
 import { toast } from 'sonner'
+import { useT } from '@/lib/i18n'
 
 export default function GroupDetailPage() {
+  const t = useT()
   const { id }   = useParams<{ id: string }>()
   const router   = useRouter()
   const canManage = useIsDirectorOrMup()
@@ -35,9 +37,9 @@ export default function GroupDetailPage() {
     mutationFn: (enrollmentId: string) => apiClient.delete(`/lms/enrollments/${enrollmentId}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lms', 'groups', id, 'students'] })
-      toast.success('Студент отчислен из группы')
+      toast.success('Student removed')
     },
-    onError: () => toast.error('Ошибка'),
+    onError: () => toast.error('Error'),
   })
 
   if (gLoading || !group) {
@@ -52,7 +54,7 @@ export default function GroupDetailPage() {
     <div className="max-w-4xl mx-auto">
       <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4">
         <ArrowLeft className="w-4 h-4" />
-        Назад к группам
+        {t('common.back')}
       </button>
 
       <div className="bg-white rounded-lg border border-gray-200 p-6 mb-4">
@@ -64,15 +66,15 @@ export default function GroupDetailPage() {
           {canManage && (
             <Button size="sm" variant="secondary" onClick={() => setShowEdit(true)}>
               <Pencil className="w-4 h-4" />
-              Редактировать
+              {t('common.edit')}
             </Button>
           )}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-5">
-          <Stat icon={Users} label="Студентов" value={String(g.studentCount ?? (students as any[]).length)} />
-          <Stat icon={Calendar} label="Начало" value={formatDate(g.startDate)} />
-          <Stat icon={Calendar} label="Окончание" value={formatDate(g.endDate)} />
+          <Stat icon={Users} label={t('dash.students')} value={String(g.studentCount ?? (students as any[]).length)} />
+          <Stat icon={Calendar} label={t('profile.start')} value={formatDate(g.startDate)} />
+          <Stat icon={Calendar} label={t('schedule.end')} value={formatDate(g.endDate)} />
         </div>
       </div>
 
@@ -80,8 +82,8 @@ export default function GroupDetailPage() {
         <Tabs defaultValue="students">
           <div className="px-4 border-b border-gray-200">
             <TabsList className="border-none">
-              <TabsTrigger value="students">Студенты ({(students as any[]).length})</TabsTrigger>
-              <TabsTrigger value="lessons">Уроки ({(lessons as any[]).length})</TabsTrigger>
+              <TabsTrigger value="students">{t('nav.students')} ({(students as any[]).length})</TabsTrigger>
+              <TabsTrigger value="lessons">{t('reports.lessons')} ({(lessons as any[]).length})</TabsTrigger>
             </TabsList>
           </div>
 
@@ -90,13 +92,13 @@ export default function GroupDetailPage() {
               <div className="flex justify-end mb-3">
                 <Button size="sm" variant="secondary" onClick={() => setShowEnroll(true)}>
                   <Plus className="w-4 h-4" />
-                  Зачислить студента
+                  {t('profile.enroll')}
                 </Button>
               </div>
             )}
 
             {(students as any[]).length === 0 ? (
-              <p className="text-sm text-gray-400 py-8 text-center">В группе нет студентов</p>
+              <p className="text-sm text-gray-400 py-8 text-center">{t('exams.noStudents')}</p>
             ) : (
               <div className="space-y-2">
                 {(students as any[]).map((student: any) => (
@@ -106,7 +108,7 @@ export default function GroupDetailPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900">{student.fullName}</p>
                         {student.gpa != null && (
-                          <p className="text-xs text-gray-400">ср. балл {Number(student.gpa).toFixed(1)}</p>
+                          <p className="text-xs text-gray-400">{t('students.avgGrade')} {Number(student.gpa).toFixed(1)}</p>
                         )}
                       </div>
                       <RiskBadge level={student.riskLevel ?? 'low'} size="sm" />
@@ -114,18 +116,18 @@ export default function GroupDetailPage() {
                     {canManage && (
                       <button
                         onClick={() => {
-                          if (confirm(`Отчислить ${student.fullName} из группы?`)) {
+                          if (confirm(`Remove ${student.fullName}?`)) {
                             // Need enrollment ID — find via student+group
                             apiClient.delete(`/lms/enrollments/${student.id}`)
                               .then(() => {
                                 qc.invalidateQueries({ queryKey: ['lms', 'groups', id, 'students'] })
-                                toast.success('Студент отчислен')
+                                toast.success('Done')
                               })
-                              .catch(() => toast.error('Ошибка'))
+                              .catch(() => toast.error('Error'))
                           }
                         }}
                         className="p-1.5 text-gray-300 hover:text-danger-500 rounded shrink-0"
-                        title="Отчислить"
+                        title={t('common.delete')}
                       >
                         <UserMinus className="w-4 h-4" />
                       </button>
@@ -138,7 +140,7 @@ export default function GroupDetailPage() {
 
           <TabsContent value="lessons" className="p-4">
             {(lessons as any[]).length === 0 ? (
-              <p className="text-sm text-gray-400 py-8 text-center">Нет уроков</p>
+              <p className="text-sm text-gray-400 py-8 text-center">{t('lesson.noLessons')}</p>
             ) : (
               <div className="space-y-2">
                 {(lessons as any[]).sort((a: any, b: any) => (a.date ?? '').localeCompare(b.date ?? '')).map((lesson: any) => (
@@ -156,7 +158,7 @@ export default function GroupDetailPage() {
                       lesson.status === 'cancelled' ? 'bg-gray-100 text-gray-500' :
                       'bg-primary-50 text-primary-700'
                     }`}>
-                      {lesson.status === 'completed' ? 'Проведён' : lesson.status === 'cancelled' ? 'Отменён' : 'Запланирован'}
+                      {lesson.status === 'completed' ? t('lesson.conducted') : lesson.status === 'cancelled' ? t('lesson.cancelled') : t('lesson.scheduled')}
                     </span>
                   </Link>
                 ))}
@@ -190,6 +192,7 @@ function EnrollStudentDialog({ open, onOpenChange, groupId, enrolledStudentIds }
   open: boolean; onOpenChange: (v: boolean) => void
   groupId: string; enrolledStudentIds: string[]
 }) {
+  const t = useT()
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
 
@@ -204,10 +207,10 @@ function EnrollStudentDialog({ open, onOpenChange, groupId, enrolledStudentIds }
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lms', 'groups', groupId, 'students'] })
       qc.invalidateQueries({ queryKey: ['lms', 'groups'] })
-      toast.success('Студент зачислен')
+      toast.success('Enrolled')
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.detail || 'Ошибка зачисления'
+      const msg = err?.response?.data?.detail || 'Error'
       toast.error(msg)
     },
   })
@@ -216,13 +219,13 @@ function EnrollStudentDialog({ open, onOpenChange, groupId, enrolledStudentIds }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Зачислить студента</DialogTitle>
+          <DialogTitle>{t('profile.enroll')}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
-              placeholder="Поиск по имени..."
+              placeholder={t('students.search')}
               className="pl-9"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -231,7 +234,7 @@ function EnrollStudentDialog({ open, onOpenChange, groupId, enrolledStudentIds }
 
           {available.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">
-              {search ? 'Студенты не найдены' : 'Введите имя для поиска'}
+              {search ? t('students.notFound') : t('students.search')}
             </p>
           ) : (
             <div className="space-y-1 max-h-64 overflow-y-auto">
@@ -254,7 +257,7 @@ function EnrollStudentDialog({ open, onOpenChange, groupId, enrolledStudentIds }
           )}
         </DialogBody>
         <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>Закрыть</Button>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>{t('common.close')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

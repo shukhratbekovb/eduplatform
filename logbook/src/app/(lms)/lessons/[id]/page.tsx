@@ -19,15 +19,18 @@ import { DiamondDistributor } from '@/components/lms/lessons/DiamondDistributor'
 import { LessonStatusBadge } from '@/components/lms/lessons/LessonStatusBadge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils/cn'
+import { useT } from '@/lib/i18n'
 import type { AttendanceStatus } from '@/types/lms'
 
 export default function LessonDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router  = useRouter()
   const user    = useCurrentUser()
+  const t       = useT()
 
   const { data, isLoading } = useLessonFull(id)
   const { data: lateReqData } = useLateRequests({ status: 'approved' })
@@ -100,7 +103,8 @@ export default function LessonDetailPage() {
   }
 
   const { lesson } = data
-  const editable = isLessonEditable(lesson) || canEditViaLateRequest(lesson, approvedRequests)
+  const isTeacherRole = user?.role === 'teacher'
+  const editable = isTeacherRole && (isLessonEditable(lesson) || canEditViaLateRequest(lesson, approvedRequests))
   const windowRemaining = getLessonWindowRemaining(lesson)
   const needsRequest = needsLateRequest(lesson)
 
@@ -162,7 +166,7 @@ export default function LessonDetailPage() {
       (r) => r.grade !== null && r.grade < 6 && !grades[r.studentId]?.comment?.trim()
     )
     if (missingComments.length > 0) {
-      toast.error('Добавьте комментарий для оценок ниже 6')
+      toast.error(t('grade.commentError'))
       return
     }
 
@@ -204,7 +208,7 @@ export default function LessonDetailPage() {
         className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Назад к расписанию
+        {t('lesson.backToSchedule')}
       </button>
 
       {/* Header */}
@@ -219,7 +223,7 @@ export default function LessonDetailPage() {
                 </span>
               )}
             </div>
-            <h1 className="text-xl font-bold text-gray-900 mt-2">{(groupInfo as any)?.name ?? 'Урок'}</h1>
+            <h1 className="text-xl font-bold text-gray-900 mt-2">{(groupInfo as any)?.name ?? t('lesson.lesson')}</h1>
             {(groupInfo as any)?.directionName && (
               <p className="text-xs text-gray-400 mt-0.5">{(groupInfo as any).directionName}</p>
             )}
@@ -249,28 +253,28 @@ export default function LessonDetailPage() {
             <div className="flex items-start gap-2 mb-2">
               <AlertTriangle className="w-4 h-4 text-danger-500 mt-0.5 shrink-0" />
               <div>
-                <p className="text-sm font-medium text-danger-700">Окно ввода данных истекло</p>
-                <p className="text-xs text-danger-600">Для внесения данных необходим запрос МУП</p>
+                <p className="text-sm font-medium text-danger-700">{t('lesson.windowExpired')}</p>
+                <p className="text-xs text-danger-600">{t('lesson.needMupRequest')}</p>
               </div>
             </div>
             {!showLateForm ? (
               <Button size="sm" variant="danger" onClick={() => setShowLateForm(true)}>
-                Подать запрос на позднее внесение
+                {t('lesson.submitLateRequest')}
               </Button>
             ) : (
               <div className="space-y-2 mt-2">
                 <textarea
                   value={lateReason}
                   onChange={(e) => setLateReason(e.target.value)}
-                  placeholder="Причина позднего внесения данных…"
+                  placeholder={t('lesson.lateReasonPlaceholder')}
                   rows={3}
                   className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 resize-none focus:outline-none focus:border-primary-500"
                 />
                 <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => setShowLateForm(false)}>Отмена</Button>
+                  <Button size="sm" variant="secondary" onClick={() => setShowLateForm(false)}>{t('common.cancel')}</Button>
                   <Button size="sm" loading={isRequesting} disabled={!lateReason.trim()} onClick={handleLateRequest}>
                     <Send className="w-3.5 h-3.5" />
-                    Отправить запрос
+                    {t('lesson.sendRequest')}
                   </Button>
                 </div>
               </div>
@@ -283,13 +287,13 @@ export default function LessonDetailPage() {
       {editable && (
         <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Тема урока <span className="text-danger-500">*</span>
+            {t('lesson.topicLabel')} <span className="text-danger-500">*</span>
           </label>
           <input
             type="text"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="Введите тему урока…"
+            placeholder={t('lesson.topicPlaceholder')}
             className={cn(
               'w-full text-sm border rounded-md px-3 py-2 focus:outline-none focus:border-primary-500',
               !topic.trim() ? 'border-gray-300' : 'border-primary-300 bg-primary-50/30'
@@ -300,7 +304,7 @@ export default function LessonDetailPage() {
 
       {lesson.status === 'completed' && lesson.topic && (
         <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Тема урока</p>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{t('lesson.topicLabel')}</p>
           <p className="text-sm font-medium text-gray-900">{lesson.topic}</p>
         </div>
       )}
@@ -311,9 +315,9 @@ export default function LessonDetailPage() {
           <Tabs defaultValue="attendance">
             <div className="px-4 border-b border-gray-200">
               <TabsList className="border-none">
-                <TabsTrigger value="attendance">Посещаемость</TabsTrigger>
-                <TabsTrigger value="grades">Оценки</TabsTrigger>
-                <TabsTrigger value="diamonds">Бриллианты</TabsTrigger>
+                <TabsTrigger value="attendance">{t('attendance.title')}</TabsTrigger>
+                <TabsTrigger value="grades">{t('lesson.grades')}</TabsTrigger>
+                <TabsTrigger value="diamonds">{t('lesson.diamonds')}</TabsTrigger>
               </TabsList>
             </div>
 
@@ -346,7 +350,7 @@ export default function LessonDetailPage() {
           {editable && (
             <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
               <p className="text-xs text-gray-400">
-                {!topic.trim() ? '⚠ Укажите тему урока' : '✓ Готово к сохранению'}
+                {!topic.trim() ? `⚠ ${t('lesson.specifyTopic')}` : `✓ ${t('lesson.readyToSave')}`}
               </p>
               <Button
                 size="md"
@@ -356,7 +360,7 @@ export default function LessonDetailPage() {
                 className="gap-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                Сохранить и закрыть урок
+                {t('lesson.saveAndClose')}
               </Button>
             </div>
           )}
@@ -372,8 +376,8 @@ export default function LessonDetailPage() {
 
 // ── File upload helper ───────────────────────────────────────────────────────
 
-async function uploadFiles(files: File[], folder: string): Promise<{ url: string; filename: string }[]> {
-  const results: { url: string; filename: string }[] = []
+async function uploadFiles(files: File[], folder: string): Promise<{ url: string; filename: string; key: string }[]> {
+  const results: { url: string; filename: string; key: string }[] = []
   for (const file of files) {
     const formData = new FormData()
     formData.append('file', file)
@@ -381,7 +385,7 @@ async function uploadFiles(files: File[], folder: string): Promise<{ url: string
     const res = await apiClient.post('/files/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
-    results.push({ url: res.data.url, filename: res.data.filename })
+    results.push({ url: res.data.url, filename: res.data.filename, key: res.data.key })
   }
   return results
 }
@@ -389,6 +393,7 @@ async function uploadFiles(files: File[], folder: string): Promise<{ url: string
 // ── Materials & Homework ────────────────────────────────────────────────────
 
 function LessonContent({ lessonId }: { lessonId: string }) {
+  const t = useT()
   const qc = useQueryClient()
 
   // Materials
@@ -398,7 +403,7 @@ function LessonContent({ lessonId }: { lessonId: string }) {
   })
   const deleteMaterial = useMutation({
     mutationFn: (materialId: string) => apiClient.delete(`/lms/lessons/${lessonId}/materials/${materialId}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lms', 'lesson-materials', lessonId] }); toast.success('Удалено') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lms', 'lesson-materials', lessonId] }); toast.success(t('common.delete')) },
   })
 
   // Homework
@@ -409,6 +414,9 @@ function LessonContent({ lessonId }: { lessonId: string }) {
 
   // Upload states
   const [uploading, setUploading] = useState(false)
+  const [showLinkForm, setShowLinkForm] = useState(false)
+  const [linkTitle, setLinkTitle] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
   const [showHomeworkForm, setShowHomeworkForm] = useState(false)
   const [hwTitle, setHwTitle] = useState('')
   const [hwDesc, setHwDesc] = useState('')
@@ -427,15 +435,30 @@ function LessonContent({ lessonId }: { lessonId: string }) {
       for (const f of uploaded) {
         const ext = f.filename.split('.').pop()?.toLowerCase() ?? ''
         const type = ['pdf'].includes(ext) ? 'pdf' : ['mp4', 'webm', 'mov'].includes(ext) ? 'video' : ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) ? 'image' : 'other'
-        await apiClient.post(`/lms/lessons/${lessonId}/materials`, { title: f.filename, url: f.url, type })
+        await apiClient.post(`/lms/lessons/${lessonId}/materials`, { title: f.filename, url: f.url, type, key: f.key })
       }
       qc.invalidateQueries({ queryKey: ['lms', 'lesson-materials', lessonId] })
-      toast.success(`${uploaded.length} файл(ов) загружено`)
+      toast.success(t('lesson.filesUploaded'))
     } catch {
-      toast.error('Ошибка загрузки')
+      toast.error(t('lesson.uploadError'))
     } finally {
       setUploading(false)
       if (matInputRef.current) matInputRef.current.value = ''
+    }
+  }
+
+  // Handle adding a link
+  const handleAddLink = async () => {
+    if (!linkTitle.trim() || !linkUrl.trim()) return
+    try {
+      await apiClient.post(`/lms/lessons/${lessonId}/materials`, {
+        title: linkTitle.trim(), url: linkUrl.trim(), type: 'link',
+      })
+      qc.invalidateQueries({ queryKey: ['lms', 'lesson-materials', lessonId] })
+      toast.success(t('lesson.linkAdded'))
+      setLinkTitle(''); setLinkUrl(''); setShowLinkForm(false)
+    } catch {
+      toast.error(t('common.error'))
     }
   }
 
@@ -444,25 +467,24 @@ function LessonContent({ lessonId }: { lessonId: string }) {
     if (!hwTitle.trim() || !hwDue) return
     setUploading(true)
     try {
-      // Create assignment
-      const res = await apiClient.post('/lms/homework/assignments', {
-        lesson_id: lessonId, title: hwTitle.trim(),
-        description: hwDesc.trim() || undefined, due_date: hwDue + 'T23:59:00',
-      })
-      // Upload attached files
+      // Upload files first
+      let fileUrls: { url: string; filename: string }[] = []
       if (hwFiles.length > 0) {
-        const uploaded = await uploadFiles(hwFiles, 'homework')
-        // Store file URLs in description (append)
-        const fileLinks = uploaded.map((f) => f.url).join('\n')
-        const fullDesc = [hwDesc.trim(), '📎 Файлы:', fileLinks].filter(Boolean).join('\n')
-        // No update endpoint exists — files are mentioned in description for now
+        fileUrls = await uploadFiles(hwFiles, 'homework')
       }
+      // Create assignment with file_urls
+      await apiClient.post('/lms/homework/assignments', {
+        lesson_id: lessonId, title: hwTitle.trim(),
+        description: hwDesc.trim() || undefined,
+        due_date: hwDue + 'T23:59:00',
+        file_urls: fileUrls,
+      })
       qc.invalidateQueries({ queryKey: ['lms', 'lesson-homework', lessonId] })
-      toast.success('Домашнее задание добавлено')
+      toast.success(t('lesson.homeworkAdded'))
       setHwTitle(''); setHwDesc(''); setHwDue(''); setHwFiles([])
       setShowHomeworkForm(false)
     } catch {
-      toast.error('Ошибка')
+      toast.error(t('common.error'))
     } finally {
       setUploading(false)
     }
@@ -473,16 +495,19 @@ function LessonContent({ lessonId }: { lessonId: string }) {
       <Tabs defaultValue="materials">
         <div className="px-4 border-b border-gray-200">
           <TabsList className="border-none">
-            <TabsTrigger value="materials">Материалы ({materials.length})</TabsTrigger>
-            <TabsTrigger value="homework">Домашнее задание ({assignments.length})</TabsTrigger>
+            <TabsTrigger value="materials">{t('lesson.materials')} ({materials.length})</TabsTrigger>
+            <TabsTrigger value="homework">{t('lesson.homework')} ({assignments.length})</TabsTrigger>
           </TabsList>
         </div>
 
         {/* Materials tab */}
         <TabsContent value="materials" className="p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium text-gray-700">Материалы урока</p>
-            <div>
+            <p className="text-sm font-medium text-gray-700">{t('lesson.lessonMaterials')}</p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="secondary" onClick={() => setShowLinkForm(true)}>
+                {t('lesson.addLink')}
+              </Button>
               <input
                 ref={matInputRef}
                 type="file"
@@ -493,10 +518,22 @@ function LessonContent({ lessonId }: { lessonId: string }) {
               />
               <Button size="sm" variant="secondary" onClick={() => matInputRef.current?.click()} loading={uploading}>
                 <Plus className="w-4 h-4" />
-                Загрузить файлы
+                {t('lesson.uploadFiles')}
               </Button>
             </div>
           </div>
+
+          {/* Add link form */}
+          {showLinkForm && (
+            <div className="mb-3 p-3 bg-gray-50 rounded-lg space-y-2">
+              <Input value={linkTitle} onChange={(e) => setLinkTitle(e.target.value)} placeholder={t('lesson.linkTitlePlaceholder')} />
+              <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..." />
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="secondary" onClick={() => setShowLinkForm(false)}>{t('common.cancel')}</Button>
+                <Button size="sm" onClick={handleAddLink} disabled={!linkTitle.trim() || !linkUrl.trim()}>{t('common.add')}</Button>
+              </div>
+            </div>
+          )}
 
           {materials.length === 0 ? (
             <div
@@ -504,28 +541,50 @@ function LessonContent({ lessonId }: { lessonId: string }) {
               className="border-2 border-dashed border-gray-200 rounded-lg py-8 text-center cursor-pointer hover:border-primary-300 hover:bg-primary-50/30 transition-colors"
             >
               <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">Нажмите чтобы загрузить файлы</p>
-              <p className="text-xs text-gray-300 mt-1">PDF, Word, PowerPoint, изображения, видео</p>
+              <p className="text-sm text-gray-400">{t('lesson.clickToUpload')}</p>
+              <p className="text-xs text-gray-300 mt-1">{t('lesson.fileTypes')}</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {materials.map((m: any) => (
-                <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileText className="w-4 h-4 text-primary-500 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{m.title}</p>
-                      <p className="text-xs text-gray-400">{m.type}</p>
+              {materials.map((m: any) => {
+                const isLink = m.type === 'link'
+                const hasKey = !!m.s3Key
+                return (
+                  <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileText className="w-4 h-4 text-primary-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{m.title}</p>
+                        <p className="text-xs text-gray-400">{m.type} · {m.language ?? 'ru'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isLink ? (
+                        <a href={m.url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-primary-600 hover:underline flex items-center gap-1">
+                          {t('common.open')} ↗
+                        </a>
+                      ) : hasKey ? (
+                        <button
+                          onClick={async () => {
+                            const res = await apiClient.get('/files/download', { params: { key: m.s3Key, filename: m.title }, responseType: 'blob' })
+                            const url = URL.createObjectURL(res.data)
+                            const a = document.createElement('a'); a.href = url; a.download = m.title; a.click()
+                            URL.revokeObjectURL(url)
+                          }}
+                          className="text-xs text-primary-600 hover:underline flex items-center gap-1">
+                          {t('common.download')}
+                        </button>
+                      ) : (
+                        <a href={m.url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-primary-600 hover:underline">{t('common.open')}</a>
+                      )}
+                      <button onClick={() => deleteMaterial.mutate(m.id)}
+                        className="p-1 text-gray-300 hover:text-danger-500"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <a href={m.url} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-primary-600 hover:underline">Открыть</a>
-                    <button onClick={() => deleteMaterial.mutate(m.id)}
-                      className="p-1 text-gray-300 hover:text-danger-500"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </TabsContent>
@@ -533,25 +592,36 @@ function LessonContent({ lessonId }: { lessonId: string }) {
         {/* Homework tab */}
         <TabsContent value="homework" className="p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium text-gray-700">Домашнее задание</p>
+            <p className="text-sm font-medium text-gray-700">{t('lesson.homework')}</p>
             <Button size="sm" variant="secondary" onClick={() => setShowHomeworkForm(true)}>
               <Plus className="w-4 h-4" />
-              Добавить
+              {t('common.add')}
             </Button>
           </div>
 
           {assignments.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-6">Нет домашних заданий</p>
+            <p className="text-sm text-gray-400 text-center py-6">{t('lesson.noHomework')}</p>
           ) : (
             <div className="space-y-2">
               {assignments.map((hw: any) => (
                 <div key={hw.id} className="p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
                   <div className="flex items-start justify-between">
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900">{hw.title}</p>
                       {hw.description && <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-line">{hw.description}</p>}
+                      {hw.file_urls && hw.file_urls.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {hw.file_urls.map((f: any, i: number) => (
+                            <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-primary-50 text-primary-700 rounded text-xs hover:bg-primary-100 transition-colors">
+                              <FileText className="w-3 h-3" />
+                              {f.filename}
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-gray-400 shrink-0">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400 shrink-0 ml-2">
                       <Calendar className="w-3.5 h-3.5" />
                       {hw.due_date ? new Date(hw.due_date).toLocaleDateString('ru-RU') : '—'}
                     </div>
@@ -564,28 +634,28 @@ function LessonContent({ lessonId }: { lessonId: string }) {
           {/* Add homework dialog */}
           <Dialog open={showHomeworkForm} onOpenChange={setShowHomeworkForm}>
             <DialogContent className="max-w-md">
-              <DialogHeader><DialogTitle>Новое домашнее задание</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{t('lesson.newHomework')}</DialogTitle></DialogHeader>
               <DialogBody>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Название *</label>
-                    <Input value={hwTitle} onChange={(e) => setHwTitle(e.target.value)} placeholder="Название задания" />
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.name')} *</label>
+                    <Input value={hwTitle} onChange={(e) => setHwTitle(e.target.value)} placeholder={t('lesson.homeworkTitlePlaceholder')} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Описание</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.description')}</label>
                     <textarea
                       value={hwDesc} onChange={(e) => setHwDesc(e.target.value)}
-                      placeholder="Подробное описание задания..."
+                      placeholder={t('lesson.homeworkDescPlaceholder')}
                       rows={3}
                       className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 resize-none focus:outline-none focus:border-primary-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Дедлайн *</label>
-                    <Input type="date" value={hwDue} onChange={(e) => setHwDue(e.target.value)} />
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t('lesson.deadline')} *</label>
+                    <DatePicker value={hwDue} onChange={setHwDue} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Прикрепить файлы</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{t('lesson.attachFiles')}</label>
                     <input
                       type="file"
                       multiple
@@ -593,15 +663,15 @@ function LessonContent({ lessonId }: { lessonId: string }) {
                       className="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
                     />
                     {hwFiles.length > 0 && (
-                      <p className="text-xs text-gray-400 mt-1">{hwFiles.length} файл(ов) выбрано</p>
+                      <p className="text-xs text-gray-400 mt-1">{hwFiles.length} {t('lesson.filesSelected')}</p>
                     )}
                   </div>
                 </div>
               </DialogBody>
               <DialogFooter>
-                <Button variant="secondary" onClick={() => setShowHomeworkForm(false)}>Отмена</Button>
+                <Button variant="secondary" onClick={() => setShowHomeworkForm(false)}>{t('common.cancel')}</Button>
                 <Button onClick={handleAddHomework} loading={uploading} disabled={!hwTitle.trim() || !hwDue}>
-                  Добавить
+                  {t('common.add')}
                 </Button>
               </DialogFooter>
             </DialogContent>

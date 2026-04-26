@@ -12,12 +12,16 @@ import { isLessonEditable, needsLateRequest } from '@/lib/utils/lessonWindow'
 import { toIsoDate } from '@/lib/utils/dates'
 import { LessonStatusBadge } from '@/components/lms/lessons/LessonStatusBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils/cn'
+import { useT } from '@/lib/i18n'
 import type { Lesson } from '@/types/lms'
 
 export default function AttendancePage() {
+  const t       = useT()
   const user      = useCurrentUser()
   const isTeacher = user?.role === 'teacher'
+  const isDirectorOrMup = user?.role === 'director' || user?.role === 'mup'
   const weekStart = useLmsStore((s) => s.scheduleWeekStart)
 
   const filters: Record<string, string> = {}
@@ -27,7 +31,7 @@ export default function AttendancePage() {
   const { data: groups = [] } = useGroups()
   const groupMap = useMemo(() => new Map((groups as any[]).map((g: any) => [g.id, g])), [groups])
 
-  const [tab, setTab] = useState<'today' | 'groups'>('today')
+  const [tab, setTab] = useState<'today' | 'groups'>(isDirectorOrMup ? 'groups' : 'today')
   const [selectedDate, setSelectedDate] = useState<string>(toIsoDate(new Date()))
 
   const todayStr = toIsoDate(new Date())
@@ -51,7 +55,7 @@ export default function AttendancePage() {
   // Format the display date header
   const displayDateObj = parseISO(displayDate)
   const dateHeader = isToday(displayDateObj)
-    ? `Сегодня, ${format(displayDateObj, 'EEEE', { locale: ru })}`
+    ? `${t('common.today')}, ${format(displayDateObj, 'EEEE', { locale: ru })}`
     : format(displayDateObj, 'd MMMM, EEEE', { locale: ru })
   const dateHeaderCapitalized = dateHeader.charAt(0).toUpperCase() + dateHeader.slice(1)
 
@@ -66,39 +70,34 @@ export default function AttendancePage() {
               onClick={() => setSelectedDate(todayStr)}
               className="text-sm text-primary-600 hover:underline mt-0.5"
             >
-              Вернуться к сегодня
+              {t('attendance.backToToday')}
             </button>
           )}
         </div>
-        <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 cursor-pointer hover:border-primary-400 transition-colors">
-          <CalendarDays className="w-4 h-4 text-gray-400" />
-          <span className="hidden sm:inline">Отметить за другую дату</span>
-          <input
-            type="date"
-            className="sr-only"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
-        </label>
+        {!isDirectorOrMup && (
+          <div className="w-56">
+            <DatePicker value={selectedDate} onChange={setSelectedDate} placeholder={t('attendance.markOtherDate')} />
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 mb-5">
         {[
-          { value: 'today',  label: 'Посещаемость' },
-          { value: 'groups', label: 'Посещаемость групп' },
-        ].map((t) => (
+          ...(!isDirectorOrMup ? [{ value: 'today', label: t('attendance.title') }] : []),
+          { value: 'groups', label: t('attendance.groupAttendance') },
+        ].map((tb) => (
           <button
-            key={t.value}
-            onClick={() => setTab(t.value as any)}
+            key={tb.value}
+            onClick={() => setTab(tb.value as any)}
             className={cn(
               'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px',
-              tab === t.value
+              tab === tb.value
                 ? 'border-primary-600 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             )}
           >
-            {t.label}
+            {tb.label}
           </button>
         ))}
       </div>
@@ -117,10 +116,10 @@ export default function AttendancePage() {
               <Clock className="w-8 h-8 text-gray-300" />
             </div>
             <p className="text-base font-medium text-gray-500">
-              У вас перерыв или текущего занятия нет
+              {t('attendance.breakTime')}
             </p>
             <p className="text-sm text-gray-400 mt-1">
-              Уроки на {format(displayDateObj, 'd MMMM', { locale: ru })} не запланированы
+              {t('attendance.noLessons')}
             </p>
           </div>
         ) : (
@@ -134,7 +133,7 @@ export default function AttendancePage() {
         /* Посещаемость групп */
         <div className="space-y-4">
           {Object.keys(byGroup).length === 0 ? (
-            <EmptyState icon={CheckCircle2} title="Нет данных о группах" description="Расписание ещё не составлено" />
+            <EmptyState icon={CheckCircle2} title={t('attendance.noGroups')} description={t('attendance.noSchedule')} />
           ) : (
             Object.entries(byGroup).map(([groupId, groupLessons]) => {
               const group = groupMap.get(groupId)
@@ -152,7 +151,7 @@ export default function AttendancePage() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-gray-900">{pct}%</p>
-                      <p className="text-xs text-gray-400">{conducted}/{total} уроков</p>
+                      <p className="text-xs text-gray-400">{conducted}/{total} {t('attendance.lessons')}</p>
                     </div>
                   </div>
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -175,6 +174,7 @@ export default function AttendancePage() {
 }
 
 function LessonAttendanceRow({ lesson, groupName }: { lesson: Lesson; groupName?: string }) {
+  const t         = useT()
   const editable    = isLessonEditable(lesson)
   const needsReq    = needsLateRequest(lesson)
   const isConducted = lesson.status === 'completed'
@@ -211,12 +211,12 @@ function LessonAttendanceRow({ lesson, groupName }: { lesson: Lesson; groupName?
           <LessonStatusBadge status={lesson.status} />
           {editable && (
             <span className="text-xs bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full font-medium">
-              Открыто для ввода
+              {t('attendance.openForInput')}
             </span>
           )}
           {needsReq && (
             <span className="text-xs bg-warning-100 text-warning-700 px-1.5 py-0.5 rounded-full font-medium">
-              Нужен запрос МУП
+              {t('attendance.needMupRequest')}
             </span>
           )}
         </div>
@@ -232,7 +232,7 @@ function LessonAttendanceRow({ lesson, groupName }: { lesson: Lesson; groupName?
             <CheckCircle2 className="w-4 h-4" />
             <span className="text-sm font-semibold">{(lesson as any).group?.studentCount ?? 0}</span>
           </div>
-          <p className="text-xs text-gray-400">чел.</p>
+          <p className="text-xs text-gray-400">{t('attendance.people')}</p>
         </div>
       )}
 

@@ -8,26 +8,18 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useFunnels } from '@/lib/hooks/crm/useFunnels'
 import { useT } from '@/lib/i18n'
-import type { LeadSource, LeadSourceType } from '@/types/crm'
+import type { LeadSource } from '@/types/crm'
 
 const schema = z.object({
   name: z.string().min(1, 'Название обязательно').max(60),
-  type: z.enum(['manual', 'import', 'api', 'landing']),
-  funnelId: z.string().optional(),
-}).refine(
-  (data) => {
-    if (data.type === 'api' || data.type === 'landing') return !!data.funnelId
-    return true
-  },
-  { message: 'Выберите воронку для API/Лендинг источника', path: ['funnelId'] },
-)
+  type: z.enum(['api', 'landing']),
+  funnelId: z.string().min(1, 'Выберите воронку'),
+})
 type Values = z.infer<typeof schema>
 
-const TYPES: { value: LeadSourceType; labelKey: string; hintKey: string }[] = [
-  { value: 'manual',  labelKey: 'source.type.manual',  hintKey: 'source.hint.manual' },
-  { value: 'import',  labelKey: 'source.type.import',  hintKey: 'source.hint.import' },
-  { value: 'api',     labelKey: 'source.type.api',     hintKey: 'source.hint.api' },
+const TYPES: { value: 'api' | 'landing'; labelKey: string; hintKey: string }[] = [
   { value: 'landing', labelKey: 'source.type.landing',  hintKey: 'source.hint.landing' },
+  { value: 'api',     labelKey: 'source.type.api',     hintKey: 'source.hint.api' },
 ]
 
 interface SourceFormProps {
@@ -48,21 +40,20 @@ export function SourceForm({ open, onOpenChange, source, onSave, isPending }: So
     useForm<Values>({
       resolver: zodResolver(schema),
       defaultValues: source
-        ? { name: source.name, type: source.type, funnelId: source.funnelId || '' }
-        : { name: '', type: 'manual', funnelId: '' },
+        ? { name: source.name, type: source.type as 'api' | 'landing', funnelId: source.funnelId || '' }
+        : { name: '', type: 'landing', funnelId: '' },
     })
 
   useEffect(() => {
     if (open) {
       reset(source
-        ? { name: source.name, type: source.type, funnelId: source.funnelId || '' }
-        : { name: '', type: 'manual', funnelId: '' },
+        ? { name: source.name, type: source.type as 'api' | 'landing', funnelId: source.funnelId || '' }
+        : { name: '', type: 'landing', funnelId: '' },
       )
     }
   }, [open, source])
 
   const selectedType = watch('type')
-  const needsFunnel = selectedType === 'api' || selectedType === 'landing'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -113,8 +104,7 @@ export function SourceForm({ open, onOpenChange, source, onSave, isPending }: So
             </div>
           </div>
 
-          {needsFunnel && (
-            <div>
+          <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 {t('sources.form.funnel')} <span className="text-danger-500">*</span>
               </label>
@@ -128,8 +118,7 @@ export function SourceForm({ open, onOpenChange, source, onSave, isPending }: So
                 ))}
               </select>
               {errors.funnelId && <p className="mt-1 text-xs text-danger-500">{errors.funnelId.message}</p>}
-            </div>
-          )}
+          </div>
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>

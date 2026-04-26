@@ -1,7 +1,8 @@
 """File upload API — direct multipart upload to Google Cloud Storage."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from src.api.dependencies import CurrentUser
@@ -50,6 +51,44 @@ async def upload_file(
         filename=result.filename,
         contentType=result.content_type,
         sizeBytes=result.size_bytes,
+    )
+
+
+@router.get("/url")
+async def get_download_url(
+    current_user: CurrentUser,
+    key: str,
+    filename: str | None = Query(None),
+) -> dict:
+    """Get a fresh signed download URL for a file by its storage key."""
+    try:
+        url = storage_service.get_download_url(key, filename)
+        return {"url": url, "key": key}
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"File not found: {e}")
+
+
+@router.get("/download")
+async def download_file(
+    current_user: CurrentUser,
+    key: str,
+    filename: str | None = Query(None),
+) -> Response:
+    """Proxy-download: streams file content directly from GCS through the backend."""
+    try:
+        data, content_type = storage_service.download(key)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"File not found: {e}")
+
+    safe_name = filename or key.rsplit("/", 1)[-1]
+    from urllib.parse import quote
+    encoded_name = quote(safe_name)
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}",
+        },
     )
 
 

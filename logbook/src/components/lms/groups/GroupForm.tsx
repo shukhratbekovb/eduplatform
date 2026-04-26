@@ -8,6 +8,8 @@ import { createGroupSchema } from '@/lib/validators/lms/group.schema'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
+import { useT } from '@/lib/i18n'
 import type { z } from 'zod'
 import type { Group } from '@/types/lms'
 
@@ -20,6 +22,7 @@ interface GroupFormProps {
 }
 
 export function GroupForm({ open, onOpenChange, editGroup }: GroupFormProps) {
+  const t = useT()
   const { mutate: createGroup, isPending: creating } = useCreateGroup()
   const { mutate: updateGroup, isPending: updating } = useUpdateGroup()
   const { data: directions = [] } = useDirections()
@@ -55,20 +58,20 @@ export function GroupForm({ open, onOpenChange, editGroup }: GroupFormProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{editGroup ? 'Редактировать группу' : 'Создать группу'}</DialogTitle>
+          <DialogTitle>{editGroup ? t('groups.editGroup') : t('groups.createGroup')}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogBody>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Название группы *</label>
-                <Input {...register('name')} placeholder="Например: Python-01" error={!!errors.name} />
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('groups.groupName')} *</label>
+                <Input {...register('name')} placeholder={t('groups.groupNamePlaceholder')} error={!!errors.name} />
                 {errors.name && <p className="mt-1 text-xs text-danger-500">{errors.name.message}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Направление</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('groups.direction')}</label>
                 <Controller
                   name="directionId"
                   control={control}
@@ -77,7 +80,7 @@ export function GroupForm({ open, onOpenChange, editGroup }: GroupFormProps) {
                       {...field}
                       className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:outline-none focus:border-primary-500 bg-white"
                     >
-                      <option value="">— Без направления —</option>
+                      <option value="">{t('groups.noDirection')}</option>
                       {(directions as any[]).map((d: any) => (
                         <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
@@ -88,12 +91,16 @@ export function GroupForm({ open, onOpenChange, editGroup }: GroupFormProps) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Дата начала</label>
-                  <Input type="date" {...register('startDate')} />
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t('groups.startDate')}</label>
+                  <Controller name="startDate" control={control} render={({ field }) => (
+                    <DatePicker value={field.value} onChange={field.onChange} />
+                  )} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Дата окончания</label>
-                  <Input type="date" {...register('endDate')} error={!!errors.endDate} />
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{t('groups.endDate')}</label>
+                  <Controller name="endDate" control={control} render={({ field }) => (
+                    <DatePicker value={field.value} onChange={field.onChange} error={!!errors.endDate} />
+                  )} />
                   {errors.endDate && <p className="mt-1 text-xs text-danger-500">{errors.endDate.message as string}</p>}
                 </div>
               </div>
@@ -101,9 +108,9 @@ export function GroupForm({ open, onOpenChange, editGroup }: GroupFormProps) {
           </DialogBody>
 
           <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Отмена</Button>
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
             <Button type="submit" loading={creating || updating}>
-              {editGroup ? 'Сохранить' : 'Создать группу'}
+              {editGroup ? t('common.save') : t('groups.createGroup')}
             </Button>
           </DialogFooter>
         </form>

@@ -22,7 +22,7 @@ export interface Subject {
 }
 
 // ── Grades ────────────────────────────────────────────────────────────────────
-export type GradeType = 'class' | 'independent' | 'control' | 'thematic'
+export type GradeType = 'class' | 'independent' | 'control' | 'thematic' | 'participation' | 'homework' | 'exam' | 'quiz' | 'project'
 
 export interface Grade {
   id: string
@@ -42,8 +42,14 @@ export interface AttendanceRecord {
 }
 
 // ── Assignments ───────────────────────────────────────────────────────────────
-export type AssignmentType = 'class' | 'independent' | 'control' | 'thematic' | 'homework'
+export type AssignmentType = 'class' | 'independent' | 'control' | 'thematic' | 'homework' | 'participation' | 'exam' | 'quiz' | 'project'
 export type AssignmentStatus = 'pending' | 'submitted' | 'reviewed' | 'overdue'
+
+export interface AssignmentFile {
+  url: string
+  filename: string
+  key?: string
+}
 
 export interface Assignment {
   id: string
@@ -59,6 +65,8 @@ export interface Assignment {
   grade: number | null
   teacherComment: string | null
   submittedFileUrl: string | null
+  submittedText: string | null
+  assignmentFiles: AssignmentFile[]
   materialsCount: number
 }
 
@@ -66,7 +74,7 @@ export interface Assignment {
 export interface Lesson {
   id: string
   subjectName: string
-  subjectId: string
+  subjectId: string | null
   teacherName: string
   startTime: string          // "19:00"
   endTime: string            // "20:30"
@@ -77,7 +85,7 @@ export interface Lesson {
 }
 
 // ── Materials ─────────────────────────────────────────────────────────────────
-export type MaterialType = 'pdf' | 'video' | 'article' | 'presentation'
+export type MaterialType = 'pdf' | 'video' | 'link' | 'image' | 'article' | 'presentation' | 'other'
 export type MaterialLanguage = 'ru' | 'en' | 'uz'
 
 export interface Material {
@@ -140,13 +148,41 @@ export type PaymentStatus = 'paid' | 'pending' | 'overdue'
 
 export interface Payment {
   id: string
-  period: string
-  description: string
   amount: number
+  paidAmount: number
   currency: string
   status: PaymentStatus
   dueDate: string | null
   paidAt:  string | null
+  description: string | null
+  method: string | null
+  periodNumber: number | null
+  contractNumber: string | null
+  directionName: string | null
+}
+
+export interface ContractPaymentInfo {
+  contractId: string
+  contractNumber: string | null
+  directionName: string | null
+  paymentType: string
+  paymentAmount: number
+  totalExpected: number
+  totalPaid: number
+  remaining: number
+  totalPeriods: number
+  paidPeriods: number
+  overduePeriods: number
+  status: 'ok' | 'has_debt' | 'overdue'
+  payments: Payment[]
+}
+
+export interface StudentFinanceDashboard {
+  totalDebt: number
+  totalPaid: number
+  overdueCount: number
+  upcomingPayment: Payment | null
+  contracts: ContractPaymentInfo[]
 }
 
 // ── Contacts ──────────────────────────────────────────────────────────────────
@@ -181,18 +217,24 @@ export interface SubjectPerformance {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export interface DashboardData {
-  pendingAssignments: number
-  onTimeAssignments: number
-  totalAssignments: number
-  avgGrades: Record<GradeType, number>
+  student_id: string
+  full_name: string
+  student_code: string | null
+  stars: number
+  crystals: number
+  total_coins: number
+  badge_level: string
+  risk_level: string
+  gpa: number | null
+  attendance_percent: number | null
+  pending_assignments: number
+  on_time_assignments: number
+  total_assignments: number
+  overdue_assignments: number
   attendance30d: {
     presentPercent: number
     absentPercent: number
     latePercent: number
-  }
-  recentGrades: Grade[]
-  activityFeed: ActivityEvent[]
-  leaderboard: LeaderboardEntry[]
-  attendanceCalendar: AttendanceRecord[]
-  gradesByMonth: { month: string; class: number; independent: number; control: number }[]
+  } | null
+  recent_grades: Grade[]
 }

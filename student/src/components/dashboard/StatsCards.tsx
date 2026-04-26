@@ -1,5 +1,5 @@
 'use client'
-import { CheckSquare, Star, Gem, Clock } from 'lucide-react'
+import { CheckSquare, Star, Gem, Clock, AlertTriangle, BookOpen } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils/cn'
 import type { DashboardData } from '@/types/student'
@@ -21,42 +21,41 @@ export function StatsCards({ data, isLoading }: Props) {
     </div>
   )
 
+  const gpa = data?.gpa ?? 0
+  const attPct = data?.attendance_percent ?? 0
+
   const cards = [
     {
-      label:  t('dashboard.pending'),
-      value:  String(data?.pendingAssignments ?? 0),
-      sub:    `/ ${data?.totalAssignments ?? 0}`,
-      icon:   Clock,
+      label:  t('dashboard.avgGrade'),
+      value:  gpa ? gpa.toFixed(1) : '—',
+      sub:    '/ 10',
+      icon:   BookOpen,
       color:  'text-primary-600',
       bg:     'bg-primary-50',
-      accent: 'bg-primary-600',
     },
     {
-      label:  t('dashboard.onTime'),
-      value:  String(data?.onTimeAssignments ?? 0),
-      sub:    `/ ${data?.totalAssignments ?? 0}`,
+      label:  t('dashboard.attendance'),
+      value:  attPct ? `${attPct.toFixed(0)}%` : '—',
+      sub:    undefined,
       icon:   CheckSquare,
       color:  'text-success-600',
       bg:     'bg-success-50',
-      accent: 'bg-success-600',
     },
     {
-      label:  t('dashboard.stars'),
-      value:  (data as any)?.student?.stars?.toLocaleString() ?? '1 140',
-      sub:    undefined,
-      icon:   Star,
+      label:  t('dashboard.pending'),
+      value:  String(data?.pending_assignments ?? 0),
+      sub:    `/ ${data?.total_assignments ?? 0}`,
+      icon:   Clock,
       color:  'text-warning-600',
       bg:     'bg-warning-50',
-      accent: 'bg-warning-500',
     },
     {
-      label:  t('dashboard.crystals'),
-      value:  (data as any)?.student?.crystals?.toLocaleString() ?? '543',
-      sub:    undefined,
-      icon:   Gem,
+      label:  t('dashboard.onTime'),
+      value:  String(data?.on_time_assignments ?? 0),
+      sub:    `/ ${data?.total_assignments ?? 0}`,
+      icon:   Star,
       color:  'text-info-600',
       bg:     'bg-info-50',
-      accent: 'bg-info-500',
     },
   ]
 

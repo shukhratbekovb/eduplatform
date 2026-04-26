@@ -11,6 +11,7 @@ import { LeadKanban } from '@/components/crm/leads/LeadKanban'
 import { LeadTable } from '@/components/crm/leads/LeadTable'
 import { LeadsFiltersBar } from '@/components/crm/leads/LeadsFiltersBar'
 import { LeadForm } from '@/components/crm/leads/LeadForm'
+import { CsvImportModal } from '@/components/crm/leads/CsvImportModal'
 import { MarkLostDialog } from '@/components/crm/leads/MarkLostDialog'
 import { useCrmStore } from '@/lib/stores/useCrmStore'
 import { useFunnels, useStages } from '@/lib/hooks/crm/useFunnels'
@@ -45,6 +46,7 @@ export default function LeadsPage() {
 
   // Modals state
   const [createOpen, setCreateOpen]     = useState(false)
+  const [csvOpen, setCsvOpen]           = useState(false)
   const [defaultStageId, setDefaultStageId] = useState<string>()
   const [lostLeadId, setLostLeadId]     = useState<string | null>(null)
   const lostLead = lostLeadId ? leads.find((l) => l.id === lostLeadId) : null
@@ -104,7 +106,7 @@ export default function LeadsPage() {
             ))}
           </div>
 
-          <Button variant="secondary" size="md">
+          <Button variant="secondary" size="md" onClick={() => setCsvOpen(true)}>
             <Upload className="w-4 h-4" />
             {t('leads.importCsv')}
           </Button>
@@ -160,8 +162,14 @@ export default function LeadsPage() {
         defaultFunnelId={currentFunnelId}
         funnels={activeFunnels}
         stages={stages}
-        sources={sources}
         managers={managers}
+      />
+
+      <CsvImportModal
+        open={csvOpen}
+        onOpenChange={setCsvOpen}
+        funnels={activeFunnels}
+        stages={stages}
       />
 
       {lostLead && (

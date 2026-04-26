@@ -4,6 +4,7 @@ from __future__ import annotations
 import secrets
 import string
 from datetime import date, datetime, timezone
+from dateutil.relativedelta import relativedelta
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form
@@ -12,7 +13,7 @@ from sqlalchemy import select, func
 
 from src.api.dependencies import CurrentUser, DbSession
 from src.infrastructure.persistence.models.crm import ContractModel, LeadModel
-from src.infrastructure.persistence.models.lms import StudentModel, DirectionModel
+from src.infrastructure.persistence.models.lms import StudentModel, DirectionModel, PaymentModel
 from src.infrastructure.persistence.models.auth import UserModel
 from src.infrastructure.services.password_service import hash_password
 
@@ -24,6 +25,40 @@ PAYMENT_TYPES = {
     "semiannual": "Полугодовая (6 мес.)",
     "annual":     "Годовая",
 }
+
+PAYMENT_TYPE_MONTHS = {
+    "monthly": 1,
+    "quarterly": 3,
+    "semiannual": 6,
+    "annual": 12,
+}
+
+
+async def _generate_payment_schedule(
+    db, contract: ContractModel, direction, created_by: UUID | None,
+) -> None:
+    """Auto-generate payment records (invoices) for the contract."""
+    duration_months = direction.duration_months or 6
+    step_months = PAYMENT_TYPE_MONTHS.get(contract.payment_type, 1)
+    num_periods = max(1, duration_months // step_months)
+    start = contract.start_date or date.today()
+
+    for i in range(num_periods):
+        due = start + relativedelta(months=step_months * i)
+        db.add(PaymentModel(
+            id=uuid4(),
+            student_id=contract.student_id,
+            contract_id=contract.id,
+            description=f"Оплата #{i + 1} по договору {contract.contract_number}",
+            amount=contract.payment_amount or 0,
+            currency=contract.currency,
+            status="pending",
+            due_date=due,
+            paid_amount=0,
+            period_number=i + 1,
+            created_by=created_by,
+        ))
+    await db.flush()
 
 DOCUMENT_TYPES = {
     "passport":          "Паспорт",
@@ -331,6 +366,11 @@ async def create_contract(
         status="active", created_by=current_user.id,
     )
     db.add(contract)
+    await db.flush()
+
+    # Auto-generate payment schedule
+    await _generate_payment_schedule(db, contract, direction, created_by=current_user.id)
+
     await db.commit()
     await db.refresh(contract)
 

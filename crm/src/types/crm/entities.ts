@@ -74,6 +74,7 @@ export interface LeadSource {
   name: string
   type: LeadSourceType
   isActive: boolean
+  isSystemSource?: boolean
   funnelId?: string
   apiKey?: string
   webhookUrl?: string

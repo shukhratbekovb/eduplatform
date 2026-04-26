@@ -1,4 +1,18 @@
-"""Unified notifications endpoint — merges LMS + CRM notifications for frontends."""
+"""Унифицированный API уведомлений — объединяет LMS и CRM уведомления.
+
+Предоставляет единый интерфейс для получения и управления уведомлениями
+из обеих подсистем (LMS и CRM). Уведомления объединяются, сортируются
+по дате создания и пагинируются.
+
+Источники уведомлений:
+    - lms: уведомления из LMS (связанные с уроками, домашками и т.д.).
+    - crm: уведомления из CRM (связанные с лидами, договорами и т.д.).
+
+Роуты:
+    GET /notifications — список уведомлений (с пагинацией и фильтром по непрочитанным).
+    POST /notifications/{id}/read — пометить уведомление как прочитанное.
+    POST /notifications/read-all — пометить все уведомления как прочитанные.
+"""
 from __future__ import annotations
 
 from uuid import UUID
@@ -15,6 +29,17 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
 class NotificationOut(BaseModel):
+    """Представление уведомления для фронтенда.
+
+    Attributes:
+        id: UUID уведомления.
+        type: Тип уведомления (например, "lesson_reminder", "lead_assigned").
+        title: Заголовок уведомления.
+        body: Текст уведомления (опционально).
+        isRead: Флаг прочитанности.
+        source: Источник уведомления ("lms" или "crm").
+        createdAt: Дата и время создания (ISO формат).
+    """
     id: UUID
     type: str
     title: str
@@ -33,6 +58,23 @@ async def list_notifications(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
 ) -> list[NotificationOut]:
+    """Получение списка уведомлений текущего пользователя.
+
+    Объединяет уведомления из LMS и CRM, сортирует по дате
+    (сначала новые) и применяет пагинацию. Поддерживает фильтр
+    по непрочитанным уведомлениям.
+
+    Args:
+        current_user: Текущий авторизованный пользователь.
+        db: Асинхронная сессия SQLAlchemy.
+        unreadOnly: Показывать только непрочитанные (camelCase).
+        unread_only: Показывать только непрочитанные (snake_case alias).
+        page: Номер страницы (>= 1).
+        limit: Количество уведомлений на странице (1-100).
+
+    Returns:
+        list[NotificationOut]: Отсортированный и пагинированный список уведомлений.
+    """
     only_unread = unreadOnly or unread_only
     result = []
 
@@ -44,7 +86,7 @@ async def list_notifications(
     for n in lms_rows:
         result.append(NotificationOut(
             id=n.id,
-            type="notification",
+            type=n.type or "notification",
             title=n.title,
             body=n.body,
             isRead=n.is_read,
@@ -75,6 +117,22 @@ async def list_notifications(
 
 @router.post("/{notification_id}/read", response_model=NotificationOut)
 async def mark_read(notification_id: UUID, current_user: CurrentUser, db: DbSession) -> NotificationOut:
+    """Пометить уведомление как прочитанное.
+
+    Ищет уведомление сначала в LMS, затем в CRM. Обновляет
+    флаг is_read на True.
+
+    Args:
+        notification_id: UUID уведомления для пометки.
+        current_user: Текущий авторизованный пользователь.
+        db: Асинхронная сессия SQLAlchemy.
+
+    Returns:
+        NotificationOut: Обновлённое уведомление с isRead=True.
+
+    Raises:
+        HTTPException: 404 — если уведомление не найдено ни в LMS, ни в CRM.
+    """
     # Try LMS first
     lms = (await db.execute(
         select(LmsNotificationModel).where(
@@ -108,6 +166,18 @@ async def mark_read(notification_id: UUID, current_user: CurrentUser, db: DbSess
 
 @router.post("/read-all")
 async def mark_all_read(current_user: CurrentUser, db: DbSession) -> Response:
+    """Пометить все уведомления текущего пользователя как прочитанные.
+
+    Массово обновляет is_read=True для всех уведомлений пользователя
+    в обеих таблицах (LMS и CRM).
+
+    Args:
+        current_user: Текущий авторизованный пользователь.
+        db: Асинхронная сессия SQLAlchemy.
+
+    Returns:
+        Response: Пустой ответ с кодом 204 No Content.
+    """
     await db.execute(
         LmsNotificationModel.__table__.update()
         .where(LmsNotificationModel.user_id == current_user.id)

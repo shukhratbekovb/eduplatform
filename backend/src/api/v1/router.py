@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from src.api.dependencies import lms_platform_guard, crm_platform_guard, student_platform_guard
 from src.api.v1 import auth, files, gamification
 from src.api.v1.lms import (
     students, lessons, groups, catalog,
@@ -28,38 +29,40 @@ router = APIRouter()
 # ── Auth ──────────────────────────────────────────────────────────────────────
 router.include_router(auth.router)
 
-# ── LMS ───────────────────────────────────────────────────────────────────────
-# Legacy routers have no /lms prefix in their module, so we add it here
-router.include_router(catalog.router, prefix="/lms")        # directions, subjects, rooms
-router.include_router(students.router, prefix="/lms")
-router.include_router(enrollments.router, prefix="/lms")
-router.include_router(lessons.router, prefix="/lms")
-router.include_router(groups.router, prefix="/lms")
-router.include_router(attendance.router, prefix="/lms")
-router.include_router(homework.router, prefix="/lms")
-router.include_router(grades.router, prefix="/lms")
-router.include_router(payments.router, prefix="/lms")
-router.include_router(lms_notifs.router)    # already has /notifications/lms prefix
-# New routers already have /lms in their prefix
-router.include_router(lms_users.router)
-router.include_router(mup_tasks.router)
-router.include_router(compensation.router)
-router.include_router(late_requests.router)
-router.include_router(lms_analytics.router)
-router.include_router(lms_reports.router)
-router.include_router(lms_exams.router, prefix="/lms")
+# ── LMS (director, mup, teacher, cashier only) ──────────────────────────────
+_lms_deps = [Depends(lms_platform_guard)]
 
-# ── CRM ───────────────────────────────────────────────────────────────────────
-router.include_router(funnels.router)
-router.include_router(leads.router)
-router.include_router(tasks.router)
-router.include_router(crm_activities.router)
-router.include_router(crm_notifs.router)
-router.include_router(crm_analytics.router)
-router.include_router(contracts.router)
+router.include_router(catalog.router, prefix="/lms", dependencies=_lms_deps)
+router.include_router(students.router, prefix="/lms", dependencies=_lms_deps)
+router.include_router(enrollments.router, prefix="/lms", dependencies=_lms_deps)
+router.include_router(lessons.router, prefix="/lms", dependencies=_lms_deps)
+router.include_router(groups.router, prefix="/lms", dependencies=_lms_deps)
+router.include_router(attendance.router, prefix="/lms", dependencies=_lms_deps)
+router.include_router(homework.router, prefix="/lms", dependencies=_lms_deps)
+router.include_router(grades.router, prefix="/lms", dependencies=_lms_deps)
+router.include_router(payments.router, prefix="/lms", dependencies=_lms_deps)
+router.include_router(lms_notifs.router, dependencies=_lms_deps)
+router.include_router(lms_users.router, dependencies=_lms_deps)
+router.include_router(mup_tasks.router, dependencies=_lms_deps)
+router.include_router(compensation.router, dependencies=_lms_deps)
+router.include_router(late_requests.router, dependencies=_lms_deps)
+router.include_router(lms_analytics.router, dependencies=_lms_deps)
+router.include_router(lms_reports.router, dependencies=_lms_deps)
+router.include_router(lms_exams.router, prefix="/lms", dependencies=_lms_deps)
 
-# ── Student Portal ────────────────────────────────────────────────────────────
-router.include_router(portal.router)
+# ── CRM (director, sales_manager only) ───────────────────────────────────────
+_crm_deps = [Depends(crm_platform_guard)]
+
+router.include_router(funnels.router, dependencies=_crm_deps)
+router.include_router(leads.router, dependencies=_crm_deps)
+router.include_router(tasks.router, dependencies=_crm_deps)
+router.include_router(crm_activities.router, dependencies=_crm_deps)
+router.include_router(crm_notifs.router, dependencies=_crm_deps)
+router.include_router(crm_analytics.router, dependencies=_crm_deps)
+router.include_router(contracts.router, dependencies=_crm_deps)
+
+# ── Student Portal (student only) ─────────────────────────────────────────────
+router.include_router(portal.router, dependencies=[Depends(student_platform_guard)])
 
 # ── Gamification ──────────────────────────────────────────────────────────────
 router.include_router(gamification.router)

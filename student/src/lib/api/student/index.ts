@@ -2,7 +2,7 @@ import { apiClient } from '@/lib/api/axios'
 import type {
   DashboardData, Assignment, AssignmentStatus, Lesson, Material,
   Achievement, Payment, Contact, Subject, SubjectPerformance,
-  LeaderboardEntry, MaterialLanguage,
+  LeaderboardEntry, MaterialLanguage, StudentFinanceDashboard,
 } from '@/types/student'
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -37,16 +37,20 @@ export const scheduleApi = {
 export const materialsApi = {
   list: (params: { subjectId?: string; language?: MaterialLanguage }) =>
     apiClient.get<Material[]>('/student/materials', { params }).then((r) => r.data),
+  lessonsMaterials: () =>
+    apiClient.get('/student/lessons-materials').then((r) => r.data as any[]),
 }
 
 // ── Achievements ──────────────────────────────────────────────────────────────
 export const achievementsApi = {
   list: () => apiClient.get<Achievement[]>('/student/achievements').then((r) => r.data),
+  catalog: () => apiClient.get('/gamification/achievements/catalog').then((r) => r.data as any[]),
 }
 
 // ── Payments ──────────────────────────────────────────────────────────────────
 export const paymentsApi = {
   list: () => apiClient.get<Payment[]>('/student/payments').then((r) => r.data),
+  finance: () => apiClient.get<StudentFinanceDashboard>('/student/finance').then((r) => r.data),
 }
 
 // ── Contacts ──────────────────────────────────────────────────────────────────

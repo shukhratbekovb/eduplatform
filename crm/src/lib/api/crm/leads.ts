@@ -6,7 +6,7 @@ import type {
   CreateLeadDto, UpdateLeadDto,
   MoveLeadStageDto, AssignLeadDto, MarkLeadLostDto,
   CreateActivityDto, CreateSourceDto, UpdateSourceDto,
-  ImportJobStatus,
+  ImportResult,
 } from '@/types/crm'
 import type { LeadsFilters } from '@/types/crm/filters'
 
@@ -45,12 +45,9 @@ export const leadsApi = {
     apiClient.post<Lead>(`/crm/leads/${id}/mark-lost`, dto).then(r => r.data),
 
   import: (formData: FormData) =>
-    apiClient.post<{ jobId: string }>('/crm/leads/import', formData, {
+    apiClient.post<ImportResult>('/crm/leads/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data),
-
-  importStatus: (jobId: string) =>
-    apiClient.get<ImportJobStatus>(`/crm/leads/import/${jobId}/status`).then(r => r.data),
 
   // Timeline
   timeline: (leadId: string, page = 1) =>

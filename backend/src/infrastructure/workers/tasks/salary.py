@@ -1,4 +1,18 @@
-"""Celery tasks: salary calculation and payment management."""
+"""Celery-задачи: расчёт зарплаты преподавателей и управление платежами.
+
+Модуль реализует два Celery-задания:
+    1. ``mark_overdue_payments`` — ежедневная маркировка просроченных
+       платежей студентов (pending -> overdue).
+    2. ``calculate_teacher_salary`` — расчёт зарплаты преподавателя
+       за указанный месяц на основе модели компенсации.
+
+Расчёт зарплаты:
+    - Подсчёт количества проведённых уроков (status=completed) за период.
+    - Загрузка активной модели компенсации (CompensationModelModel) для
+      преподавателя на дату начала периода.
+    - Вычисление: base_amount = rate * lessons_count.
+    - Upsert в таблицу salary_calculations.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -9,10 +23,25 @@ from src.infrastructure.workers.celery_app import celery_app
 
 @celery_app.task(name="src.infrastructure.workers.tasks.salary.mark_overdue_payments")
 def mark_overdue_payments() -> dict:  # type: ignore[type-arg]
+    """Ежедневно маркирует просроченные платежи студентов.
+
+    Находит все платежи со статусом "pending", у которых due_date < today,
+    и меняет статус на "overdue". Используется Celery beat (каждые 24 часа).
+
+    Returns:
+        Словарь {"marked_overdue": int} — количество помеченных платежей.
+    """
     return asyncio.run(_mark_overdue_payments())
 
 
 async def _mark_overdue_payments() -> dict:  # type: ignore[type-arg]
+    """Асинхронная реализация маркировки просроченных платежей.
+
+    Выполняет атомарный UPDATE с RETURNING для подсчёта затронутых строк.
+
+    Returns:
+        Словарь {"marked_overdue": int}.
+    """
     from sqlalchemy import select, update
     from src.database import async_session_factory
     from src.infrastructure.persistence.models.lms import PaymentModel
@@ -36,13 +65,44 @@ async def _mark_overdue_payments() -> dict:  # type: ignore[type-arg]
 
 @celery_app.task(name="src.infrastructure.workers.tasks.salary.calculate_teacher_salary")
 def calculate_teacher_salary(teacher_id: str, month: int, year: int) -> dict:  # type: ignore[type-arg]
+    """Рассчитывает зарплату преподавателя за указанный месяц.
+
+    Celery-задание, вызываемое из административного интерфейса.
+    Подсчитывает количество проведённых уроков, применяет ставку
+    из модели компенсации и сохраняет (или обновляет) запись
+    в таблице salary_calculations.
+
+    Args:
+        teacher_id: UUID преподавателя в строковом формате.
+        month: Номер месяца (1-12).
+        year: Год (например, 2026).
+
+    Returns:
+        Словарь {"teacher_id": str, "month": int, "year": int,
+        "lessons": int, "total": float, "currency": str}.
+    """
     return asyncio.run(_calculate_salary(teacher_id, month, year))
 
 
 async def _calculate_salary(teacher_id: str, month: int, year: int) -> dict:  # type: ignore[type-arg]
-    """
-    Count completed lessons in the period, apply compensation model,
-    upsert a SalaryCalculation record.
+    """Асинхронная реализация расчёта зарплаты преподавателя.
+
+    Алгоритм:
+        1. Определяет границы расчётного периода (первый и последний день месяца).
+        2. Подсчитывает количество уроков со status=completed за период.
+        3. Загружает актуальную модель компенсации (effective_from <= period_start,
+           самая свежая по дате).
+        4. Вычисляет base_amount = rate * lessons_count.
+        5. Если запись SalaryCalculationModel уже существует — обновляет,
+           иначе создаёт новую (upsert).
+
+    Args:
+        teacher_id: UUID преподавателя в строковом формате.
+        month: Номер месяца (1-12).
+        year: Год.
+
+    Returns:
+        Словарь с результатами расчёта.
     """
     from uuid import UUID, uuid4
     from datetime import date

@@ -1,4 +1,22 @@
-"""Attendance recording and reporting API."""
+"""API для записи и получения данных о посещаемости уроков.
+
+Предоставляет эндпоинты для массовой записи посещаемости,
+получения посещаемости по уроку и по студенту.
+Автоматически пересчитывает процент посещаемости студента.
+
+Допустимые статусы посещаемости:
+    - present: присутствовал.
+    - absent: отсутствовал.
+    - late: опоздал.
+    - excused: уважительная причина.
+
+Доступ: директор, МУП, преподаватель (TeacherGuard).
+
+Роуты:
+    POST /attendance/lessons/{lesson_id}/bulk — массовая запись посещаемости.
+    GET /attendance/lessons/{lesson_id} — посещаемость по уроку.
+    GET /attendance/students/{student_id} — история посещаемости студента.
+"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -15,9 +33,18 @@ from src.infrastructure.persistence.models.lms import AttendanceRecordModel, Stu
 router = APIRouter(prefix="/attendance", tags=["LMS - Attendance"])
 
 TeacherGuard = Annotated[object, Depends(require_roles("director", "mup", "teacher"))]
+"""Гвард: доступ для директора, МУП и преподавателя."""
 
 
 class AttendanceRecordIn(BaseModel):
+    """Входные данные для одной записи посещаемости.
+
+    Attributes:
+        student_id: UUID студента.
+        status: Статус посещаемости (present, absent, late, excused).
+        minutes_late: Количество минут опоздания (опционально).
+        note: Примечание (опционально).
+    """
     student_id: UUID
     status: str       # present | absent | late | excused
     minutes_late: int | None = None
@@ -25,10 +52,26 @@ class AttendanceRecordIn(BaseModel):
 
 
 class BulkAttendanceRequest(BaseModel):
+    """Запрос на массовую запись посещаемости.
+
+    Attributes:
+        records: Список записей посещаемости для всех студентов урока.
+    """
     records: list[AttendanceRecordIn]
 
 
 class AttendanceRecordOut(BaseModel):
+    """Ответ с данными записи посещаемости.
+
+    Attributes:
+        id: UUID записи посещаемости.
+        lesson_id: UUID урока.
+        student_id: UUID студента.
+        status: Статус (present, absent, late, excused).
+        minutes_late: Минуты опоздания.
+        note: Примечание.
+        recorded_at: Дата и время записи (ISO формат).
+    """
     id: UUID
     lesson_id: UUID
     student_id: UUID
@@ -39,6 +82,7 @@ class AttendanceRecordOut(BaseModel):
 
 
 VALID_STATUSES = {"present", "absent", "late", "excused"}
+"""Допустимые значения статуса посещаемости."""
 
 
 @router.post("/lessons/{lesson_id}/bulk", response_model=list[AttendanceRecordOut])
@@ -49,7 +93,25 @@ async def record_bulk_attendance(
     _: TeacherGuard,
     db: DbSession,
 ) -> list[AttendanceRecordOut]:
-    """Record attendance for all students in a lesson at once."""
+    """Массовая запись посещаемости для всех студентов урока.
+
+    Создаёт записи посещаемости для каждого студента в списке.
+    После сохранения автоматически пересчитывает attendance_percent
+    для всех затронутых студентов.
+
+    Args:
+        lesson_id: UUID урока.
+        body: Список записей посещаемости.
+        current_user: Текущий авторизованный пользователь (записывается в recorded_by).
+        _: Гвард доступа.
+        db: Асинхронная сессия SQLAlchemy.
+
+    Returns:
+        list[AttendanceRecordOut]: Созданные записи посещаемости.
+
+    Raises:
+        HTTPException: 400 — если указан невалидный статус посещаемости.
+    """
     for rec in body.records:
         if rec.status not in VALID_STATUSES:
             raise HTTPException(status_code=400, detail=f"Invalid status: {rec.status!r}")
@@ -91,7 +153,15 @@ async def record_bulk_attendance(
 
 
 async def _recalculate_attendance(student_id: UUID, db: DbSession) -> None:
-    """Recalculate and update attendance_percent for a student."""
+    """Пересчитывает и обновляет процент посещаемости студента.
+
+    Формула: (present + late) / total * 100.
+    Результат сохраняется в поле attendance_percent модели StudentModel.
+
+    Args:
+        student_id: UUID студента для пересчёта.
+        db: Асинхронная сессия SQLAlchemy.
+    """
     total = (await db.execute(
         select(func.count(AttendanceRecordModel.id))
         .where(AttendanceRecordModel.student_id == student_id)
@@ -122,6 +192,16 @@ async def get_lesson_attendance(
     _: TeacherGuard,
     db: DbSession,
 ) -> list[AttendanceRecordOut]:
+    """Получение записей посещаемости конкретного урока.
+
+    Args:
+        lesson_id: UUID урока.
+        _: Гвард доступа.
+        db: Асинхронная сессия SQLAlchemy.
+
+    Returns:
+        list[AttendanceRecordOut]: Все записи посещаемости для данного урока.
+    """
     rows = (await db.execute(
         select(AttendanceRecordModel).where(AttendanceRecordModel.lesson_id == lesson_id)
     )).scalars().all()
@@ -143,6 +223,19 @@ async def get_student_attendance(
     _: TeacherGuard,
     db: DbSession,
 ) -> list[AttendanceRecordOut]:
+    """Получение истории посещаемости студента.
+
+    Возвращает последние 100 записей, отсортированных по дате
+    в обратном порядке (сначала последние).
+
+    Args:
+        student_id: UUID студента.
+        _: Гвард доступа.
+        db: Асинхронная сессия SQLAlchemy.
+
+    Returns:
+        list[AttendanceRecordOut]: Записи посещаемости студента (до 100).
+    """
     rows = (await db.execute(
         select(AttendanceRecordModel)
         .where(AttendanceRecordModel.student_id == student_id)

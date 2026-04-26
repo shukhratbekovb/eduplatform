@@ -107,6 +107,7 @@ export interface RiskFactors {
     avgGradeLast5:        number
     missedHomeworkStreak: number
     debtDays:             number
+    dropoutProbability:   number
   }
 }
 
@@ -241,9 +242,13 @@ export interface MupTask {
   description: string | null
   status:      MupTaskStatus
   priority:    MupTaskPriority
+  isDone:      boolean
   dueDate:     string | null
   assignedTo:  string
-  assignee:    User
+  createdBy:   string | null
+  studentId:   string | null
+  studentName: string | null
+  category:    string | null
   createdAt:   string
 }
 

@@ -1,215 +1,130 @@
 # EduPlatform
 
-Образовательная платформа с LMS, CRM и студенческим порталом.
+Платформа управления IT-учебным центром. Дипломный проект (BISP).
+
+**Автор:** Шухратбеков Бобурбек ([shukhratbekovb@gmail.com](mailto:shukhratbekovb@gmail.com))
+
+## О проекте
+
+EduPlatform — полнофункциональная платформа для управления IT-учебным центром, включающая три веб-приложения и единый бэкенд с ML-компонентом:
+
+- **[CRM](crm/README.md)** — управление воронками продаж, лидами, договорами
+- **[Logbook (LMS)](logbook/README.md)** — журнал преподавателя, расписание, аналитика, отчёты
+- **[Student Portal](student/README.md)** — личный кабинет студента с расписанием, оценками, геймификацией
+- **[Backend API](backend/README.md)** — FastAPI + PostgreSQL + ML-скоринг риска отчисления
 
 ## Архитектура
 
-| Сервис | Описание | Порт |
-|---|---|---|
-| **API** | FastAPI backend | 8000 |
-| **CRM** | CRM для отдела продаж | 3000 |
-| **Logbook** | Журнал для преподавателей | 3001 |
-| **Student Portal** | Портал для студентов | 3002 |
-| **PostgreSQL** | База данных | 5432 |
-| **Redis** | Кеш и очереди | 6379 |
-| **RabbitMQ** | Message broker | 5672 / 15672 (UI) |
-| **MinIO** | Файловое хранилище (S3) | 9000 / 9001 (UI) |
-
----
-
-## Быстрый старт (Docker)
-
-### 1. Требования
-
-- [Docker](https://docs.docker.com/get-docker/) + Docker Compose v2
-- Git
-
-### 2. Клонировать репозиторий
-
-```bash
-git clone <repo-url>
-cd eduplatform
-```
-
-### 3. Настроить переменные окружения
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-Открыть `backend/.env` и заполнить обязательные поля:
-
-```env
-DATABASE_URL=postgresql+asyncpg://edu:edu@postgres:5432/eduplatform
-REDIS_URL=redis://redis:6379/0
-RABBITMQ_URL=amqp://edu:edu@rabbitmq:5672/
-SECRET_KEY=your-secret-key-min-32-chars
-MINIO_ENDPOINT=minio:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
-MINIO_BUCKET=eduplatform-files
-```
-
-### 4. Запустить все сервисы
-
-```bash
-docker compose up -d
-```
-
-Первый запуск займёт несколько минут — Docker скачает образы и соберёт фронтенды.
-
-### 5. Применить миграции базы данных
-
-```bash
-docker compose exec api alembic upgrade head
-```
-
-### 6. Создать администратора (опционально)
-
-```bash
-docker compose exec api poetry run python -m scripts.seed
-```
-
-### 7. Открыть в браузере
-
-- API документация: http://localhost:8000/docs
-- CRM: http://localhost:3000
-- Logbook (журнал): http://localhost:3001
-- Student Portal: http://localhost:3002
-- MinIO Console: http://localhost:9001 (login: `minioadmin` / `minioadmin`)
-- RabbitMQ UI: http://localhost:15672 (login: `edu` / `edu`)
-
----
-
-## Локальная разработка (без Docker)
-
-### Требования
-
-- Python 3.13+
-- [Poetry](https://python-poetry.org/docs/#installation)
-- Node.js 20+
-- PostgreSQL 16, Redis 7, RabbitMQ 3
-
-### Backend
-
-```bash
-cd backend
-
-# Установить зависимости
-poetry install
-
-# Настроить .env (DATABASE_URL указывает на локальный postgres)
-cp .env.example .env
-
-# Применить миграции
-poetry run alembic upgrade head
-
-# Запустить сервер
-poetry run uvicorn src.main:app --reload --port 8000
-```
-
-Celery worker (в отдельном терминале):
-
-```bash
-cd backend
-poetry run celery -A src.infrastructure.workers.celery_app worker --loglevel=info -Q default,notifications
-```
-
-Celery beat (scheduler, в отдельном терминале):
-
-```bash
-cd backend
-poetry run celery -A src.infrastructure.workers.celery_app beat --loglevel=info
-```
-
-### Фронтенды
-
-Каждый фронтенд запускается отдельно. В каждом нужен файл `.env.local`:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
-```
-
-**CRM** (порт 3000):
-
-```bash
-cd crm
-npm install
-npm run dev
-```
-
-**Logbook** (порт 3001):
-
-```bash
-cd logbook
-npm install
-npm run dev -- -p 3001
-```
-
-**Student Portal** (порт 3002):
-
-```bash
-cd student
-npm install
-npm run dev -- -p 3002
-```
-
----
-
-## Управление через Makefile
-
-Из директории `backend/`:
-
-```bash
-make help           # Список всех команд
-
-make up             # Запустить Docker Compose
-make down           # Остановить
-make logs           # Логи всех сервисов
-make build          # Пересобрать образы
-
-make migrate        # Применить миграции
-make migrate-down   # Откатить последнюю миграцию
-make migrate-create MSG="add table"  # Создать новую миграцию
-
-make test           # Запустить все тесты
-make test-cov       # Тесты с отчётом о покрытии
-make lint           # Проверка кода
-make format         # Форматирование кода
-```
-
----
-
-## Структура проекта
-
 ```
 eduplatform/
-├── backend/          # FastAPI (Python 3.13 + Poetry)
-│   ├── src/
-│   │   ├── api/      # HTTP роутеры (v1)
-│   │   ├── application/  # Use cases
-│   │   ├── domain/   # Бизнес-сущности
-│   │   └── infrastructure/  # БД, кеш, воркеры
-│   ├── alembic/      # Миграции
-│   └── tests/
-├── crm/              # Next.js 15 — CRM для продаж
-├── logbook/          # Next.js 15 — Журнал занятий
-├── student/          # Next.js 15 — Портал студента
-└── docker-compose.yml
+├── backend/          FastAPI + Clean Architecture + ML     (port 8000)
+├── crm/              Next.js 14 — CRM для продажников      (port 3000)
+├── logbook/          Next.js 14 — Журнал преподавателя      (port 3001)
+├── student/          Next.js 14 — Портал студента           (port 3002)
+├── docker-compose.yml
+└── README.md         (этот файл)
 ```
 
----
+### Стек технологий
 
-## Переменные окружения
+| Компонент | Технология | Версия |
+|-----------|-----------|--------|
+| Backend | Python + FastAPI + SQLAlchemy 2 (async) | 3.13 / 0.115 |
+| ML | scikit-learn (GradientBoosting) | 1.5 |
+| Task Queue | Celery + RabbitMQ | 5.4 |
+| Database | PostgreSQL | 16 |
+| Cache/Backend | Redis | 7 |
+| Frontends | Next.js + TypeScript + Tailwind CSS | 14.2 |
+| UI библиотека | Radix UI + Lucide Icons + Recharts | — |
+| File Storage | Google Cloud Storage | — |
+| Контейнеризация | Docker + Docker Compose | — |
 
-| Переменная | Описание | Пример |
-|---|---|---|
-| `DATABASE_URL` | PostgreSQL (asyncpg) | `postgresql+asyncpg://edu:edu@postgres:5432/eduplatform` |
-| `REDIS_URL` | Redis | `redis://redis:6379/0` |
-| `RABBITMQ_URL` | RabbitMQ AMQP | `amqp://edu:edu@rabbitmq:5672/` |
-| `SECRET_KEY` | JWT секрет (≥32 символа) | `changeme-in-production-32chars!!` |
-| `MINIO_ENDPOINT` | MinIO S3 адрес | `minio:9000` |
-| `MINIO_ACCESS_KEY` | MinIO логин | `minioadmin` |
-| `MINIO_SECRET_KEY` | MinIO пароль | `minioadmin` |
-| `MINIO_BUCKET` | Имя бакета | `eduplatform-files` |
-| `NEXT_PUBLIC_API_URL` | API URL для фронтендов | `http://localhost:8000/api/v1` |
+## Быстрый старт
+
+```bash
+# 1. Клонировать репозиторий
+git clone git@github.com:shukhratbekovb/eduplatform.git
+cd eduplatform
+
+# 2. Запуск всех сервисов
+docker compose up -d --build
+
+# 3. Заполнение базы данных (200 студентов, 730 уроков, и т.д.)
+docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/seed_full.py"
+
+# 4. Запуск ML-скоринга риска
+docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/run_ml_scoring.py"
+
+# 5. Пересчёт геймификации
+docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/recalc_gamification.py"
+```
+
+## Доступ
+
+| Приложение | URL | Логин | Пароль |
+|---|---|---|---|
+| CRM | http://localhost:3000 | director@edu.uz | password123 |
+| Logbook (LMS) | http://localhost:3001 | director@edu.uz | password123 |
+| Student Portal | http://localhost:3002 | student1@edu.uz | password123 |
+| API Docs (Swagger) | http://localhost:8000/docs | — | — |
+| PostgreSQL (PgAdmin) | localhost:5433 | edu / edu | DB: eduplatform |
+
+### Учётные записи
+
+| Роль | Email | Пароль |
+|------|-------|--------|
+| Директор | director@edu.uz | password123 |
+| МУП | mup@edu.uz | password123 |
+| Кассир | cashier@edu.uz | password123 |
+| Менеджер продаж | sales@edu.uz | password123 |
+| Преподаватель (Python) | t.python1@edu.uz | password123 |
+| Студент | student1@edu.uz | password123 |
+
+### Матрица доступа
+
+| Роль | Logbook (LMS) | CRM | Student Portal |
+|---|:---:|:---:|:---:|
+| Директор | ✅ | ✅ | ❌ |
+| МУП | ✅ | ❌ | ❌ |
+| Преподаватель | ✅ | ❌ | ❌ |
+| Кассир | ✅ | ❌ | ❌ |
+| Менеджер продаж | ❌ | ✅ | ❌ |
+| Студент | ❌ | ❌ | ✅ |
+
+## Ключевые фичи
+
+### ML Risk Scoring (Прогнозирование отчисления)
+- 14 признаков из 4 доменов: посещаемость, оценки, домашки, платежи
+- Модель: GradientBoostingClassifier (scikit-learn), ROC-AUC **0.93**
+- 4 уровня риска: LOW / MEDIUM / HIGH / CRITICAL
+- Автопересчёт: ночной batch (Celery) + событийный (после conduct-урока)
+- UI: прогресс-бар вероятности + 4 доменные карточки на странице студента
+
+### Геймификация
+- Звёзды: +5 за посещение, +10 за оценку 9-10, +15 за сданную домашку
+- Кристаллы: +5 за 5 посещений подряд, +15 за 10 подряд
+- Значки: Bronze → Silver(100⭐) → Gold(300) → Platinum(600) → Diamond(1000)
+- 7 достижений, магазин наград
+
+### Автоматические задачи МУП
+- 3+ пропусков подряд → задача "Связаться с родителями"
+- Задолженность > 30 дней → задача "Обсудить оплату"
+- HIGH/CRITICAL риск → задача "Провести беседу"
+- Триггер через RabbitMQ после каждого conduct-урока
+
+### Мультиязычность (i18n)
+- Полная поддержка RU/EN в Logbook (~500 ключей) и Student Portal (~300 ключей)
+- Zustand persist + localStorage для сохранения выбора
+
+### Уведомления
+- Единый API: объединяет LMS + CRM уведомления
+- Авто-уведомления: задолженности, риски, просроченные ДЗ
+- Колокольчик с badge + полная страница `/notifications`
+
+## Валюта
+
+**UZS (узбекский сум)** — единственная валюта платформы.
+
+## Лицензия
+
+Дипломный проект (BISP). Все права защищены.

@@ -1,251 +1,429 @@
 # EduPlatform — Claude Context
 
-## Project Overview
+## Что это за проект
 
-Education platform with 3 frontends (Next.js 14) + 1 backend (FastAPI/Python 3.13) + infrastructure (PostgreSQL, Redis, RabbitMQ, Google Cloud Storage).
+Платформа для IT-учебного центра. 3 фронтенда + 1 бэкенд + инфра. Центр обучает IT-направлениям (Python, JS, Java, Mobile, DevOps, Data Science, Кибербезопасность, UI/UX, English IT, Робототехника).
 
-## Architecture
+Валюта: **UZS (сум)**. Никаких ₸ нигде.
 
 ```
 eduplatform/
-├── backend/          FastAPI, Python 3.13, Poetry, Clean Architecture
-├── crm/              Next.js 14 — CRM for sales (port 3000)
-├── logbook/          Next.js 14 — Teacher logbook (port 3001)
-├── student/          Next.js 14 — Student portal (port 3002)
+├── backend/     FastAPI + Python 3.13 + SQLAlchemy 2 async + Alembic + PostgreSQL
+├── crm/         Next.js 14 — CRM для продажников (port 3000)
+├── logbook/     Next.js 14 — Журнал преподавателя / управление (port 3001)
+├── student/     Next.js 14 — Портал студента (port 3002)
 └── docker-compose.yml
 ```
 
-**Backend stack:** FastAPI 0.115 + SQLAlchemy 2 (async) + Alembic + Celery + Redis + RabbitMQ + Google Cloud Storage
-**Frontend stack:** Next.js 14 + TypeScript + TanStack Query + Zustand + Tailwind + Radix UI + shadcn
-
-## Running
+## Как запустить
 
 ```bash
 docker compose up -d --build
 docker compose exec api alembic upgrade head
-# Seed (optional — creates 300 students, 12 teachers, 10 directions, 30 groups, 328 lessons, CRM data):
-docker compose exec api bash -c "mkdir -p /app/scripts"
-docker cp backend/scripts/seed.py eduplatform-api-1:/app/scripts/seed.py
-docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/seed.py"
 ```
 
-Ports: API :8000, CRM :3000, Logbook :3001, Student :3002
+GCS credentials: `./backend/gcp_keys.json` монтируется в `/app/gcp_keys.json`
 
-Default login: `director@edu.uz` / `password123`
+Дефолтный логин: `director@edu.uz` / `password123`
 
-## Key Entity Relationships
+## Что уже сделано (хронология)
 
-### Groups
-- Groups have `direction_id` (FK to directions). NO `subject_id`, NO `teacher_id` on group.
-- Teacher belongs to **lesson**, not group.
-- Subject belongs to **lesson**, not group.
+### Фаза 1: Основа
+- DDD domain layer (entities, value objects, specifications, policies)
+- Пароли Apple-style (specification pattern)
+- 292 юнит-теста
+- Docker deployment, seed script
 
-### Lessons
-- `group_id`, `subject_id`, `teacher_id`, `room_id`, `scheduled_at`, `duration_minutes`, `status`
-- Status enum: `scheduled`, `completed`, `cancelled`
-- Subject is auto-resolved from group's direction when creating via LessonForm
+### Фаза 2: CRM
+- Воронки, этапы, лиды, источники (manual/import/api/landing)
+- Контакты автосоздаются по телефону
+- Аналитика (sankey, managers, sources, conversion, loss reasons)
+- Договоры (contract → student account auto-creation)
+- N+1 оптимизация (6 мест исправлено bulk GROUP BY)
+- i18n (ru/en), кастомные Radix Select
 
-### Staff (Users)
-- `phone` and `date_of_birth` fields on UserModel
-- Teachers assigned to subjects via `subjects.teacher_id`
-- Staff created with auto-generated password (Apple-style: uppercase+lowercase+digit+special)
-- Email stub for credential delivery
+### Фаза 3: LMS — Группы и уроки
+- **Группы** имеют `direction_id`. НЕ имеют `subject_id` и `teacher_id` — они убраны.
+- **Предмет** и **преподаватель** привязаны к **уроку**, не к группе.
+- Создание урока: каскад направление → группы (фильтр) → предмет (фильтр) → преподаватель (авто по предмету)
+- Валидация: конфликт преподавателя/кабинета/группы по времени, предмет должен совпадать с направлением группы
+- Серия уроков (bulk create по дням недели)
+- Расписание: часы 0-23, HOUR_HEIGHT=80px, мультиселект фильтры
+- Карточка урока в календаре: группа, предмет, преподаватель, кабинет
+- Клик на карточку → модалка (просмотр/редактировать/удалить)
+- Conduct: сохраняет посещаемость + оценки (0-10) + бриллианты, пересчитывает GPA/attendance студентов
 
-### Students
-- `groupCount` field computed from active enrollments (bulk query)
-- `gpa` and `attendance_percent` recalculated on each lesson conduct
-- Enrolled in groups via `enrollments` table
+### Фаза 4: LMS — Персонал
+- Карточки сотрудников, полноценная страница `/staff/[id]`
+- День рождения, телефон на UserModel
+- Авто-генерация пароля, email-заглушка
+- Предметы по направлениям (группировка), мультиселект назначения предметов
+- Уроки за текущий месяц (статистика)
 
-## API Routes
+### Фаза 5: LMS — Роли и фильтрация
+- **Преподаватель** видит только свои уроки/студентов/группы (через `teacherId` → subjects → directions)
+- Dropdown направлений фильтруется по предметам преподавателя
+- Посещаемость: `teacherId` передаётся в API
+- Отчёты: преподаватель видит только "Мои часы"
 
-### Auth
-- POST /auth/login, /auth/logout, /auth/refresh, /auth/me, /auth/change-password
-- POST /auth/users (create user — director only)
+### Фаза 6: LMS — Отчёты
+- Часы преподавателей: таблица (преподаватель → предметы → кол-во → часы:мин)
+- Фильтр месяц/год (Radix Select), кнопка "Сформировать" + PDF
+- PDF: jspdf + jspdf-autotable, шрифты Roboto Regular + Bold в `public/fonts/`
+- Успеваемость по группам, по направлениям
+- `/lms/reports/available-periods` для dropdown'ов фильтров
 
-### LMS Catalog (prefix /lms)
-- /lms/directions — CRUD + /archive. DirectionIn accepts: name, description, durationMonths, totalLessons
-- /lms/subjects — CRUD + /archive. Query param `directionId` (camelCase alias). SubjectIn accepts: name, directionId, teacherId
-- /lms/rooms — CRUD + DELETE (soft delete)
-- All responses in camelCase via `CamelModel(alias_generator=to_camel)`
+### Фаза 7: LMS — Экзамены
+- CRUD, auto-resolve предмета из уроков группы
+- Оценки за экзамен через `exam_id` в `grade_records` (отдельная колонка от `lesson_id`)
+- Модалка для выставления оценок
 
-### LMS Users (prefix /lms)
-- GET /lms/users — list staff (excludes students). Supports `?role=teacher`
-- GET /lms/users/{id} — detail with subjects, lessonsThisMonth
-- POST /lms/users — create with auto-generated password. Returns `generatedPassword`
-- PATCH /lms/users/{id} — update name, email, phone, dateOfBirth, role
-- POST /lms/users/{id}/reset-password — generates new password
-- POST /lms/users/{id}/subjects — assign subject to teacher
-- PUT /lms/users/{id}/subjects — bulk assign subjects
-- DELETE /lms/users/{id}/subjects/{subjectId} — unassign
-- GET /lms/users/{id}/directions — teacher's directions (from subjects)
+### Фаза 8: LMS — Запросы на позднее внесение
+- Преподаватель создаёт запрос (lessonId + reason)
+- МУП/Директор одобряет (`{approved: true/false}`)
+- `is_approved` (bool|null), `reviewed_by`, `reviewed_at`
+- Conduct проверяет approved request когда день прошёл
 
-### LMS Groups (prefix /lms)
-- GET/POST /lms/groups — CRUD. Supports `directionId`, `teacherId` query filters (camelCase aliases)
-- GroupResponse: id, name, directionId, directionName, roomId, startDate, endDate, schedule, isActive, studentCount
-- GET /lms/groups/{id}/students — enrolled students
-- GET /lms/groups/{id}/lessons — group lessons
-- POST /lms/groups/{id}/archive
+### Фаза 9: LMS — Финансы
+- Поиск студента → договоры → оплата по договору
+- `PaymentModel` с `contract_id`, `description`
+- Способы: наличные, карта, перевод, Payme, Click
+- Договор показывает `paidTotal` (сумма оплат)
+- Доступ: директор + кассир
 
-### LMS Lessons (prefix /lms)
-- POST /lms/lessons — create single. Validates: subject-direction match, teacher/room/group conflicts
-- POST /lms/lessons/bulk — create series by weekdays in date range. Skips conflicting dates
-- GET /lms/lessons — list with filters: groupId, teacherId, roomId, status, weekStart/weekEnd (camelCase aliases)
-- PATCH /lms/lessons/{id} — edit (blocked if completed or past day)
-- DELETE /lms/lessons/{id} — delete (blocked if completed)
-- POST /lms/lessons/{id}/conduct — save attendance + grades + diamonds. Validates edit window (same day). Recalculates student GPA/attendance
-- POST /lms/lessons/{id}/cancel
-- Materials: GET/POST/DELETE /lms/lessons/{id}/materials
+### Фаза 10: Файлы и материалы
+- Google Cloud Storage (не MinIO)
+- `POST /files/upload` — multipart, `POST /files/upload-multiple`
+- Lazy init GCS клиента, no `make_public()` (Uniform Access)
+- В уроке: вкладка "Материалы" (загрузка файлов) + "Домашнее задание" (название + описание + дедлайн + файлы)
 
-### LMS Students (prefix /lms)
-- GET /lms/students — paginated. Supports `teacherId` filter (shows students from teacher's direction groups)
-- StudentResponse includes `groupCount`
-- GET /lms/students/{id}/groups — currentGroups + availableGroups (uses group.direction_id)
-- POST /lms/students/{id}/enroll — with direction constraint check
-- POST /lms/students/{id}/transfer
+### Фаза 11: Student Portal
+- Логин работает (был баг: `user.role.value` → `user.role` — строка, не enum)
+- `Input` компонент с `forwardRef` (иначе react-hook-form не работает)
+- Расписание в стиле logbook (было CSS grid, стало absolute positioning)
+- `Lesson.subjectId` nullable
 
-### LMS Enrollments (prefix /lms)
-- POST /lms/enrollments — enroll student in group (student_id + group_id)
-- DELETE /lms/enrollments/{id} — drop student
+### Фаза 12: Компенсация
+- `CompensationModelModel`: `teacher_id`, `type`, `rate`, `effective_from`
+- PUT `/lms/compensation/{teacherId}` — upsert
+- `SalaryCalculationModel`: `period_month`, `period_year`, `lessons_conducted`
 
-### LMS Exams (prefix /lms)
-- GET/POST/DELETE /lms/exams — CRUD. Auto-resolves subject from group's lessons
-- GET /lms/exams/{id}/students — eligible students (enrolled in group)
-- GET /lms/exams/{id}/grades — exam grades
-- POST /lms/exams/{id}/grades — save grades (uses `exam_id` column in grade_records, type="exam")
-- Grades scale: 0-10
+### Фаза 13: Финансовый блок (полная переработка)
+- **Автогенерация графика платежей** при создании контракта: N записей PaymentModel с due_date (от start_date + step по payment_type)
+- `paid_amount` + `period_number` добавлены в PaymentModel
+- **Частичная оплата**: `POST /payments/{id}/pay` — добавляет к paid_amount, при full → status=paid
+- **Авто-overdue**: pending платежи с прошедшей due_date автоматически → overdue при запросе
+- **Баланс контракта**: `GET /payments/contract-balance/{contract_id}` — totalExpected/totalPaid/remaining/overdue
+- **Student finance dashboard**: `GET /student/finance` — полный кабинет с контрактами, графиком, балансом
+- Logbook Finance page переписана: прогресс-бары, раскрывающийся график, кнопка "Оплатить" на конкретный платёж
+- Student Portal Payment page: 3 вкладки (Предстоящие / По договорам / История), карточки баланса
 
-### LMS Late Requests (prefix /lms)
-- GET /lms/late-requests — list with `?status=pending|approved|rejected`, `?teacherId=`
-- POST /lms/late-requests — teacher creates request (lessonId + reason)
-- POST /lms/late-requests/{id}/review — MUP/Director approves/rejects (`{approved: true/false}`)
-- Model: `is_approved` (bool|null), `reviewed_by`, `reviewed_at`
+### Фаза 14: Финансовые отчёты
+- `GET /lms/reports/finance/income` — доходы по месяцам/направлениям + тренд за год
+- `GET /lms/reports/finance/debtors` — список должников с суммой долга и просрочкой
+- `GET /lms/reports/finance/forecast` — прогноз поступлений на 1-12 месяцев
+- `GET /lms/reports/finance/contracts-summary` — сводка по договорам (стоимость, сбор %, по направлениям)
+- `GET /lms/reports/finance/dashboard-stats` — лёгкий endpoint для карточек дашборда
+- Все отчёты доступны только директору и кассиру (CashierGuard)
+- PDF экспорт для доходов и должников
+- Финансовые карточки на дашборде директора и кассира
 
-### LMS Reports (prefix /lms)
-- GET /lms/reports/teacher-hours — by month/year. Groups by teacher → subjects. Returns hours + minutes
-- GET /lms/reports/performance — by group. Average GPA + attendance
-- GET /lms/reports/by-direction — lessons by direction
-- GET /lms/reports/income — placeholder
-- GET /lms/reports/available-periods — years + months with lessons (for filter dropdowns)
-- PDF generation on frontend via jspdf + jspdf-autotable (Roboto font for Cyrillic)
+### Фаза 15: Аналитика — финансовая секция
+- На странице `/analytics` добавлена секция "Финансы" (только для директора/кассира)
+- 4 KPI карточки + bar chart доходов по месяцам + pie chart по направлениям + таблица должников
 
-### LMS Compensation (prefix /lms)
-- GET /lms/compensation — list compensation models per teacher
-- PUT /lms/compensation/{teacherId} — set model (per_lesson/fixed_monthly/per_student + rate)
-- GET /lms/salaries — list salary calculations
-- POST /lms/salaries/calculate — calculate salary for teacher+period
-- Model: CompensationModelModel (teacher_id, type, rate, effective_from)
-- SalaryCalculationModel (teacher_id, period_month, period_year, lessons_conducted, amounts)
+### Фаза 16: DatePicker
+- Кастомный компонент `DatePicker` на date-fns (без внешних библиотек)
+- 3-уровневая навигация: Дни → Месяцы (клик на заголовок) → Годы (клик на год)
+- Русская локаль, кнопка "Сегодня", min/max dates
+- Заменены ВСЕ нативные `<input type="date">`: logbook (12 мест), CRM (4 места)
 
-### LMS Analytics (prefix /lms)
-- /lms/analytics/overview — totalStudents, activeGroups, lessonsThisWeek, avgAttendance, etc.
-- /lms/analytics/attendance, /grades, /risk, /homework, /teachers
+### Фаза 17: Карточки уроков в расписании
+- Иконки: Users (группа), BookOpen (предмет), UserCheck (преподаватель), MapPin (кабинет)
+- Увеличен шрифт: text-[10px] → text-xs/text-sm
+- Одинаково в logbook и student portal
 
-### File Upload
-- POST /files/upload — multipart upload to Google Cloud Storage. Returns {key, url, filename, contentType, sizeBytes}
-- POST /files/upload-multiple — multiple files at once
-- Config: GCS_BUCKET_NAME, GCS_CREDENTIALS_JSON (mounted in Docker)
-- Lazy initialization — GCS client created on first upload, not at import
+### Фаза 18: Оценки, домашки, материалы — сквозной flow
+- **GPA 10-балльная шкала**: `score / max_score * 10` (было * 12)
+- **Demo mode отключён** для реальных логинов (adapter сбрасывается)
+- **Student Performance page**: добавлена таблица всех оценок по датам с типами и цветами
+- **Homework flow исправлен**:
+  - `POST /homework/submissions/{id}/review` — alias для grade (logbook frontend)
+  - Submit endpoint — поиск по sub.id ИЛИ assignment_id
+  - `assign.type` → хардкод "homework" (HomeworkAssignmentModel не имеет type)
+  - Grade sync: homework оценка → GradeRecordModel → GPA пересчитан
+  - Статус mapping: graded ↔ reviewed
+  - Auto-overdue для просроченных домашек
+  - Auto-submissions при создании задания (для всех enrolled студентов)
+- **Materials page** (student portal): переписана как аккордеон по урокам
+  - `GET /student/lessons-materials` — уроки с вложенными материалами
+  - Раскрытие урока → список файлов с типами и кнопками скачивания
+- **Баг-фиксы**: GroupModel.subject_id не существует, AttendanceRecordModel.created_at не существует, LessonMaterialModel.uploaded_at → created_at, subjectName добавлен в materials API
 
-### CRM (prefix /crm)
-- /crm/leads — full CRUD + /move-stage, /assign, /mark-won, /mark-lost, /timeline
-- /crm/lead-sources — CRUD (4 types: manual, import, api, landing)
-- /crm/contacts, /crm/funnels, /crm/tasks, /crm/activities, /crm/notifications
-- /crm/contracts — CRUD with directions from LMS
-- /crm/analytics — N+1 queries fixed with bulk GROUP BY
+### Фаза 19: Файлы — GCS Signed URLs + Proxy Download
+- **Signed URLs**: при upload генерируется подписанная ссылка (7 дней) с Content-Disposition: attachment
+- **Proxy download**: `GET /files/download?key=...&filename=...` — стримит файл через backend
+- Кириллические имена: `filename*=UTF-8''` (RFC 5987)
+- `GET /files/url?key=...` — получить свежую signed URL
+- `file_urls` (JSONB) добавлен в HomeworkAssignmentModel — файлы задания от преподавателя
+- Student portal: кнопка "Скачать" через proxy, "Открыть" для ссылок
+- Logbook: "Загрузить файлы" + "Добавить ссылку" + "Скачать" через proxy
+- `s3_key` + `key` передаётся и сохраняется при upload
 
-### Public (no auth)
-- GET /public/forms/{api_key}, POST /public/forms/{api_key}/submit
-- POST /public/api/{api_key}/leads
+### Фаза 20: Домашки — полный flow с файлами
+- Преподаватель: создаёт ДЗ с файлами → auto-submissions для студентов → видит ответы с текстом/файлом → проверяет с оценкой
+- Студент: видит файлы задания → скачивает → загружает свой файл + текст → отправляет
+- Просроченные: студент может сдать overdue ДЗ → статус `submitted` (не overdue), преподаватель видит `is_late` flag
+- GradeRecord создаётся автоматически → GPA пересчитан
 
-### Student Portal (prefix /student)
-- Uses `lesson.subject_id` (not group.subject_id) for subject resolution
+### Фаза 21: Геймификация
+- **Gamification Engine** (`gamification_engine.py`):
+  - Автоначисление при conduct: +5⭐ present, -2⭐ late, +10⭐ оценка 9-10, +5⭐ оценка 7-8
+  - Серии посещений: +5💎 за 5 подряд, +15💎 за 10 подряд
+  - Homework: +15⭐ за своевременную сдачу, +20⭐ за оценку 9-10, +10⭐ за 7-8
+  - Преподаватель может вручную начислять 💎 через conduct (DiamondIn)
+  - Описания конкретные: "Оценка 10/10 за «Тест геймификации»"
+- **Auto badge progression**: Bronze(0) → Silver(100⭐) → Gold(300) → Platinum(600) → Diamond(1000)
+- **Auto achievement unlocking** (7 ачивок с триггерами):
+  - first_grade, five_tens, gpa_9, ten_present, thirty_present, ten_homework, leaderboard_first
+- **Магазин наград**: ShopItemModel + StudentPurchaseModel
+  - `GET /gamification/shop` — каталог товаров
+  - `POST /gamification/shop/purchase` — покупка (списание ⭐/💎, проверка баланса/наличия)
+  - 5 товаров: стикерпак, сертификат, скидка, футболка, бесплатный урок
+- **Achievement catalog**: `GET /gamification/achievements/catalog` — все ачивки с unlocked/locked статусом
+- **Student Portal**:
+  - Achievements page: каталог ачивок (цветные unlocked + серые locked с замком)
+  - Shop page: товары с ценами, баланс, кнопка "Купить"
+  - TopBar: звёзды + бриллианты из dashboard API (live данные)
+  - Activity feed: лента начислений со скроллом
+  - Leaderboard: рейтинг по звёздам
 
-## Key Technical Decisions
+### Фаза 22: Student Portal Dashboard — виджеты
+- **StatsCards**: Средний балл/10, Посещаемость %, Задания к выполнению, Выполнено вовремя
+- **GradesWidget**: последние оценки с типом (Урок/Д/З/Экзамен) + название урока
+- **AttendanceWidget**: present/absent/late %
+- **TodaySchedule**: расписание на сегодня с подсветкой текущего урока (пульсирующая точка "Сейчас")
+- **UpcomingDeadlines**: ближайшие дедлайны (overdue красные, urgent жёлтые, обратный отсчёт)
+- **ActivityFeed**: лента начислений звёзд/бриллиантов
+- **Leaderboard**: рейтинг по звёздам в группе
 
-### Timezone Handling
-- `scheduled_at` stored as `timestamp with time zone` in UTC
-- Conduct validation compares **dates only** (not times) to avoid timezone issues between Docker (UTC) and user (UTC+5)
-- `isLessonEditable`: from lesson start until end of that day (23:59)
-- `needsLateRequest`: after the lesson day has passed
+### Фаза 23: Удаление demo данных
+- Удалены `src/lib/demo/` папки из всех 3 фронтендов (data.ts + adapter.ts)
+- Удалены DemoBanner компоненты
+- Убраны isDemoMode, enableDemo, demoRole из auth stores
+- Login pages: только реальный логин, без демо-кнопок
+- Layouts: без проверки isDemoMode
+
+### Фаза 24: Разделение ролей — Директор/МУП vs Преподаватель
+- **Conduct урока** — кнопка "Сохранить и закрыть урок" скрыта для директора/МУП (только преподаватель может проводить)
+- **Посещаемость** — директор/МУП видят только вкладку "Посещаемость групп", вкладка поурочной отметки и DatePicker скрыты
+- **Домашние задания** — директор/МУП по умолчанию видят сводки:
+  - "По преподавателям": reviewed, awaitingReview (сдано но не проверено), notSubmitted, overdue, % проверки
+  - "По студентам": total, graded, submitted, pending, overdue, avgScore, completionRate%
+  - "Все работы" — список всех submissions с возможностью просмотра
+- Backend: `GET /lms/analytics/homework-by-teacher` — реализован (был stub)
+- Backend: `GET /lms/analytics/homework-by-student` — новый endpoint
+
+### Фаза 25: ML Student Risk Scoring
+- **Синтетический датасет**: `scripts/generate_risk_dataset.py` — 5000 студентов, 5 архетипов (strong/average/struggling/declining/at_risk)
+- **Обучение модели**: `scripts/train_risk_model.py` — GradientBoostingClassifier + CalibratedClassifierCV, ROC-AUC **0.93**
+- **14 признаков из 4 доменов**: посещаемость (4), оценки (4), домашки (3), платежи (3)
+- **ML-пакет** (`src/ml/`): `feature_extractor.py` (async DB queries), `predictor.py` (singleton joblib), `risk_scorer.py` (orchestrator)
+- **Интеграция**: `RiskCalculationPolicy.from_probability()` + fallback на legacy пороги
+- **Celery**: ночной batch `recalculate_all_students_risk` + событийный `recalculate_student_risk`
+- **API**: `GET /students/{id}/risk` — детальная разбивка по доменам (attendanceScore, gradesScore, homeworkScore, paymentScore)
+- **UI**: прогресс-бар вероятности отчисления + 4 доменные карточки на странице студента
+- Dependencies: `scikit-learn ^1.5`, `joblib ^1.4`, `numpy ^2.0`
+
+### Фаза 26: Комплексный Seed
+- **`scripts/seed_full.py`** — 200 студентов, 730 уроков, 4272 attendance, 4538 grades, 256 ДЗ, 200 контрактов, 1200 платежей
+- Логическая целостность: преподаватели ведут ТОЛЬКО предметы своего направления, студенты в группах по направлению контракта
+- 5 архетипов для ML-разнообразия: strong (30%), average (25%), struggling (20%), declining (15%), at_risk (10%)
+- **`scripts/run_ml_scoring.py`** — ML-скоринг после seed
+- **`scripts/recalc_gamification.py`** — пересчёт звёзд/кристаллов/значков из реальных данных
+- PostgreSQL порт 5433 (внешний) для PgAdmin
+
+### Фаза 27: Геймификация в Seed (fix)
+- Seed вставлял attendance/grades через SQL без вызова gamification_engine → stars=0
+- `recalc_gamification.py` — bulk-пересчёт: 294.6 avg stars, 11.3 avg crystals, 4 platinum / 65 gold / 96 silver / 35 bronze
+- 582 достижения разблокировано, 1195 activity events
+
+### Фаза 28: Автоматические уведомления
+- **3 новых Celery-задачи** (LMS → директор/МУП):
+  - `notify_overdue_debts` — ежедневная сводка должников
+  - `notify_risk_changes` — уведомления о HIGH/CRITICAL студентах
+  - `notify_homework_overdue` — еженедельная сводка просроченных ДЗ
+- `send_payment_due_reminders` активирован в beat_schedule
+- **Notification Bell** в topbar logbook — уже работал, добавлена ссылка "Все уведомления"
+- **`/notifications` page** — полная страница с фильтрами all/unread
+- **Dashboard widget** — секция "Уведомления" на дашборде директора/МУП
+- Notification type передаётся корректно (debt_alert, risk_alert, homework_overdue)
+
+### Фаза 29: Аналитика (fix)
+- **Посещаемость** — endpoint возвращал `[]`, написан реальный SQL (GROUP BY дата, `attendanceRate`)
+- **Средний балл по предметам** — был grade distribution, переписан на `AVG(score/max_score*10) GROUP BY subject`
+- **Эффективность преподавателей** — переименованы поля (`lessonsScheduled`/`lessonsConducted`/`conductRate`)
+
+### Фаза 30: Задачи МУП + Автозадачи через RabbitMQ
+- **MupTaskModel** расширен: `status`, `priority`, `student_id`, `category`
+- **3 Celery-задачи автогенерации**:
+  - `process_lesson_attendance` — после conduct через `.delay()`: 3+ пропусков → задача "Связаться с родителями"
+  - `generate_debt_tasks` — ежедневно: просрочка > 30 дней → задача
+  - `generate_risk_tasks` — ежедневно: HIGH/CRITICAL → задача "Провести беседу"
+- Дедупликация через `_task_exists(student_id, category)`
+- **TaskCard** — приоритет (цветная метка), иконка категории, ссылка на студента
+- Trigger flow: conduct_lesson → Celery `.delay()` → RabbitMQ → Worker → MUP task + notification
+
+### Фаза 31: Профиль пользователя (LMS + CRM + Student Portal)
+- **Backend**: `GET /auth/me` и `PATCH /auth/me` расширены полями `phone`, `dateOfBirth`
+- **LMS TopBar**: пункт "Профиль" → выдвижная панель (аватар, email, телефон, дата рождения, смена пароля)
+- **CRM TopBar**: аналогичная панель профиля
+- **Student Portal**: смена пароля исправлена — были UI-заглушки без state/onChange/API call
+
+### Фаза 32: Контроль доступа по ролям
+- **Backend** — `require_platform()` dependency на уровне роутера:
+  - LMS: director, mup, teacher, cashier
+  - CRM: director, sales_manager
+  - Student Portal: student
+- **Frontend** — проверка роли после логина, блокировка с сообщением
+- **Login ошибки разделены**: `user_not_found` / `wrong_password` / `account_deactivated` / `accessDenied`
+
+### Фаза 33: Мультиязычность (i18n) — Logbook
+- **Инфраструктура**: `useI18nStore` (Zustand + persist), `useT()` hook, `ru.ts` + `en.ts` (~500 ключей)
+- **Переключатель RU/EN** в topbar
+- **Все 19 страниц** + все компоненты + модальные окна + toast-сообщения переведены
+- Sidebar, Topbar, Dashboard, Students, Analytics, Tasks, Notifications, Schedule, Attendance, Homework, Finance, Groups, Reports, Settings, Staff, Exams, Compensation, Late Requests, Materials, Works
+- Компоненты: RiskBadge, LessonStatusBadge, TaskCard, ScheduleColumn, StudentForm, GroupForm, LessonForm, AttendanceTable, DiamondDistributor, GradeInput, DatePicker, ConfirmDialog и др.
+- PDF-генерация оставлена на русском
+
+### Фаза 34: Мультиязычность (i18n) — Student Portal
+- Замена всех `lang === 'ru' ? ... : ...` тернарников на `t()` вызовы
+- Обновлены: performance, schedule, homework, materials, shop, payment (6 страниц)
+- Компоненты: GradesWidget, TodaySchedule, UpcomingDeadlines, TopBar, ProfileDropdown
+- Удалены локальные GRADE_TYPE_LABELS, PAYMENT_TYPE_LABELS — заменены на i18n ключи
+
+### Фаза 35: Документация (Google-style docstrings)
+- **Backend (45 файлов)**: полный Google-style на русском для каждой функции (Args, Returns, Raises, Example)
+  - Domain: 8 файлов (entities, policies, events, value objects)
+  - Application: 3 файла (use cases, repositories interfaces)
+  - API: 11 файлов (все routers + dependencies + schemas)
+  - Infrastructure: 6 файлов (models, services)
+  - ML: 4 файла (feature_extractor, predictor, risk_scorer)
+  - Workers: 5 файлов (celery_app, risk, notifications, auto_tasks, salary)
+  - Config/Scripts: 8 файлов (main, config, database, seed, training, scoring)
+- **Frontend (15 файлов)**: JSDoc на русском для ключевых компонентов
+  - Logbook: layout, sidebar, topbar, dashboard, students, analytics, tasks, notifications, auth store, i18n
+  - CRM: topbar
+  - Student: ProfileDropdown, dashboard
+
+### Фаза 36: README файлы
+- **Главный README.md** — о проекте, стек, быстрый старт, матрица доступа, ключевые фичи
+- **backend/README.md** — все зависимости с версиями, структура Clean Architecture, API endpoints, ML model
+- **logbook/README.md** — 17 библиотек, 19 страниц, компоненты, i18n
+- **crm/README.md** — 16 библиотек, все страницы, функциональность
+- **student/README.md** — 13 библиотек, 7 виджетов дашборда, геймификация
+
+## Критические вещи которые нельзя забывать
+
+### Timezone
+- Docker в UTC, пользователь в UTC+5 (Ташкент)
+- `scheduled_at` хранится в UTC
+- **Conduct/edit проверяет ДАТЫ, не время** (`now.date()` vs `sched.date()`)
+- Если сравнивать по времени — преподаватель не сможет отметить урок 17:00 потому что сервер в 12:00 UTC
+
+### Окно ввода данных
+- Преподаватель может отметить урок **в день урока** (до 23:59)
+- После дня урока — нужен одобренный запрос МУП
+- Директор/МУП обходят это ограничение
+
+### Enum'ы (что в БД, что в модели — должно совпадать)
+- `grade_type`: homework, exam, quiz, project, participation (НЕ class/independent/control)
+- `attendance_status`: present, absent, late, excused (НЕ on_time)
+- `lesson_status`: scheduled, completed, cancelled (НЕ conducted/incomplete/in_progress)
+- `payment_status`: paid, pending, overdue
+
+### Поля моделей (частые ошибки)
+- `user.role` — строка, НЕ enum. Никогда `.value`
+- `LessonMaterialModel` — `created_at`/`updated_at`, НЕ `uploaded_at`. Есть `s3_key` для GCS
+- `DiamondRecordModel` — `reason` + `awarded_at`, НЕ `note`
+- `CompensationModelModel` — `teacher_id, type, rate`, НЕ `name, params`
+- `SalaryCalculationModel` — `period_month, period_year, lessons_conducted`, НЕ `period_start`
+- `grade_records` — есть и `lesson_id` (FK lessons) и `exam_id` (FK exams), `subject_id` nullable
+- Группы — НЕТ `subject_id`, НЕТ `teacher_id`
+- `ExamModel` — одна штука в models (была дублирована, вторая удалена)
+- `PaymentModel` — `paid_amount` (сколько реально оплачено), `period_number` (номер в графике)
+- `HomeworkAssignmentModel` — `file_urls` (JSONB, [{url, filename, key}]). НЕТ `type` поля
+- `HomeworkSubmissionModel` — `file_url`, `s3_key`, `answer_text`. При submit всегда status=`submitted` (даже если просрочено)
+- `AttendanceRecordModel` — НЕТ `created_at`, есть `recorded_at`
+- `ShopItemModel` — `cost_stars`, `cost_crystals`, `stock` (null=unlimited)
+- `StudentPurchaseModel` — `student_id`, `item_id`, `purchased_at`
+
+### Геймификация (правила начисления)
+- Посещение: +5⭐ present, -2⭐ late, 0 absent
+- Оценка урока: +10⭐ (9-10), +5⭐ (7-8)
+- Домашка вовремя: +15⭐
+- Оценка домашки: +20⭐ (9-10), +10⭐ (7-8)
+- Серия посещений: +5💎 (5 подряд), +15💎 (10 подряд)
+- Преподаватель может вручную начислить 💎 через conduct
+- Badge: Bronze(0) → Silver(100) → Gold(300) → Platinum(600) → Diamond(1000)
+
+### GPA
+- **10-балльная шкала**: `avg(score / max_score * 10)`
+- Включает ВСЕ grade_records: participation + homework + exam + quiz + project
+
+### Frontend ошибки которые были
+- `lesson.group.name` → нет вложенного объекта, API возвращает flat `groupId` → резолвить через lookup map
+- `student.enrollments?.length` → нет поля, использовать `student.groupCount`
+- `data.attendance.map(r => r.student)` → нет вложенного student, использовать `groupStudents`
+- `r.grade` → API возвращает `r.value`, `r.diamonds` → `r.amount`
+- Student portal `Input` без `forwardRef` → react-hook-form не видит значения → валидация всегда failed
+- `jspdf-autotable`: `autoTable(doc, opts)`, НЕ `doc.autoTable(opts)`
+- PDF Cyrillic: нужны Roboto .ttf в `public/fonts/`, регистрировать и normal и bold
 
 ### CamelCase API
-- All new endpoints use `CamelModel` with `alias_generator=to_camel, populate_by_name=True`
-- Query params use `Query(alias="camelCase")` for FastAPI
-- Legacy endpoints mix snake_case responses — being migrated
+- Все новые endpoint'ы: `CamelModel(alias_generator=to_camel, populate_by_name=True)`
+- Query params: `Query(alias="camelCase")`
+- CRM contracts page использует `isActive`/`durationMonths`/`totalLessons` (camelCase от API)
 
-### Grades
-- Scale: 0-10 (max_score=10)
-- `grade_records` table has both `lesson_id` (FK lessons) and `exam_id` (FK exams)
-- Grade type enum: homework, exam, quiz, project, participation
-- Attendance status enum: present, absent, late, excused
+## Миграция
 
-### Teacher Filtering (Role-based views)
-- Schedule: auto-filters by `teacherId` for teachers
-- Students: `teacherId` param → shows students from teacher's direction groups
-- Groups: `teacherId` param → shows groups from teacher's directions
-- Reports: teachers see only their own hours
-- Directions dropdown: filtered by teacher's subjects
+Один файл `0001_initial.py`. При свежем деплое создаёт все таблицы. Изменения в текущей БД делаются через `ALTER TABLE` вручную (миграция обновляется для будущих деплоев).
 
-### FastAPI 0.115 + `from __future__ import annotations` + 204 status
-All 204 routes use `-> Response:` return type and `return Response(status_code=204)`.
+## Тесты
 
-### Zustand hydration fix
-All 3 frontends use `_hasHydrated` flag with `onRehydrateStorage` callback.
+292 юнит-теста: `cd backend && poetry run pytest tests/unit/ -v`
 
-### Password hashing
-Uses `bcrypt` directly (not passlib) — passlib incompatible with bcrypt 4.x on Python 3.13.
+## Seed
 
-### Docker
-- Backend Dockerfile: Python 3.13-slim, needs `g++` for greenlet
-- Frontend Dockerfiles: `mkdir -p public` before build
-- GCS credentials mounted: `./backend/gcp_keys.json:/app/gcp_keys.json:ro`
-- Backend src hot-reload: `./backend/src:/app/src`
+**Основной seed**: `backend/scripts/seed_full.py` — комплексный seed с 200 студентами.
 
-### DB enum handling
-All SAEnum in models use `create_type=False`. Single migration 0001 creates all tables.
-
-## Migration (0001_initial.py)
-Single migration file. Key tables:
-- users (with phone, date_of_birth)
-- directions, subjects, rooms
-- groups (with direction_id, NO subject_id, NO teacher_id)
-- lessons (with subject_id, teacher_id)
-- students (with full_name, email, photo_url, is_active)
-- enrollments, attendance_records, grade_records (with exam_id), diamond_records
-- homework_assignments, homework_submissions
-- late_entry_requests (student_id nullable)
-- compensation_models, salary_calculations
-- exams (with description, subject_id nullable)
-- funnels, stages, leads, lead_sources, crm_contacts, contracts
-- contract_files, student_documents
-- All CRM tables with proper indexes
-
-## Tests (292 unit tests)
-Run: `cd backend && poetry run pytest tests/unit/ -v`
-
-## Seed Data
-Creates: 10 directions (IT-focused), 29 subjects, 12 teachers, 300 students, 30 groups, 328 lessons, CRM data.
-All passwords: `password123`
-
-## Frontend-Backend Field Mapping
-
-### Lesson Conduct Request
-```json
-{
-  "topic": "string",
-  "attendance": [{"studentId": "uuid", "status": "present|absent|late", "note": "?"}],
-  "grades": [{"studentId": "uuid", "grade": 0-10, "comment": "?"}],
-  "diamonds": [{"studentId": "uuid", "diamonds": 1-5}]
-}
+```bash
+# Полная пересоздание данных (3 команды):
+docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/seed_full.py"
+docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/run_ml_scoring.py"
+docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/recalc_gamification.py"
 ```
 
-### Late Request Flow
-1. Teacher: POST /lms/late-requests {lessonId, reason}
-2. MUP/Director: POST /lms/late-requests/{id}/review {approved: true/false}
-3. Conduct checks for approved late request when day has passed
+Seed создаёт: 200 студентов, 14 преподавателей, 30 групп, 730 уроков, 4272 attendance, 4538 grades, 256 ДЗ, 200 контрактов, 1200 платежей, CRM (30 лидов), геймификация (7 ачивок, 5 товаров).
 
-### Schedule Calendar
-- Hours 0-23, HOUR_HEIGHT=80px
-- Multiselect filters for teachers and rooms (client-side filtering)
-- Lesson card shows: group name, subject, teacher (full name), room
-- Click opens detail modal (edit/delete with validation)
+### Текущие учётные данные (все пароли: `password123`)
+
+| Роль | Email |
+|------|-------|
+| Директор | director@edu.uz |
+| МУП | mup@edu.uz |
+| Кассир | cashier@edu.uz |
+| Менеджер продаж | sales@edu.uz |
+| Преподаватель (Python) | t.python1@edu.uz |
+| Преподаватель (JS) | t.js1@edu.uz |
+| Студент | student1@edu.uz ... student200@edu.uz |
+
+### MupTaskModel — расширенные поля
+- `status` (pending/in_progress/done/overdue), `priority` (low/medium/high)
+- `student_id` (FK students), `category` (absence_streak/payment_overdue/high_risk)
+
+### Контроль доступа (платформенные гварды)
+- LMS: `lms_platform_guard` → director, mup, teacher, cashier
+- CRM: `crm_platform_guard` → director, sales_manager
+- Student: `student_platform_guard` → student
+- Настроены на уровне роутера через `dependencies=[Depends(guard)]`

@@ -1,4 +1,19 @@
 'use client'
+
+/**
+ * Страница списка студентов с фильтрацией по риску и направлению.
+ *
+ * Функциональность:
+ * - Поиск по имени/телефону с debounce (300мс)
+ * - Фильтр по направлению обучения
+ * - Фильтр по уровню риска (normal / medium / high / critical)
+ * - Для преподавателя автоматически фильтрует только своих студентов
+ * - Добавление студента (только для директора/МУП)
+ * - Предупреждающий баннер о студентах в зоне риска
+ *
+ * @module StudentsPage
+ */
+
 import { useState, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { Search, Users, AlertTriangle, Plus } from 'lucide-react'
@@ -16,16 +31,22 @@ import { useLmsStore } from '@/lib/stores/useLmsStore'
 import { useIsDirectorOrMup, useCurrentUser } from '@/lib/stores/useAuthStore'
 import type { RiskLevel } from '@/types/lms'
 import { cn } from '@/lib/utils/cn'
+import { useT } from '@/lib/i18n'
 
-const riskFilters: { value: RiskLevel | ''; label: string }[] = [
-  { value: '',         label: 'Все' },
-  { value: 'low',      label: 'Норма' },
-  { value: 'medium',   label: 'Риск' },
-  { value: 'high',     label: 'Высокий' },
-  { value: 'critical', label: 'Критично' },
-]
-
+/**
+ * Основной компонент страницы студентов.
+ * Загружает список студентов с серверной пагинацией и фильтрацией.
+ */
 export default function StudentsPage() {
+  const t = useT()
+
+  const riskFilters: { value: RiskLevel | ''; label: string }[] = [
+    { value: '',         label: t('common.all') },
+    { value: 'low',      label: t('students.normal') },
+    { value: 'medium',   label: t('students.risk') },
+    { value: 'high',     label: t('students.high') },
+    { value: 'critical', label: t('students.critical') },
+  ]
   const filters    = useLmsStore((s) => s.studentFilters)
   const setFilters = useLmsStore((s) => s.setStudentFilters)
   const canManage  = useIsDirectorOrMup()
@@ -36,7 +57,7 @@ export default function StudentsPage() {
   const [showForm, setShowForm] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Teacher's directions (for filtering)
+  // Направления преподавателя (для фильтрации — преподаватель видит только свои)
   const { data: teacherDirs } = useQuery({
     queryKey: ['lms', 'teacher-directions', user?.id],
     queryFn: () => apiClient.get(`/lms/users/${user!.id}/directions`).then((r) => r.data as { id: string; name: string }[]),
@@ -46,13 +67,13 @@ export default function StudentsPage() {
 
   const { data: allDirections = [] } = useDirections()
 
-  // If teacher — show only their directions, otherwise all
+  // Преподаватель видит только свои направления, остальные роли — все
   const directions = useMemo(
     () => isTeacher && teacherDirs ? teacherDirs : allDirections,
     [isTeacher, teacherDirs, allDirections],
   )
 
-  // Auto-inject teacherId for teachers
+  // Автоматическая подстановка teacherId для фильтрации по своим студентам
   const apiFilters = useMemo(() => {
     const f = { ...filters }
     if (isTeacher && user?.id) (f as any).teacherId = user.id
@@ -76,13 +97,13 @@ export default function StudentsPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
           <Users className="w-5 h-5 text-primary-600" />
-          Студенты
+          {t('students.title')}
           <span className="text-sm font-normal text-gray-400">({total})</span>
         </h1>
         {canManage && (
           <Button size="sm" onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4" />
-            Добавить студента
+            {t('students.addStudent')}
           </Button>
         )}
       </div>
@@ -92,7 +113,7 @@ export default function StudentsPage() {
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
-            placeholder="Поиск по имени…"
+            placeholder={t('students.search')}
             className="pl-9"
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
@@ -104,7 +125,7 @@ export default function StudentsPage() {
           onChange={(e) => setFilters({ directionId: e.target.value || undefined, page: 1 })}
           className="h-10 border border-gray-300 rounded text-sm px-3 text-gray-700 focus:outline-none focus:border-primary-500 bg-white"
         >
-          <option value="">Все направления</option>
+          <option value="">{t('students.allDirections')}</option>
           {directions.map((d) => (
             <option key={d.id} value={d.id}>{d.name}</option>
           ))}
@@ -144,17 +165,17 @@ export default function StudentsPage() {
           ))}
         </div>
       ) : students.length === 0 ? (
-        <EmptyState icon={Users} title="Студенты не найдены" description="Попробуйте изменить фильтры" />
+        <EmptyState icon={Users} title={t('students.notFound')} description={t('common.tryChangeFilters')} />
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Студент</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Группы</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Ср. балл</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Посещаемость</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Риск</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">{t('students.student')}</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">{t('students.groups')}</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">{t('students.avgGrade')}</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">{t('students.attendance')}</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">{t('common.status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -174,7 +195,7 @@ export default function StudentsPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 hidden sm:table-cell">
-                    <span className="text-gray-500">{student.groupCount ?? 0} гр.</span>
+                    <span className="text-gray-500">{student.groupCount ?? 0} {t('students.grp')}</span>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     <span className={cn('font-semibold', student.gpa && student.gpa < 6 ? 'text-danger-600' : 'text-gray-900')}>
@@ -202,7 +223,14 @@ export default function StudentsPage() {
   )
 }
 
+/**
+ * Баннер-предупреждение о студентах в зоне риска.
+ * Показывается только при наличии студентов с уровнем high/critical/medium.
+ *
+ * @param students - массив студентов текущей страницы
+ */
 function RiskSummary({ students }: { students: any[] }) {
+  const t = useT()
   const critical = students.filter((s) => s.riskLevel === 'critical' || s.riskLevel === 'high').length
   const atRisk   = students.filter((s) => s.riskLevel === 'medium').length
   if (critical === 0 && atRisk === 0) return null
@@ -210,9 +238,9 @@ function RiskSummary({ students }: { students: any[] }) {
     <div className="flex items-start gap-2 p-3 bg-warning-50 border border-warning-200 rounded-md mb-4 text-sm">
       <AlertTriangle className="w-4 h-4 text-warning-600 mt-0.5 shrink-0" />
       <span className="text-warning-700">
-        {critical > 0 && <><strong>{critical}</strong> в критичном состоянии · </>}
-        {atRisk > 0 && <><strong>{atRisk}</strong> под риском</>}
-        {' '}— требуют внимания
+        {critical > 0 && <><strong>{critical}</strong> {t('students.inCritical')} · </>}
+        {atRisk > 0 && <><strong>{atRisk}</strong> {t('students.atRisk')}</>}
+        {' '}— {t('students.needAttention')}
       </span>
     </div>
   )

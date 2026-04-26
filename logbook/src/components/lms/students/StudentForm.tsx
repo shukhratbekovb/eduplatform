@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react'
 import { X, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { useCreateStudent, useUpdateStudent } from '@/lib/hooks/lms/useStudents'
+import { useT } from '@/lib/i18n'
 import type { Student } from '@/types/lms'
 
 interface StudentFormProps {
@@ -29,6 +31,7 @@ const empty: FormState = {
 }
 
 export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
+  const t = useT()
   const [form, setForm] = useState<FormState>(empty)
   const [showPassword, setShowPassword] = useState(false)
   const { mutate: create, isPending: creating } = useCreateStudent()
@@ -87,7 +90,7 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">
-            {isEdit ? 'Редактировать студента' : 'Новый студент'}
+            {isEdit ? t('form.editStudent') : t('form.newStudent')}
           </h2>
           <button onClick={() => onOpenChange(false)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
@@ -97,14 +100,14 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Полное имя <span className="text-danger-500">*</span>
+              {t('form.fullName')} <span className="text-danger-500">*</span>
             </label>
-            <Input value={form.fullName} onChange={set('fullName')} placeholder="Иванов Иван Иванович" required />
+            <Input value={form.fullName} onChange={set('fullName')} placeholder={t('form.fullNamePlaceholder')} required />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('form.phone')}</label>
               <Input value={form.phone} onChange={set('phone')} placeholder="+7 (999) 000-00-00" type="tel" />
             </div>
             {(
@@ -116,17 +119,17 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Дата рождения</label>
-            <Input value={form.dateOfBirth} onChange={set('dateOfBirth')} type="date" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('form.dob')}</label>
+            <DatePicker value={form.dateOfBirth} onChange={(v) => set('dateOfBirth')({ target: { value: v } } as any)} />
           </div>
 
           {!isEdit && (
             <div className="pt-2 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Данные для входа</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{t('form.loginData')}</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Логин (Email) <span className="text-danger-500">*</span>
+                    {t('form.loginEmail')} <span className="text-danger-500">*</span>
                   </label>
                   <Input
                     type="email"
@@ -138,14 +141,14 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Пароль <span className="text-danger-500">*</span>
+                    {t('form.password')} <span className="text-danger-500">*</span>
                   </label>
                   <div className="relative">
                     <Input
                       type={showPassword ? 'text' : 'password'}
                       value={form.password}
                       onChange={set('password')}
-                      placeholder="Мин. 6 символов"
+                      placeholder={t('form.minChars')}
                       className="pr-9"
                     />
                     <button
@@ -157,7 +160,7 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
                     </button>
                   </div>
                   {form.password.length > 0 && form.password.length < 6 && (
-                    <p className="mt-1 text-xs text-danger-500">Минимум 6 символов</p>
+                    <p className="mt-1 text-xs text-danger-500">{t('form.minChars')}</p>
                   )}
                 </div>
               </div>
@@ -165,27 +168,27 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
           )}
 
           <div className="pt-2 border-t border-gray-100">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Контакт родителя</p>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{t('form.parentContact')}</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Имя родителя</label>
-                <Input value={form.parentName} onChange={set('parentName')} placeholder="Иванова Мария" />
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('form.parentName')}</label>
+                <Input value={form.parentName} onChange={set('parentName')} placeholder={t('form.parentNamePlaceholder')} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Телефон родителя</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('form.parentPhone')}</label>
                 <Input value={form.parentPhone} onChange={set('parentPhone')} placeholder="+7 (999) 000-00-00" type="tel" />
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Адрес</label>
-            <Input value={form.address} onChange={set('address')} placeholder="Город, улица, дом" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('form.address')}</label>
+            <Input value={form.address} onChange={set('address')} placeholder={t('form.addressPlaceholder')} />
           </div>
 
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={() => onOpenChange(false)}>
-              Отмена
+              {t('common.cancel')}
             </Button>
             <Button
               type="submit" className="flex-1" loading={isPending}
@@ -194,7 +197,7 @@ export function StudentForm({ open, onOpenChange, student }: StudentFormProps) {
                 (!isEdit && (!form.email.trim() || form.password.length < 6))
               }
             >
-              {isEdit ? 'Сохранить' : 'Создать студента'}
+              {isEdit ? t('common.save') : t('form.newStudent')}
             </Button>
           </div>
         </form>

@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api/axios'
 import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -301,7 +302,7 @@ function ContractForm({open,onClose,onCreated}:{open:boolean;onClose:()=>void;on
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Дата начала</label>
-                <Input type="date" value={form.startDate} onChange={e=>set('startDate',e.target.value)}/>
+                <DatePicker value={form.startDate} onChange={(v) => set('startDate', v)} />
               </div>
             </div>
             <div>
