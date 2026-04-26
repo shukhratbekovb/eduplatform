@@ -1,6 +1,12 @@
 import { Translations } from "./types";
 
 export const en: Translations = {
+  datepicker: {
+    selectDate: "Select date",
+    today: "Today",
+    weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+    months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  },
   header: {
     courses: "Courses",
     advantages: "Advantages",

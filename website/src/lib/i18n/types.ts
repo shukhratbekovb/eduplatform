@@ -1,6 +1,12 @@
 export type Locale = "ru" | "en" | "uz";
 
 export type Translations = {
+  datepicker: {
+    selectDate: string;
+    today: string;
+    weekdays: string[];
+    months: string[];
+  };
   header: {
     courses: string;
     advantages: string;

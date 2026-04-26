@@ -112,17 +112,28 @@ export function CustomFieldInput({ field, control }: Props) {
     case 'checkbox': {
       const checked = Boolean(formField.value)
       return (
-        <label className="flex items-center gap-2 cursor-pointer select-none pt-1">
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={(e) => formField.onChange(e.target.checked)}
-            className="w-4 h-4 accent-primary-600 cursor-pointer"
-          />
-          <span className="text-sm text-gray-700 dark:text-gray-300">
+        <button
+          type="button"
+          onClick={() => formField.onChange(!checked)}
+          className="flex items-center gap-2.5 cursor-pointer select-none pt-1 group"
+        >
+          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+            checked
+              ? 'bg-primary-600 border-primary-600'
+              : 'border-gray-300 dark:border-gray-500 group-hover:border-primary-400'
+          }`}>
+            {checked && (
+              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+          <span className={`text-sm transition-colors ${
+            checked ? 'text-primary-600 font-medium' : 'text-gray-500 dark:text-gray-400'
+          }`}>
             {checked ? 'Да' : 'Нет'}
           </span>
-        </label>
+        </button>
       )
     }
 

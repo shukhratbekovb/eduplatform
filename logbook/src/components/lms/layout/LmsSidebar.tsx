@@ -203,9 +203,7 @@ export function LmsSidebar({
         'h-[60px] flex items-center border-b border-gray-100 shrink-0',
         collapsed ? 'justify-center' : 'px-4 gap-3'
       )}>
-        <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shrink-0">
-          <GraduationCap className="w-5 h-5 text-white" />
-        </div>
+        <img src="/favicon.svg" alt="EduPlatform" className="w-8 h-8 rounded-lg shrink-0" />
         {!collapsed && (
           <span className="text-sm font-bold text-gray-900 tracking-tight">EduPlatform</span>
         )}

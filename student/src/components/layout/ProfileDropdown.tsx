@@ -55,6 +55,7 @@ export function ProfileDropdown() {
 
   const handleLogout = () => {
     logout()
+    document.cookie = 'student-auth-token=; path=/; max-age=0'
     router.replace('/login')
   }
 

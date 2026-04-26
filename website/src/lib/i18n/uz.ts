@@ -1,6 +1,12 @@
 import { Translations } from "./types";
 
 export const uz: Translations = {
+  datepicker: {
+    selectDate: "Sanani tanlang",
+    today: "Bugun",
+    weekdays: ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"],
+    months: ["Yan", "Fev", "Mar", "Apr", "May", "Iyn", "Iyl", "Avg", "Sen", "Okt", "Noy", "Dek"],
+  },
   header: {
     courses: "Kurslar",
     advantages: "Afzalliklar",

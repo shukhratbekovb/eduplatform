@@ -1,4 +1,5 @@
 'use client'
+import { useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -50,6 +51,29 @@ export function LeadForm({
       customFields: {},
     },
   })
+
+  // Reset form when dialog opens or lead changes
+  useEffect(() => {
+    if (open) {
+      reset(lead ? {
+        fullName:     lead.fullName,
+        phone:        lead.phone,
+        email:        lead.email ?? '',
+        funnelId:     lead.funnelId,
+        stageId:      lead.stageId,
+        assignedTo:   lead.assignedTo,
+        customFields: lead.customFields ?? {},
+      } : {
+        fullName:     '',
+        phone:        '',
+        email:        '',
+        funnelId:     defaultFunnelId ?? funnels[0]?.id ?? '',
+        stageId:      defaultStageId  ?? stages[0]?.id ?? '',
+        assignedTo:   '',
+        customFields: {},
+      })
+    }
+  }, [open, lead]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Watch funnelId to load custom fields for the selected funnel
   const selectedFunnelId = useWatch({ control, name: 'funnelId' })

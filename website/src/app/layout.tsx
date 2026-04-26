@@ -13,6 +13,7 @@ export const metadata: Metadata = {
     "IT образование",
     "учебный центр",
   ],
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({

@@ -3,6 +3,13 @@
 import { useState } from "react";
 import { Send, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import AnimatedSection from "./AnimatedSection";
 
 const directionKeys = [
@@ -64,10 +71,10 @@ export default function ApplicationForm() {
 
   if (submitted) {
     return (
-      <section id="apply" className="py-24 relative">
+      <section id="apply" className="py-12 sm:py-16 lg:py-24 relative">
         <div className="max-w-xl mx-auto px-4 text-center">
           <AnimatedSection>
-            <div className="glass rounded-2xl p-12">
+            <div className="glass rounded-2xl p-6 sm:p-12">
               <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mx-auto mb-6">
                 <CheckCircle className="w-8 h-8 text-accent" />
               </div>
@@ -83,16 +90,16 @@ export default function ApplicationForm() {
   }
 
   return (
-    <section id="apply" className="py-24 relative">
+    <section id="apply" className="py-12 sm:py-16 lg:py-24 relative overflow-hidden">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-accent/5 rounded-full blur-[150px]" />
 
       <div className="relative max-w-xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AnimatedSection className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
+        <AnimatedSection className="text-center mb-8 sm:mb-12">
+          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
             {t.form.heading}
             <span className="gradient-text">{t.form.headingHighlight}</span>
           </h2>
-          <p className="text-gray-400 text-lg">{t.form.subtitle}</p>
+          <p className="text-gray-400 text-base sm:text-lg">{t.form.subtitle}</p>
         </AnimatedSection>
 
         <AnimatedSection delay={0.15}>
@@ -146,23 +153,21 @@ export default function ApplicationForm() {
               <label className="block text-sm text-gray-400 mb-1.5">
                 {t.form.direction}
               </label>
-              <select
-                required
-                value={form.direction}
-                onChange={(e) =>
-                  setForm({ ...form, direction: e.target.value })
-                }
-                className="w-full px-4 py-3 rounded-xl bg-dark-700/60 border border-white/5 text-white focus:outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/20 transition-all appearance-none"
+              <Select
+                value={form.direction || undefined}
+                onValueChange={(v) => setForm({ ...form, direction: v })}
               >
-                <option value="" className="bg-dark-800">
-                  {t.form.directionPlaceholder}
-                </option>
-                {directionKeys.map((key) => (
-                  <option key={key} value={key} className="bg-dark-800">
-                    {t.courses[key].title}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder={t.form.directionPlaceholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {directionKeys.map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {t.courses[key].title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, GraduationCap, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { authApi } from '@/lib/api/student'
@@ -46,6 +46,7 @@ export default function LoginPage() {
         return
       }
       setAuth(data.student, data.accessToken)
+      document.cookie = `student-auth-token=${data.accessToken}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
       router.replace('/dashboard')
     } catch (err: any) {
       const detail = err?.response?.data?.detail
@@ -62,10 +63,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-            <GraduationCap className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">EduPlatform</h1>
+          <img src="/logo.svg" alt="EduPlatform Student" className="h-14 mb-2" />
           <p className="text-sm text-gray-500 mt-1">{t('login.subtitle')}</p>
         </div>
 

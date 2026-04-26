@@ -195,6 +195,7 @@ export default function FunnelDetailPage() {
 
       {/* Edit field modal */}
       <CustomFieldForm
+        key={editField?.id ?? 'create'}
         open={!!editField}
         onOpenChange={(v) => !v && setEditField(null)}
         field={editField ?? undefined}

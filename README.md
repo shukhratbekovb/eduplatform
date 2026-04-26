@@ -1,33 +1,33 @@
 # EduPlatform
 
-Платформа управления IT-учебным центром. Дипломный проект (BISP).
+Management platform for an IT learning center. Capstone project (BISP).
 
-**Автор:** Шухратбеков Бобурбек ([shukhratbekovb@gmail.com](mailto:shukhratbekovb@gmail.com))
+**Author:** Shukhratbekov Boburbek ([shukhratbekovb@gmail.com](mailto:shukhratbekovb@gmail.com))
 
-## О проекте
+## About the Project
 
-EduPlatform — полнофункциональная платформа для управления IT-учебным центром, включающая три веб-приложения и единый бэкенд с ML-компонентом:
+EduPlatform is a full-featured platform for managing an IT learning center, consisting of three web applications and a unified backend with an ML component:
 
-- **[CRM](crm/README.md)** — управление воронками продаж, лидами, договорами
-- **[Logbook (LMS)](logbook/README.md)** — журнал преподавателя, расписание, аналитика, отчёты
-- **[Student Portal](student/README.md)** — личный кабинет студента с расписанием, оценками, геймификацией
-- **[Backend API](backend/README.md)** — FastAPI + PostgreSQL + ML-скоринг риска отчисления
+- **[CRM](crm/README.md)** — sales funnel management, leads, contracts
+- **[Logbook (LMS)](logbook/README.md)** — teacher's journal, schedule, analytics, reports
+- **[Student Portal](student/README.md)** — student dashboard with schedule, grades, gamification
+- **[Backend API](backend/README.md)** — FastAPI + PostgreSQL + ML dropout risk scoring
 
-## Архитектура
+## Architecture
 
 ```
 eduplatform/
 ├── backend/          FastAPI + Clean Architecture + ML     (port 8000)
-├── crm/              Next.js 14 — CRM для продажников      (port 3000)
-├── logbook/          Next.js 14 — Журнал преподавателя      (port 3001)
-├── student/          Next.js 14 — Портал студента           (port 3002)
+├── crm/              Next.js 14 — CRM for sales managers   (port 3000)
+├── logbook/          Next.js 14 — Teacher's journal         (port 3001)
+├── student/          Next.js 14 — Student portal            (port 3002)
 ├── docker-compose.yml
-└── README.md         (этот файл)
+└── README.md         (this file)
 ```
 
-### Стек технологий
+### Tech Stack
 
-| Компонент | Технология | Версия |
+| Component | Technology | Version |
 |-----------|-----------|--------|
 | Backend | Python + FastAPI + SQLAlchemy 2 (async) | 3.13 / 0.115 |
 | ML | scikit-learn (GradientBoosting) | 1.5 |
@@ -35,33 +35,33 @@ eduplatform/
 | Database | PostgreSQL | 16 |
 | Cache/Backend | Redis | 7 |
 | Frontends | Next.js + TypeScript + Tailwind CSS | 14.2 |
-| UI библиотека | Radix UI + Lucide Icons + Recharts | — |
+| UI Library | Radix UI + Lucide Icons + Recharts | — |
 | File Storage | Google Cloud Storage | — |
-| Контейнеризация | Docker + Docker Compose | — |
+| Containerization | Docker + Docker Compose | — |
 
-## Быстрый старт
+## Quick Start
 
 ```bash
-# 1. Клонировать репозиторий
+# 1. Clone the repository
 git clone git@github.com:shukhratbekovb/eduplatform.git
 cd eduplatform
 
-# 2. Запуск всех сервисов
+# 2. Start all services
 docker compose up -d --build
 
-# 3. Заполнение базы данных (200 студентов, 730 уроков, и т.д.)
+# 3. Seed the database (200 students, 730 lessons, etc.)
 docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/seed_full.py"
 
-# 4. Запуск ML-скоринга риска
+# 4. Run ML risk scoring
 docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/run_ml_scoring.py"
 
-# 5. Пересчёт геймификации
+# 5. Recalculate gamification
 docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/recalc_gamification.py"
 ```
 
-## Доступ
+## Access
 
-| Приложение | URL | Логин | Пароль |
+| Application | URL | Login | Password |
 |---|---|---|---|
 | CRM | http://localhost:3000 | director@edu.uz | password123 |
 | Logbook (LMS) | http://localhost:3001 | director@edu.uz | password123 |
@@ -69,62 +69,62 @@ docker compose exec api bash -c "PYTHONPATH=/app python /app/scripts/recalc_gami
 | API Docs (Swagger) | http://localhost:8000/docs | — | — |
 | PostgreSQL (PgAdmin) | localhost:5433 | edu / edu | DB: eduplatform |
 
-### Учётные записи
+### User Accounts
 
-| Роль | Email | Пароль |
+| Role | Email | Password |
 |------|-------|--------|
-| Директор | director@edu.uz | password123 |
-| МУП | mup@edu.uz | password123 |
-| Кассир | cashier@edu.uz | password123 |
-| Менеджер продаж | sales@edu.uz | password123 |
-| Преподаватель (Python) | t.python1@edu.uz | password123 |
-| Студент | student1@edu.uz | password123 |
+| Director | director@edu.uz | password123 |
+| Academic Manager (MUP) | mup@edu.uz | password123 |
+| Cashier | cashier@edu.uz | password123 |
+| Sales Manager | sales@edu.uz | password123 |
+| Teacher (Python) | t.python1@edu.uz | password123 |
+| Student | student1@edu.uz | password123 |
 
-### Матрица доступа
+### Access Matrix
 
-| Роль | Logbook (LMS) | CRM | Student Portal |
+| Role | Logbook (LMS) | CRM | Student Portal |
 |---|:---:|:---:|:---:|
-| Директор | ✅ | ✅ | ❌ |
-| МУП | ✅ | ❌ | ❌ |
-| Преподаватель | ✅ | ❌ | ❌ |
-| Кассир | ✅ | ❌ | ❌ |
-| Менеджер продаж | ❌ | ✅ | ❌ |
-| Студент | ❌ | ❌ | ✅ |
+| Director | ✅ | ✅ | ❌ |
+| Academic Manager (MUP) | ✅ | ❌ | ❌ |
+| Teacher | ✅ | ❌ | ❌ |
+| Cashier | ✅ | ❌ | ❌ |
+| Sales Manager | ❌ | ✅ | ❌ |
+| Student | ❌ | ❌ | ✅ |
 
-## Ключевые фичи
+## Key Features
 
-### ML Risk Scoring (Прогнозирование отчисления)
-- 14 признаков из 4 доменов: посещаемость, оценки, домашки, платежи
-- Модель: GradientBoostingClassifier (scikit-learn), ROC-AUC **0.93**
-- 4 уровня риска: LOW / MEDIUM / HIGH / CRITICAL
-- Автопересчёт: ночной batch (Celery) + событийный (после conduct-урока)
-- UI: прогресс-бар вероятности + 4 доменные карточки на странице студента
+### ML Risk Scoring (Dropout Prediction)
+- 14 features across 4 domains: attendance, grades, homework, payments
+- Model: GradientBoostingClassifier (scikit-learn), ROC-AUC **0.93**
+- 4 risk levels: LOW / MEDIUM / HIGH / CRITICAL
+- Auto-recalculation: nightly batch (Celery) + event-driven (after lesson conduct)
+- UI: probability progress bar + 4 domain cards on the student profile page
 
-### Геймификация
-- Звёзды: +5 за посещение, +10 за оценку 9-10, +15 за сданную домашку
-- Кристаллы: +5 за 5 посещений подряд, +15 за 10 подряд
-- Значки: Bronze → Silver(100⭐) → Gold(300) → Platinum(600) → Diamond(1000)
-- 7 достижений, магазин наград
+### Gamification
+- Stars: +5 for attendance, +10 for grade 9-10, +15 for submitted homework
+- Crystals: +5 for 5 consecutive attendances, +15 for 10 consecutive
+- Badges: Bronze → Silver(100⭐) → Gold(300) → Platinum(600) → Diamond(1000)
+- 7 achievements, reward shop
 
-### Автоматические задачи МУП
-- 3+ пропусков подряд → задача "Связаться с родителями"
-- Задолженность > 30 дней → задача "Обсудить оплату"
-- HIGH/CRITICAL риск → задача "Провести беседу"
-- Триггер через RabbitMQ после каждого conduct-урока
+### Automated Academic Manager Tasks
+- 3+ consecutive absences → task "Contact parents"
+- Debt overdue > 30 days → task "Discuss payment"
+- HIGH/CRITICAL risk → task "Conduct an intervention meeting"
+- Triggered via RabbitMQ after each lesson conduct
 
-### Мультиязычность (i18n)
-- Полная поддержка RU/EN в Logbook (~500 ключей) и Student Portal (~300 ключей)
-- Zustand persist + localStorage для сохранения выбора
+### Internationalization (i18n)
+- Full RU/EN support in Logbook (~500 keys) and Student Portal (~300 keys)
+- Zustand persist + localStorage to save language preference
 
-### Уведомления
-- Единый API: объединяет LMS + CRM уведомления
-- Авто-уведомления: задолженности, риски, просроченные ДЗ
-- Колокольчик с badge + полная страница `/notifications`
+### Notifications
+- Unified API: combines LMS + CRM notifications
+- Auto-notifications: overdue debts, risks, overdue homework
+- Bell icon with badge + full `/notifications` page
 
-## Валюта
+## Currency
 
-**UZS (узбекский сум)** — единственная валюта платформы.
+**UZS (Uzbek som)** — the only currency used on the platform.
 
-## Лицензия
+## License
 
-Дипломный проект (BISP). Все права защищены.
+Capstone project (BISP). All rights reserved.

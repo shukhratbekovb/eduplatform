@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, BookOpen, TrendingUp, Calendar,
   FolderOpen, Trophy, ShoppingBag, CreditCard, Phone,
-  ChevronLeft, ChevronRight, GraduationCap,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { usePortalStore } from '@/lib/stores/usePortalStore'
@@ -79,9 +79,7 @@ export function Sidebar() {
         'flex items-center gap-3 px-4 py-5 border-b border-sidebar-border',
         collapsed && 'justify-center px-2'
       )}>
-        <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shrink-0">
-          <GraduationCap className="w-5 h-5 text-white" />
-        </div>
+        <img src="/favicon.svg" alt="EduPlatform" className="w-8 h-8 rounded-lg shrink-0" />
         {!collapsed && (
           <div>
             <p className="text-sm font-bold text-white leading-none">EduPlatform</p>

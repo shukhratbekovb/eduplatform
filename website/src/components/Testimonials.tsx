@@ -19,20 +19,20 @@ export default function Testimonials() {
   const item = items[current];
 
   return (
-    <section id="reviews" className="py-24 relative">
+    <section id="reviews" className="py-12 sm:py-16 lg:py-24 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AnimatedSection className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
+        <AnimatedSection className="text-center mb-10 sm:mb-16">
+          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
             {t.testimonials.heading}
             <span className="gradient-text">{t.testimonials.headingHighlight}</span>
           </h2>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+          <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto">
             {t.testimonials.subtitle}
           </p>
         </AnimatedSection>
 
         <div className="max-w-3xl mx-auto">
-          <div className="glass rounded-2xl p-8 sm:p-12 relative">
+          <div className="glass rounded-2xl p-6 sm:p-8 lg:p-12 relative">
             <Quote className="absolute top-6 left-6 w-10 h-10 text-accent/10" />
 
             <AnimatePresence mode="wait">
@@ -44,12 +44,12 @@ export default function Testimonials() {
                 transition={{ duration: 0.3 }}
                 className="text-center"
               >
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-accent to-cyan-400 flex items-center justify-center mx-auto mb-6">
-                  <span className="text-dark-900 font-bold text-lg">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-accent to-cyan-400 flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                  <span className="text-dark-900 font-bold text-sm sm:text-lg">
                     {item.avatar}
                   </span>
                 </div>
-                <p className="text-gray-300 text-lg leading-relaxed mb-6 italic">
+                <p className="text-gray-300 text-base sm:text-lg leading-relaxed mb-4 sm:mb-6 italic">
                   &ldquo;{item.text}&rdquo;
                 </p>
                 <p className="text-white font-semibold">{item.name}</p>

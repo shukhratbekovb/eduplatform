@@ -1,61 +1,61 @@
-# CRM — Управление продажами
+# CRM — Sales Management
 
-Веб-приложение для отдела продаж: воронки, лиды, договоры, аналитика конверсий.
+Web application for the sales department: funnels, leads, contracts, conversion analytics.
 
-**Порт:** 3000 | **URL:** http://localhost:3000
+**Port:** 3000 | **URL:** http://localhost:3000
 
-## Роли
+## Roles
 
-| Роль | Доступ |
+| Role | Access |
 |------|--------|
-| Директор | Полный доступ + аналитика |
-| Менеджер продаж | Лиды, задачи, договоры |
+| Director | Full access + analytics |
+| Sales Manager | Leads, tasks, contracts |
 
-## Технологии
+## Technologies
 
-| Библиотека | Версия | Назначение |
+| Library | Version | Purpose |
 |-----------|--------|-----------|
-| Next.js | 14.2.29 | React-фреймворк (App Router) |
-| React | ^18.3 | UI-библиотека |
-| TypeScript | ^5.7 | Типизация |
-| Tailwind CSS | ^3.4 | Утилитарные стили |
+| Next.js | 14.2.29 | React framework (App Router) |
+| React | ^18.3 | UI library |
+| TypeScript | ^5.7 | Type safety |
+| Tailwind CSS | ^3.4 | Utility-first styles |
 | Zustand | ^5.0 | State management (auth, theme, i18n) |
-| TanStack React Query | ^5.62 | Серверное состояние |
-| Axios | ^1.7 | HTTP-клиент |
-| Radix UI | ^1-2 | Headless UI-компоненты |
-| Lucide React | ^0.468 | Иконки |
-| Recharts | ^2.14 | Графики аналитики (Sankey, Funnel) |
-| date-fns | ^4.1 | Работа с датами |
-| react-hook-form + zod | ^7.54 / ^3.24 | Формы |
-| @dnd-kit | ^6.3 | Drag-and-drop для Kanban лидов |
-| papaparse | ^5.4 | Импорт CSV (лиды) |
-| sonner | ^1.7 | Toast-уведомления |
+| TanStack React Query | ^5.62 | Server state |
+| Axios | ^1.7 | HTTP client |
+| Radix UI | ^1-2 | Headless UI components |
+| Lucide React | ^0.468 | Icons |
+| Recharts | ^2.14 | Analytics charts (Sankey, Funnel) |
+| date-fns | ^4.1 | Date utilities |
+| react-hook-form + zod | ^7.54 / ^3.24 | Forms |
+| @dnd-kit | ^6.3 | Drag-and-drop for Kanban leads |
+| papaparse | ^5.4 | CSV import (leads) |
+| sonner | ^1.7 | Toast notifications |
 
-## Структура
+## Structure
 
 ```
 crm/
 ├── src/
 │   ├── app/
 │   │   ├── (auth)/
-│   │   │   └── login/page.tsx         Страница входа
+│   │   │   └── login/page.tsx         Login page
 │   │   ├── (crm)/
-│   │   │   ├── layout.tsx             Layout с auth guard + sidebar
-│   │   │   ├── page.tsx               Главная (редирект на leads)
+│   │   │   ├── layout.tsx             Layout with auth guard + sidebar
+│   │   │   ├── page.tsx               Home (redirect to leads)
 │   │   │   ├── leads/
-│   │   │   │   ├── page.tsx           Kanban-доска лидов
-│   │   │   │   └── [id]/page.tsx      Карточка лида
+│   │   │   │   ├── page.tsx           Kanban board for leads
+│   │   │   │   └── [id]/page.tsx      Lead card
 │   │   │   ├── contracts/
-│   │   │   │   ├── page.tsx           Список договоров
-│   │   │   │   └── [id]/page.tsx      Детали договора
-│   │   │   ├── analytics/page.tsx     Аналитика (конверсия, Sankey)
-│   │   │   ├── tasks/page.tsx         Задачи менеджеров
-│   │   │   ├── contacts/page.tsx      Контактная база
-│   │   │   ├── dashboard/page.tsx     Дашборд
+│   │   │   │   ├── page.tsx           Contracts list
+│   │   │   │   └── [id]/page.tsx      Contract details
+│   │   │   ├── analytics/page.tsx     Analytics (conversion, Sankey)
+│   │   │   ├── tasks/page.tsx         Manager tasks
+│   │   │   ├── contacts/page.tsx      Contact database
+│   │   │   ├── dashboard/page.tsx     Dashboard
 │   │   │   └── settings/
-│   │   │       ├── page.tsx           Настройки
-│   │   │       ├── funnels/           Управление воронками
-│   │   │       └── sources/           Источники лидов
+│   │   │       ├── page.tsx           Settings
+│   │   │       ├── funnels/           Funnel management
+│   │   │       └── sources/           Lead sources
 │   │   └── layout.tsx                 Root layout
 │   │
 │   ├── components/crm/
@@ -65,35 +65,35 @@ crm/
 │   │   └── contracts/                 ContractForm
 │   │
 │   ├── lib/
-│   │   ├── api/crm/                   API-клиенты (leads, funnels, contracts)
-│   │   ├── hooks/crm/                 React Query хуки
+│   │   ├── api/crm/                   API clients (leads, funnels, contracts)
+│   │   ├── hooks/crm/                 React Query hooks
 │   │   ├── stores/                    auth, theme, i18n stores
-│   │   └── i18n/                      Словари RU/EN
+│   │   └── i18n/                      RU/EN dictionaries
 │   │
-│   └── types/crm/                     TypeScript типы
+│   └── types/crm/                     TypeScript types
 │
 ├── package.json
 ├── Dockerfile
-└── README.md                          (этот файл)
+└── README.md                          (this file)
 ```
 
-## Запуск
+## Getting Started
 
 ```bash
 # Docker
 docker compose up -d --build crm
 
-# Dev (локально)
+# Dev (local)
 cd crm
 npm install
 npm run dev    # http://localhost:3000
 ```
 
-## Функциональность
+## Features
 
-- **Воронки продаж** — настраиваемые этапы с drag-and-drop перемещением лидов
-- **Лиды** — карточки с кастомными полями, историей активностей, комментариями
-- **Договоры** — создание с автогенерацией студента и графика платежей
-- **Аналитика** — конверсия воронки, Sankey-диаграмма, эффективность менеджеров
-- **Тёмная тема** — переключатель light/dark mode
-- **i18n** — полная поддержка RU/EN
+- **Sales funnels** — customizable stages with drag-and-drop lead movement
+- **Leads** — cards with custom fields, activity history, comments
+- **Contracts** — creation with auto-generation of student account and payment schedule
+- **Analytics** — funnel conversion, Sankey diagram, manager performance
+- **Dark theme** — light/dark mode toggle
+- **i18n** — full RU/EN support

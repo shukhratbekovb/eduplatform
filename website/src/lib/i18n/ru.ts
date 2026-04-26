@@ -1,6 +1,12 @@
 import { Translations } from "./types";
 
 export const ru: Translations = {
+  datepicker: {
+    selectDate: "Выберите дату",
+    today: "Сегодня",
+    weekdays: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
+    months: ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"],
+  },
   header: {
     courses: "Курсы",
     advantages: "Преимущества",

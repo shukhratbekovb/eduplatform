@@ -13,6 +13,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'EduPlatform CRM',
   description: 'CRM система для образовательных центров',
+  icons: { icon: '/favicon.svg' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -6,22 +6,24 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── Shared with CRM ────────────────────────────────────────────
+        // ── Logbook: Emerald theme ─────────────────────────────────────
         primary: {
-          50:  '#EEF2FF',
-          100: '#E0E7FF',
-          500: '#6366F1',
-          600: '#4F46E5',
-          700: '#4338CA',
-          800: '#3730A3',
+          50:  '#ECFDF5',
+          100: '#D1FAE5',
+          200: '#A7F3D0',
+          400: '#34D399',
+          500: '#10B981',
+          600: '#059669',
+          700: '#047857',
+          800: '#065F46',
         },
         sidebar: {
-          bg:           '#1E1B4B',
-          hover:        '#2D2A6E',
-          active:       '#312E81',
-          text:         '#C7D2FE',
+          bg:           '#064E3B',
+          hover:        '#065F46',
+          active:       '#047857',
+          text:         '#A7F3D0',
           'text-active':'#FFFFFF',
-          icon:         '#818CF8',
+          icon:         '#6EE7B7',
         },
         success: {
           50:  '#ECFDF5',
@@ -99,7 +101,7 @@ const config: Config = {
         lg:     '0 10px 15px -3px rgba(0,0,0,0.10), 0 4px 6px -2px rgba(0,0,0,0.05)',
         drawer: '-4px 0 24px rgba(0,0,0,0.12)',
         drag:   '0 8px 32px rgba(0,0,0,0.18)',
-        lesson: '0 2px 8px rgba(99,102,241,0.12)',
+        lesson: '0 2px 8px rgba(16,185,129,0.12)',
         'lesson-drag': '0 8px 32px rgba(0,0,0,0.18)',
       },
       borderRadius: {

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Users, CheckSquare, BarChart2, Settings, FileText,
-  ChevronLeft, ChevronRight, GraduationCap, BookUser, LayoutDashboard,
+  ChevronLeft, ChevronRight, BookUser, LayoutDashboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { useCrmStore } from '@/lib/stores/useCrmStore'
@@ -90,9 +90,7 @@ export function CrmSidebar() {
         'flex items-center gap-3 px-4 py-5 border-b border-white/10',
         collapsed && 'justify-center px-2'
       )}>
-        <div className="w-8 h-8 bg-primary-600 rounded-md flex items-center justify-center shrink-0">
-          <GraduationCap className="w-5 h-5 text-white" />
-        </div>
+        <img src="/favicon.svg" alt="EduPlatform" className="w-8 h-8 rounded-md shrink-0" />
         {!collapsed && (
           <div>
             <p className="text-sm font-bold text-white leading-none">EduPlatform</p>

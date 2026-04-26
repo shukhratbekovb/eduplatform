@@ -27,7 +27,7 @@ function MockupCard() {
 
   return (
     <div className="relative">
-      <div className="w-[280px] sm:w-[320px] mx-auto">
+      <div className="w-full max-w-[280px] sm:max-w-[320px] mx-auto">
         <div className="rounded-[2rem] glass-light p-3 shadow-2xl shadow-accent/5">
           <div className="rounded-[1.5rem] bg-dark-900 overflow-hidden">
             <div className="flex justify-between items-center px-5 pt-3 pb-2">
@@ -101,19 +101,19 @@ export default function Platform() {
   const t = useT();
 
   return (
-    <section id="platform" className="py-24 relative overflow-hidden">
+    <section id="platform" className="py-12 sm:py-16 lg:py-24 relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AnimatedSection className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
+        <AnimatedSection className="text-center mb-10 sm:mb-16">
+          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
             {t.platform.heading}
             <span className="gradient-text">{t.platform.headingHighlight}</span>
           </h2>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+          <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto">
             {t.platform.subtitle}
           </p>
         </AnimatedSection>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-20 items-center">
           <AnimatedSection className="order-2 lg:order-1 flex justify-center">
             <MockupCard />
           </AnimatedSection>

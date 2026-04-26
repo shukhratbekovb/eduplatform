@@ -46,11 +46,11 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Logo */}
-          <a href="#" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-cyan-400 flex items-center justify-center group-hover:shadow-lg group-hover:shadow-accent/25 transition-shadow">
-              <GraduationCap className="w-5 h-5 text-dark-900" />
+          <a href="#" className="flex items-center gap-2 sm:gap-2.5 group min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-accent to-cyan-400 flex items-center justify-center shrink-0 group-hover:shadow-lg group-hover:shadow-accent/25 transition-shadow">
+              <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-dark-900" />
             </div>
-            <span className="text-lg font-bold text-white">
+            <span className="text-base sm:text-lg font-bold text-white truncate">
               Edu<span className="text-accent">Platform</span>
             </span>
           </a>
@@ -129,7 +129,7 @@ export default function Header() {
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
-          className="md:hidden glass border-t border-white/5"
+          className="md:hidden glass border-t border-white/5 max-h-[80vh] overflow-y-auto"
         >
           <div className="px-4 py-4 space-y-1">
             {navLinks.map((link) => (
@@ -144,7 +144,7 @@ export default function Header() {
             ))}
 
             {/* Mobile language switcher */}
-            <div className="flex gap-2 px-4 py-3">
+            <div className="flex flex-wrap gap-2 px-4 py-3">
               {localeOrder.map((l) => (
                 <button
                   key={l}

@@ -16,16 +16,16 @@ export default function HowItWorks() {
   const t = useT();
 
   return (
-    <section className="py-24 relative">
+    <section className="py-12 sm:py-16 lg:py-24 relative">
       <div className="absolute inset-0 bg-dark-800/40" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AnimatedSection className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
+        <AnimatedSection className="text-center mb-10 sm:mb-16">
+          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
             {t.howItWorks.heading}
             <span className="gradient-text">{t.howItWorks.headingHighlight}</span>
           </h2>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+          <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto">
             {t.howItWorks.subtitle}
           </p>
         </AnimatedSection>
@@ -35,14 +35,14 @@ export default function HowItWorks() {
             const s = t.howItWorks[item.key];
             return (
               <AnimatedSection key={item.step} delay={i * 0.1}>
-                <div className="relative p-6 rounded-2xl glass h-full group hover:bg-dark-600/40 transition-all">
-                  <span className="text-5xl font-black text-accent/10 absolute top-4 right-4 group-hover:text-accent/20 transition-colors">
+                <div className="relative p-5 sm:p-6 rounded-2xl glass h-full group hover:bg-dark-600/40 transition-all">
+                  <span className="text-4xl sm:text-5xl font-black text-accent/10 absolute top-4 right-4 group-hover:text-accent/20 transition-colors">
                     {item.step}
                   </span>
                   <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-5 group-hover:bg-accent/20 transition-colors">
                     <item.icon className="w-6 h-6 text-accent" />
                   </div>
-                  <h3 className="text-white font-semibold text-lg mb-2">
+                  <h3 className="text-white font-semibold text-base sm:text-lg mb-2 pr-10">
                     {s.title}
                   </h3>
                   <p className="text-gray-400 text-sm leading-relaxed">

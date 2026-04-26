@@ -54,16 +54,16 @@ export default function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="py-24 relative">
+    <section id="faq" className="py-12 sm:py-16 lg:py-24 relative">
       <div className="absolute inset-0 bg-dark-800/40" />
 
       <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AnimatedSection className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
+        <AnimatedSection className="text-center mb-10 sm:mb-16">
+          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
             {t.faq.heading}
             <span className="gradient-text">{t.faq.headingHighlight}</span>
           </h2>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+          <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto">
             {t.faq.subtitle}
           </p>
         </AnimatedSection>

@@ -408,8 +408,8 @@ export function LmsTopbar({
           <Menu className="w-5 h-5" />
         </button>
 
-        <span className="text-base font-bold text-primary-600 tracking-tight hidden sm:block">
-          LOGBOOK
+        <span className="text-base font-bold tracking-tight hidden sm:block">
+          <span className="text-gray-900">Edu</span><span className="text-primary-600">Platform</span>
         </span>
 
         {/* Stats badges */}
