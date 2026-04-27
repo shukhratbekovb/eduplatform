@@ -246,19 +246,10 @@ jobs:
           path: backend/
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        with:
-          args: >
-            -Dsonar.projectKey=eduplatform
-            -Dsonar.sources=backend/src
-            -Dsonar.tests=backend/tests
-            -Dsonar.python.coverage.reportPaths=backend/coverage.xml
-            -Dsonar.python.version=${{ env.PYTHON_VERSION }}
-            -Dsonar.qualitygate.wait=true
-            -Dsonar.coverage.exclusions=**/models/**,**/workers/**,**/ml/**,**/api/**,**/config.py,**/database.py,**/main.py
 
       - name: Check Coverage Threshold
         working-directory: backend
