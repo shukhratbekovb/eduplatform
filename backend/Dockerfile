@@ -34,6 +34,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY src ./src
 COPY alembic ./alembic
 COPY alembic.ini .
+COPY scripts ./scripts
 
 # Непривилегированный пользователь
 RUN useradd -m -u 1001 appuser && chown -R appuser /app

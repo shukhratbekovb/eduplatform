@@ -40,6 +40,8 @@ def upgrade() -> None:
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("description", sa.Text, nullable=True),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
+        sa.Column("duration_months", sa.Integer, nullable=True),
+        sa.Column("total_lessons", sa.Integer, nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
     )
@@ -83,13 +85,14 @@ def upgrade() -> None:
         sa.Column("address", sa.Text, nullable=True),
         sa.Column("direction_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("directions.id", ondelete="SET NULL"), nullable=True),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
-        sa.Column("gpa", sa.Numeric(4, 2), nullable=False, server_default="0"),
-        sa.Column("attendance_percent", sa.Numeric(5, 2), nullable=False, server_default="0"),
+        sa.Column("gpa", sa.Numeric(4, 2), nullable=True),
+        sa.Column("attendance_percent", sa.Numeric(5, 2), nullable=True),
         sa.Column("risk_level", sa.Enum("low","medium","high","critical", name="risk_level", create_type=False), nullable=False, server_default="low"),
         sa.Column("stars", sa.Integer, nullable=False, server_default="0"),
         sa.Column("crystals", sa.Integer, nullable=False, server_default="0"),
         sa.Column("coins", sa.Integer, nullable=False, server_default="0"),
         sa.Column("badge_level", sa.Enum("bronze","silver","gold","platinum","diamond", name="badge_level", create_type=False), nullable=False, server_default="bronze"),
+        sa.Column("risk_last_updated", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
     )
@@ -169,6 +172,7 @@ def upgrade() -> None:
         sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False),
         sa.Column("subject_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True),
         sa.Column("lesson_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("lessons.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("exam_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("type", sa.Enum("homework","exam","quiz","project","participation", name="grade_type", create_type=False), nullable=False),
         sa.Column("score", sa.Numeric(5, 2), nullable=False),
         sa.Column("max_score", sa.Numeric(5, 2), nullable=False, server_default="100"),
@@ -216,6 +220,7 @@ def upgrade() -> None:
         sa.Column("description", sa.Text, nullable=True),
         sa.Column("due_date", sa.DateTime(timezone=True), nullable=False),
         sa.Column("max_score", sa.Numeric(5, 2), nullable=False, server_default="100"),
+        sa.Column("file_urls", postgresql.JSONB, nullable=True),
         sa.Column("created_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
@@ -261,7 +266,7 @@ def upgrade() -> None:
         sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False),
         sa.Column("amount", sa.Integer, nullable=False),
         sa.Column("reason", sa.Text, nullable=True),
-        sa.Column("created_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("issued_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_coin_transactions_student_id", "coin_transactions", ["student_id"])
@@ -290,7 +295,7 @@ def upgrade() -> None:
         "lms_notifications",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("type", sa.Enum("homework_graded","lesson_cancelled","lesson_scheduled","payment_due","risk_alert","general", name="lms_notif_type", create_type=False), nullable=False),
+        sa.Column("type", sa.String(50), nullable=False),
         sa.Column("title", sa.String(255), nullable=False),
         sa.Column("body", sa.Text, nullable=True),
         sa.Column("is_read", sa.Boolean, nullable=False, server_default="false"),
@@ -333,30 +338,6 @@ def upgrade() -> None:
     op.create_index("ix_salary_calculations_teacher_id", "salary_calculations", ["teacher_id"])
 
     op.create_table(
-        "payments",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("contract_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("contracts.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("group_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("groups.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("description", sa.Text, nullable=True),
-        sa.Column("amount", sa.Numeric(12, 2), nullable=False),
-        sa.Column("currency", sa.String(10), nullable=False, server_default="UZS"),
-        sa.Column("status", sa.Enum("pending","paid","overdue","cancelled", name="payment_status", create_type=False), nullable=False, server_default="pending"),
-        sa.Column("due_date", sa.Date, nullable=True),
-        sa.Column("paid_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("method", sa.String(50), nullable=True),
-        sa.Column("paid_amount", sa.Numeric(12, 2), nullable=False, server_default="0"),
-        sa.Column("period_number", sa.Integer, nullable=True),
-        sa.Column("receipt_url", sa.Text, nullable=True),
-        sa.Column("created_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-    )
-    op.create_index("ix_payments_student_id", "payments", ["student_id"])
-    op.create_index("ix_payments_status", "payments", ["status"])
-    op.create_index("ix_payments_due_date", "payments", ["due_date"])
-
-    op.create_table(
         "exams",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("subject_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True),
@@ -375,10 +356,10 @@ def upgrade() -> None:
         "risk_factors",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("factor", sa.String(100), nullable=False),
-        sa.Column("value", sa.Numeric(10, 4), nullable=True),
-        sa.Column("note", sa.Text, nullable=True),
-        sa.Column("recorded_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("factor_type", sa.String(50), nullable=False),
+        sa.Column("value", sa.Numeric(5, 2), nullable=False),
+        sa.Column("details", postgresql.JSONB, nullable=True),
+        sa.Column("computed_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_risk_factors_student_id", "risk_factors", ["student_id"])
 
@@ -422,6 +403,30 @@ def upgrade() -> None:
     )
     op.create_index("ix_student_activity_events_student_id", "student_activity_events", ["student_id"])
     op.create_index("ix_student_activity_events_created_at", "student_activity_events", ["created_at"])
+
+    op.create_table(
+        "shop_items",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("name", sa.String(255), nullable=False),
+        sa.Column("description", sa.Text, nullable=True),
+        sa.Column("icon", sa.String(10), nullable=True),
+        sa.Column("category", sa.String(50), nullable=False, server_default="reward"),
+        sa.Column("cost_stars", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("cost_crystals", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("stock", sa.Integer, nullable=True),
+        sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+    )
+
+    op.create_table(
+        "student_purchases",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("item_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("shop_items.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("purchased_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.create_index("ix_student_purchases_student_id", "student_purchases", ["student_id"])
 
     # --- CRM ---
     op.create_table(
@@ -633,6 +638,30 @@ def upgrade() -> None:
     op.create_index("ix_contract_files_contract_id", "contract_files", ["contract_id"])
 
     op.create_table(
+        "payments",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("contract_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("contracts.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("group_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("groups.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("description", sa.Text, nullable=True),
+        sa.Column("amount", sa.Numeric(12, 2), nullable=False),
+        sa.Column("currency", sa.String(10), nullable=False, server_default="UZS"),
+        sa.Column("status", sa.Enum("pending","paid","overdue","cancelled", name="payment_status", create_type=False), nullable=False, server_default="pending"),
+        sa.Column("due_date", sa.Date, nullable=True),
+        sa.Column("paid_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("method", sa.String(50), nullable=True),
+        sa.Column("paid_amount", sa.Numeric(12, 2), nullable=False, server_default="0"),
+        sa.Column("period_number", sa.Integer, nullable=True),
+        sa.Column("receipt_url", sa.Text, nullable=True),
+        sa.Column("created_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+    )
+    op.create_index("ix_payments_student_id", "payments", ["student_id"])
+    op.create_index("ix_payments_status", "payments", ["status"])
+    op.create_index("ix_payments_due_date", "payments", ["due_date"])
+
+    op.create_table(
         "student_documents",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("student_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False),
@@ -666,6 +695,8 @@ def downgrade() -> None:
     op.drop_table("crm_contacts")
     op.drop_table("stages")
     op.drop_table("funnels")
+    op.drop_table("student_purchases")
+    op.drop_table("shop_items")
     op.drop_table("student_activity_events")
     op.drop_table("student_achievements")
     op.drop_table("achievements")
@@ -699,6 +730,6 @@ def downgrade() -> None:
         "grade_type", "homework_status", "payment_status", "ach_category",
         "activity_event_type", "lead_source_type", "lead_status", "cf_type",
         "activity_type", "task_priority", "task_status_crm", "notif_type_crm",
-        "lms_notif_type", "material_type",
+        "material_type",
     ]:
         op.execute(f"DROP TYPE IF EXISTS {enum}")
