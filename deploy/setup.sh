@@ -10,7 +10,7 @@ set -euo pipefail
 DOMAIN="shukhratbekov.uz"
 SUBDOMAINS="crm.${DOMAIN} lms.${DOMAIN} student.${DOMAIN} api.${DOMAIN}"
 ALL_DOMAINS="${DOMAIN} ${SUBDOMAINS}"
-APP_DIR="/opt/eduplatform"
+APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 EMAIL="${1:-admin@${DOMAIN}}"
 
 echo "══════════════════════════════════════════════════"
