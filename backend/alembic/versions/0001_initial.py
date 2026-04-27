@@ -204,7 +204,7 @@ def upgrade() -> None:
         sa.Column("url", sa.Text, nullable=False),
         sa.Column("s3_key", sa.Text, nullable=True),
         sa.Column("size_bytes", sa.BigInteger, nullable=True),
-        sa.Column("language", sa.String(10), nullable=True),
+        sa.Column("language", sa.Enum("ru","en","uz", name="material_lang", create_type=True), nullable=True),
         sa.Column("order", sa.Integer, nullable=False, server_default="0"),
         sa.Column("uploaded_by", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
@@ -730,6 +730,6 @@ def downgrade() -> None:
         "grade_type", "homework_status", "payment_status", "ach_category",
         "activity_event_type", "lead_source_type", "lead_status", "cf_type",
         "activity_type", "task_priority", "task_status_crm", "notif_type_crm",
-        "material_type",
+        "material_type", "material_lang",
     ]:
         op.execute(f"DROP TYPE IF EXISTS {enum}")
