@@ -211,9 +211,7 @@ class TestLeaderboard:
     async def test_leaderboard_metric_crystals(self, client: AsyncClient, db_session: AsyncSession) -> None:
         user, student = await _create_student_with_balance(db_session, stars=10, crystals=999)
 
-        resp = await client.get(
-            "/api/v1/gamification/leaderboard?metric=crystals", headers=auth_headers(user)
-        )
+        resp = await client.get("/api/v1/gamification/leaderboard?metric=crystals", headers=auth_headers(user))
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) >= 1

@@ -43,9 +43,7 @@ async def _make_funnel(db: AsyncSession, name: str = "Test Funnel"):  # type: ig
 
 class TestCreateFunnel:
     async def test_create(self, client: AsyncClient, db_session: AsyncSession) -> None:
-        director = await _persist_user(
-            db_session, email="dir_cfun@test.com", role=UserRole.DIRECTOR
-        )
+        director = await _persist_user(db_session, email="dir_cfun@test.com", role=UserRole.DIRECTOR)
 
         resp = await client.post(
             "/api/v1/crm/funnels",
@@ -57,12 +55,8 @@ class TestCreateFunnel:
         assert data["name"] == "Sales Pipeline"
         assert data["isArchived"] is False
 
-    async def test_sales_manager_can_create(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        manager = await _persist_user(
-            db_session, email="mgr_cfun@test.com", role=UserRole.SALES_MANAGER
-        )
+    async def test_sales_manager_can_create(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        manager = await _persist_user(db_session, email="mgr_cfun@test.com", role=UserRole.SALES_MANAGER)
 
         resp = await client.post(
             "/api/v1/crm/funnels",
@@ -77,9 +71,7 @@ class TestCreateFunnel:
 
 class TestListFunnels:
     async def test_list(self, client: AsyncClient, db_session: AsyncSession) -> None:
-        director = await _persist_user(
-            db_session, email="dir_lfun@test.com", role=UserRole.DIRECTOR
-        )
+        director = await _persist_user(db_session, email="dir_lfun@test.com", role=UserRole.DIRECTOR)
         await _make_funnel(db_session, name="Funnel A")
 
         resp = await client.get("/api/v1/crm/funnels", headers=auth_headers(director))
@@ -92,12 +84,8 @@ class TestListFunnels:
 
 
 class TestCreateStage:
-    async def test_create_stage(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_cstg@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_create_stage(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_cstg@test.com", role=UserRole.DIRECTOR)
         funnel = await _make_funnel(db_session)
 
         resp = await client.post(
@@ -122,12 +110,8 @@ class TestCreateStage:
 
 
 class TestListStages:
-    async def test_list_stages(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_lstg@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_list_stages(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_lstg@test.com", role=UserRole.DIRECTOR)
         funnel = await _make_funnel(db_session)
 
         # Add a stage directly
@@ -157,12 +141,8 @@ class TestListStages:
 
 
 class TestCreateCustomField:
-    async def test_create_text_field(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_ccf1@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_create_text_field(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_ccf1@test.com", role=UserRole.DIRECTOR)
         funnel = await _make_funnel(db_session)
 
         resp = await client.post(
@@ -176,12 +156,8 @@ class TestCreateCustomField:
         assert data["type"] == "text"
         assert data["isActive"] is True
 
-    async def test_create_select_field(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_ccf2@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_create_select_field(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_ccf2@test.com", role=UserRole.DIRECTOR)
         funnel = await _make_funnel(db_session)
 
         resp = await client.post(
@@ -199,12 +175,8 @@ class TestCreateCustomField:
         assert data["type"] == "select"
         assert data["options"]["choices"] == ["Python", "JS", "Java"]
 
-    async def test_create_number_field(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_ccf3@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_create_number_field(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_ccf3@test.com", role=UserRole.DIRECTOR)
         funnel = await _make_funnel(db_session)
 
         resp = await client.post(
@@ -220,12 +192,8 @@ class TestCreateCustomField:
 
 
 class TestListCustomFields:
-    async def test_list_custom_fields(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_lcf@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_list_custom_fields(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_lcf@test.com", role=UserRole.DIRECTOR)
         funnel = await _make_funnel(db_session)
 
         # Create a field first

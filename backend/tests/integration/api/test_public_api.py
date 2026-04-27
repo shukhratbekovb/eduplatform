@@ -110,9 +110,7 @@ async def _make_api_source(db: AsyncSession):  # type: ignore[no-untyped-def]
 
 
 class TestWebsiteLead:
-    async def test_creates_lead_and_auto_provisions(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
+    async def test_creates_lead_and_auto_provisions(self, client: AsyncClient, db_session: AsyncSession) -> None:
         # Need a manager so auto-assign works
         await _persist_user(db_session, email="mgr_web@test.com", role=UserRole.SALES_MANAGER)
 

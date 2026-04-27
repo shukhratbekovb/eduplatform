@@ -84,6 +84,7 @@ class TestAggregateRoot:
         pulled = agg.pull_events()
         assert len(pulled) == 2
 
+
 # ── Email ────────────────────────────────────────────────────────────────────
 
 

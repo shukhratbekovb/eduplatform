@@ -321,8 +321,8 @@ async def list_student_documents(
         await db.execute(
             text(
                 "SELECT id, type, file_url, file_name, uploaded_at "
-                    "FROM student_documents WHERE student_id = :sid "
-                    "ORDER BY uploaded_at"
+                "FROM student_documents WHERE student_id = :sid "
+                "ORDER BY uploaded_at"
             ),
             {"sid": student_id},
         )

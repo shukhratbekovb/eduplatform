@@ -171,9 +171,7 @@ class TestCreateStageUseCase:
     async def test_missing_funnel_raises(self) -> None:
         uc = CreateStageUseCase(InMemoryStageRepo(), InMemoryFunnelRepo())
         with pytest.raises(ValueError, match="not found"):
-            await uc.execute(
-                CreateStageInput(funnel_id=uuid4(), name="Stage")
-            )
+            await uc.execute(CreateStageInput(funnel_id=uuid4(), name="Stage"))
 
 
 # ── ListStagesUseCase ────────────────────────────────────────────────────────

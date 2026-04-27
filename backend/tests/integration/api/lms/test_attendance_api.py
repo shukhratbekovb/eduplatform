@@ -57,9 +57,7 @@ async def _setup_attendance_prereqs(db: AsyncSession):
     # Create two students
     students = []
     for i in range(2):
-        stu_user = await _persist_user(
-            db, email=f"stu_att_{uuid4().hex[:6]}@test.com", role=UserRole.STUDENT
-        )
+        stu_user = await _persist_user(db, email=f"stu_att_{uuid4().hex[:6]}@test.com", role=UserRole.STUDENT)
         s = StudentModel(
             id=uuid4(),
             user_id=stu_user.id,

@@ -54,12 +54,8 @@ async def _make_funnel(db: AsyncSession):  # type: ignore[no-untyped-def]
 
 
 class TestListSources:
-    async def test_lists_with_auto_singletons(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        manager = await _persist_user(
-            db_session, email="mgr_src_list@test.com", role=UserRole.SALES_MANAGER
-        )
+    async def test_lists_with_auto_singletons(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        manager = await _persist_user(db_session, email="mgr_src_list@test.com", role=UserRole.SALES_MANAGER)
 
         resp = await client.get("/api/v1/crm/lead-sources", headers=auth_headers(manager))
         assert resp.status_code == 200
@@ -75,12 +71,8 @@ class TestListSources:
 
 
 class TestCreateSource:
-    async def test_create_landing_source(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_csrc1@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_create_landing_source(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_csrc1@test.com", role=UserRole.DIRECTOR)
         funnel = await _make_funnel(db_session)
 
         resp = await client.post(
@@ -99,12 +91,8 @@ class TestCreateSource:
         assert data["apiKey"] is not None
         assert data["isSystemSource"] is False
 
-    async def test_create_api_source(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_csrc2@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_create_api_source(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_csrc2@test.com", role=UserRole.DIRECTOR)
         funnel = await _make_funnel(db_session)
 
         resp = await client.post(
@@ -121,12 +109,8 @@ class TestCreateSource:
         assert data["type"] == "api"
         assert data["apiKey"] is not None
 
-    async def test_block_manual_duplicate(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_csrc3@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_block_manual_duplicate(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_csrc3@test.com", role=UserRole.DIRECTOR)
         # Ensure singleton exists first
         manual = LeadSourceModel(
             id=uuid4(),
@@ -150,12 +134,8 @@ class TestCreateSource:
 
 
 class TestDeleteSource:
-    async def test_delete_non_system(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_dsrc1@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_delete_non_system(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_dsrc1@test.com", role=UserRole.DIRECTOR)
         funnel = await _make_funnel(db_session)
         source = LeadSourceModel(
             id=uuid4(),
@@ -175,12 +155,8 @@ class TestDeleteSource:
         )
         assert resp.status_code == 204
 
-    async def test_block_system_source_delete(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_dsrc2@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_block_system_source_delete(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_dsrc2@test.com", role=UserRole.DIRECTOR)
         manual = LeadSourceModel(
             id=uuid4(),
             name="Manual Source",
@@ -202,12 +178,8 @@ class TestDeleteSource:
 
 
 class TestRegenerateKey:
-    async def test_regenerate(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        director = await _persist_user(
-            db_session, email="dir_regen@test.com", role=UserRole.DIRECTOR
-        )
+    async def test_regenerate(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        director = await _persist_user(db_session, email="dir_regen@test.com", role=UserRole.DIRECTOR)
         funnel = await _make_funnel(db_session)
         old_key = secrets.token_urlsafe(32)
         source = LeadSourceModel(

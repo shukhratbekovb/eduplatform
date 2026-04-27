@@ -49,9 +49,7 @@ class TestCreateGroupUseCase:
     async def test_creates_group(self) -> None:
         repo = InMemoryGroupRepo()
         uc = CreateGroupUseCase(repo)
-        group = await uc.execute(
-            CreateGroupInput(name="PY-101", start_date=date(2026, 1, 15))
-        )
+        group = await uc.execute(CreateGroupInput(name="PY-101", start_date=date(2026, 1, 15)))
         assert group.name == "PY-101"
         assert group.start_date == date(2026, 1, 15)
         saved = await repo.get_by_id(group.id)
@@ -61,9 +59,7 @@ class TestCreateGroupUseCase:
         repo = InMemoryGroupRepo()
         uc = CreateGroupUseCase(repo)
         schedule = {"mon": "09:00-10:30", "wed": "09:00-10:30"}
-        group = await uc.execute(
-            CreateGroupInput(name="JS-201", schedule=schedule)
-        )
+        group = await uc.execute(CreateGroupInput(name="JS-201", schedule=schedule))
         assert group.schedule == schedule
 
     async def test_creates_group_defaults(self) -> None:
