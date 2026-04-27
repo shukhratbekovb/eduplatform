@@ -1,11 +1,10 @@
 import uuid
-from datetime import datetime
-
-from datetime import date
-
-from sqlalchemy import Boolean, Date, Enum as SAEnum, ForeignKey, Integer, Numeric, String, Text, DateTime
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from datetime import date, datetime
 from decimal import Decimal
+
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
@@ -49,11 +48,14 @@ class LeadSourceModel(Base, UUIDPrimaryKey):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(
         SAEnum("manual", "import", "api", "landing", name="lead_source_type", create_type=False),
-        nullable=False, default="manual",
+        nullable=False,
+        default="manual",
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     funnel_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("funnels.id", ondelete="SET NULL"), nullable=True,
+        UUID(as_uuid=True),
+        ForeignKey("funnels.id", ondelete="SET NULL"),
+        nullable=True,
     )
     api_key: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     webhook_url: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -80,11 +82,15 @@ class LeadModel(Base, UUIDPrimaryKey, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     contact_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("crm_contacts.id", ondelete="SET NULL"), nullable=True,
+        UUID(as_uuid=True),
+        ForeignKey("crm_contacts.id", ondelete="SET NULL"),
+        nullable=True,
     )
     status: Mapped[str] = mapped_column(
         SAEnum("active", "won", "lost", name="lead_status", create_type=False),
-        nullable=False, default="active", index=True,
+        nullable=False,
+        default="active",
+        index=True,
     )
     lost_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     custom_fields: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)  # type: ignore[type-arg]
@@ -192,11 +198,14 @@ class CrmTaskModel(Base, UUIDPrimaryKey, TimestampMixin):
     due_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     priority: Mapped[str] = mapped_column(
         SAEnum("low", "medium", "high", "critical", name="task_priority", create_type=False),
-        nullable=False, default="medium",
+        nullable=False,
+        default="medium",
     )
     status: Mapped[str] = mapped_column(
         SAEnum("pending", "in_progress", "done", "overdue", name="task_status_crm", create_type=False),
-        nullable=False, default="pending", index=True,
+        nullable=False,
+        default="pending",
+        index=True,
     )
     reminder_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_auto_created: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

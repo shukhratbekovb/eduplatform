@@ -15,6 +15,7 @@
     - ChangePasswordRequest: смена пароля текущим пользователем.
     - UpdateProfileRequest: обновление профиля.
 """
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -29,11 +30,13 @@ class LoginRequest(BaseModel):
         email: Email пользователя (валидируется как EmailStr).
         password: Пароль в открытом виде.
     """
+
     email: EmailStr
     password: str
 
 
 # ── Camel-case response shapes expected by all frontends ──────────────────────
+
 
 class UserOut(BaseModel):
     """Представление пользователя, возвращаемое всем фронтендам (camelCase).
@@ -51,6 +54,7 @@ class UserOut(BaseModel):
         dateOfBirth: Дата рождения в формате ISO (опционально).
         isActive: Флаг активности учётной записи.
     """
+
     id: UUID
     name: str
     email: str
@@ -81,6 +85,7 @@ class StudentProfile(BaseModel):
         phone: Телефон студента (опционально).
         dateOfBirth: Дата рождения в формате ISO (опционально).
     """
+
     id: UUID
     fullName: str
     photo: str | None = None
@@ -108,6 +113,7 @@ class LoginResponse(BaseModel):
         refreshToken: JWT refresh-токен для обновления access-токена.
         tokenType: Тип токена (всегда "bearer").
     """
+
     user: UserOut
     # student is populated only when role == 'student'; the Student Portal reads this field
     student: StudentProfile | None = None
@@ -118,6 +124,7 @@ class LoginResponse(BaseModel):
 
 # ── Legacy snake_case aliases (for any internal callers) ─────────────────────
 
+
 class TokenResponse(BaseModel):
     """Ответ с парой токенов (snake_case, для внутренних вызовов).
 
@@ -126,6 +133,7 @@ class TokenResponse(BaseModel):
         refresh_token: JWT refresh-токен.
         token_type: Тип токена (по умолчанию "bearer").
     """
+
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
@@ -137,6 +145,7 @@ class RefreshRequest(BaseModel):
     Attributes:
         refresh_token: Действующий refresh-токен для обмена на новую пару.
     """
+
     refresh_token: str
 
 
@@ -151,6 +160,7 @@ class UserResponse(BaseModel):
         avatar_url: URL аватара.
         is_active: Флаг активности.
     """
+
     id: UUID
     email: str
     name: str
@@ -168,6 +178,7 @@ class CreateUserRequest(BaseModel):
         name: Полное имя.
         role: Роль (director, mup, teacher, cashier, sales_manager, student).
     """
+
     email: EmailStr
     password: str
     name: str
@@ -199,6 +210,7 @@ class ChangePasswordRequest(BaseModel):
         old_password: Текущий пароль для верификации.
         new_password: Новый пароль (минимум 8 символов).
     """
+
     old_password: str
     new_password: str
 
@@ -232,6 +244,7 @@ class UpdateProfileRequest(BaseModel):
         phone: Новый номер телефона (опционально).
         date_of_birth: Дата рождения в формате ISO (опционально).
     """
+
     name: str | None = None
     avatar_url: str | None = None
     phone: str | None = None

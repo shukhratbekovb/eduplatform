@@ -20,14 +20,14 @@ GPA по 10-балльной шкале после каждого изменен
     POST /grades/bulk — массовое создание оценок.
     GET /grades/students/{student_id} — история оценок студента.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select, update
 
@@ -58,6 +58,7 @@ class GradeOut(BaseModel):
         graded_by: UUID преподавателя, выставившего оценку.
         graded_at: Дата и время выставления (ISO формат).
     """
+
     id: UUID
     student_id: UUID
     subject_id: UUID
@@ -82,6 +83,7 @@ class GradeIn(BaseModel):
         max_score: Максимальный балл (по умолчанию 100.0).
         comment: Комментарий (опционально).
     """
+
     student_id: UUID
     subject_id: UUID
     lesson_id: UUID | None = None
@@ -97,6 +99,7 @@ class BulkGradeIn(BaseModel):
     Attributes:
         grades: Список оценок для создания.
     """
+
     grades: list[GradeIn]
 
 
@@ -124,7 +127,7 @@ async def create_grade(body: GradeIn, _: TeacherGuard, current_user: CurrentUser
     if body.score < 0 or body.score > body.max_score:
         raise HTTPException(status_code=400, detail="Score must be between 0 and max_score")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     m = GradeRecordModel(
         id=uuid4(),
         student_id=body.student_id,
@@ -173,7 +176,7 @@ async def create_bulk_grades(
         if g.score < 0 or g.score > g.max_score:
             raise HTTPException(status_code=400, detail=f"Invalid score for student {g.student_id}")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     records: list[GradeRecordModel] = []
     affected_students: set[UUID] = set()
 
@@ -247,18 +250,14 @@ async def _recalculate_gpa(student_id: UUID, db: DbSession) -> None:
         db: Асинхронная сессия SQLAlchemy.
     """
     result = await db.execute(
-        select(
-            func.avg(GradeRecordModel.score / GradeRecordModel.max_score * 10)
-        ).where(GradeRecordModel.student_id == student_id)
+        select(func.avg(GradeRecordModel.score / GradeRecordModel.max_score * 10)).where(
+            GradeRecordModel.student_id == student_id
+        )
     )
     avg = result.scalar_one_or_none()
     if avg is not None:
         gpa = round(float(avg), 2)
-        await db.execute(
-            update(StudentModel)
-            .where(StudentModel.id == student_id)
-            .values(gpa=gpa)
-        )
+        await db.execute(update(StudentModel).where(StudentModel.id == student_id).values(gpa=gpa))
 
 
 def _out(m: GradeRecordModel) -> GradeOut:

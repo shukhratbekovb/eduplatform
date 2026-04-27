@@ -1,4 +1,5 @@
 """Unit tests — CRM Lead use cases (in-memory repos)."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -16,10 +17,10 @@ from src.application.crm.leads.use_cases import (
     WinLeadUseCase,
 )
 from src.application.interfaces.repositories import Page
-from src.domain.crm.entities import Funnel, Lead, LeadStatus, Stage
-
+from src.domain.crm.entities import Lead, LeadStatus, Stage
 
 # ── In-memory stubs ───────────────────────────────────────────────────────────
+
 
 class InMemoryLeadRepo:
     def __init__(self) -> None:
@@ -68,6 +69,7 @@ def _make_lead_input(funnel_id: Any, stage_id: Any) -> CreateLeadInput:
 
 # ── CreateLeadUseCase ─────────────────────────────────────────────────────────
 
+
 class TestCreateLeadUseCase:
     async def test_creates_lead(self) -> None:
         leads = InMemoryLeadRepo()
@@ -98,13 +100,17 @@ class TestCreateLeadUseCase:
 
 # ── GetLeadUseCase ────────────────────────────────────────────────────────────
 
+
 class TestGetLeadUseCase:
     async def test_get_existing(self) -> None:
         leads = InMemoryLeadRepo()
         funnel_id = uuid4()
         lead = Lead.create(
-            full_name="Ali", phone="+998901234567",
-            funnel_id=funnel_id, stage_id=uuid4(), assigned_to=uuid4(),
+            full_name="Ali",
+            phone="+998901234567",
+            funnel_id=funnel_id,
+            stage_id=uuid4(),
+            assigned_to=uuid4(),
         )
         lead.pull_events()
         await leads.save(lead)
@@ -121,11 +127,15 @@ class TestGetLeadUseCase:
 
 # ── WinLeadUseCase ────────────────────────────────────────────────────────────
 
+
 class TestWinLeadUseCase:
     async def _active_lead(self, leads: InMemoryLeadRepo) -> Lead:
         lead = Lead.create(
-            full_name="Lead", phone="+998901234567",
-            funnel_id=uuid4(), stage_id=uuid4(), assigned_to=uuid4(),
+            full_name="Lead",
+            phone="+998901234567",
+            funnel_id=uuid4(),
+            stage_id=uuid4(),
+            assigned_to=uuid4(),
         )
         lead.pull_events()
         await leads.save(lead)
@@ -146,11 +156,15 @@ class TestWinLeadUseCase:
 
 # ── LoseLeadUseCase ───────────────────────────────────────────────────────────
 
+
 class TestLoseLeadUseCase:
     async def _active_lead(self, leads: InMemoryLeadRepo) -> Lead:
         lead = Lead.create(
-            full_name="Lead", phone="+998901234567",
-            funnel_id=uuid4(), stage_id=uuid4(), assigned_to=uuid4(),
+            full_name="Lead",
+            phone="+998901234567",
+            funnel_id=uuid4(),
+            stage_id=uuid4(),
+            assigned_to=uuid4(),
         )
         lead.pull_events()
         await leads.save(lead)
@@ -174,6 +188,7 @@ class TestLoseLeadUseCase:
 
 # ── MoveLeadStageUseCase ──────────────────────────────────────────────────────
 
+
 class TestMoveLeadStageUseCase:
     async def test_moves_stage(self) -> None:
         leads = InMemoryLeadRepo()
@@ -181,8 +196,11 @@ class TestMoveLeadStageUseCase:
         funnel_id = uuid4()
 
         lead = Lead.create(
-            full_name="Lead", phone="+998901234567",
-            funnel_id=funnel_id, stage_id=uuid4(), assigned_to=uuid4(),
+            full_name="Lead",
+            phone="+998901234567",
+            funnel_id=funnel_id,
+            stage_id=uuid4(),
+            assigned_to=uuid4(),
         )
         lead.pull_events()
         await leads.save(lead)
@@ -197,12 +215,16 @@ class TestMoveLeadStageUseCase:
 
 # ── AssignLeadUseCase ─────────────────────────────────────────────────────────
 
+
 class TestAssignLeadUseCase:
     async def test_assigns(self) -> None:
         leads = InMemoryLeadRepo()
         lead = Lead.create(
-            full_name="Lead", phone="+998901234567",
-            funnel_id=uuid4(), stage_id=uuid4(), assigned_to=uuid4(),
+            full_name="Lead",
+            phone="+998901234567",
+            funnel_id=uuid4(),
+            stage_id=uuid4(),
+            assigned_to=uuid4(),
         )
         lead.pull_events()
         await leads.save(lead)

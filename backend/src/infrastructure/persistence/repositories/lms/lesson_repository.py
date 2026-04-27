@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -18,12 +18,14 @@ def _to_domain(m: LessonModel) -> Lesson:
     # approximate end_time from duration_minutes
     if m.scheduled_at and m.duration_minutes:
         from datetime import timedelta
+
         end_dt = m.scheduled_at + timedelta(minutes=m.duration_minutes)
         end_time = end_dt.strftime("%H:%M")
     else:
         end_time = start_time
 
     from datetime import date
+
     return Lesson(
         id=m.id,
         group_id=m.group_id,
@@ -40,7 +42,6 @@ def _to_domain(m: LessonModel) -> Lesson:
 
 
 def _apply_fields(m: LessonModel, lesson: Lesson) -> None:
-    from datetime import timedelta
     # combine lesson_date + start_time into scheduled_at
     try:
         hour, minute = map(int, lesson.start_time.split(":"))
@@ -51,11 +52,11 @@ def _apply_fields(m: LessonModel, lesson: Lesson) -> None:
             lesson.lesson_date.day,
             hour,
             minute,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         )
         duration = (end_hour * 60 + end_minute) - (hour * 60 + minute)
     except Exception:
-        scheduled_at = datetime.now(timezone.utc)
+        scheduled_at = datetime.now(UTC)
         duration = 90
 
     m.group_id = lesson.group_id

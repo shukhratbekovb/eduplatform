@@ -1,4 +1,5 @@
 """Auth domain value objects."""
+
 from dataclasses import dataclass
 
 from src.domain.auth.specifications import PASSWORD_RULES
@@ -7,6 +8,7 @@ from src.domain.auth.specifications import PASSWORD_RULES
 @dataclass(frozen=True)
 class Password:
     """Raw password before hashing — validates all strength rules via specifications."""
+
     value: str
 
     def __post_init__(self) -> None:

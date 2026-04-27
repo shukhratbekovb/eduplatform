@@ -1,4 +1,5 @@
 """Unit tests — LMS domain entities."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -8,7 +9,6 @@ from uuid import uuid4
 import pytest
 
 from src.domain.lms.entities import (
-    BadgeLevel,
     Lesson,
     LessonStatus,
     Payment,
@@ -16,10 +16,9 @@ from src.domain.lms.entities import (
     RiskLevel,
     Student,
 )
-from src.domain.shared.value_objects import Money
-
 
 # ── Student ───────────────────────────────────────────────────────────────────
+
 
 class TestStudent:
     def _make(self, **kw) -> Student:  # type: ignore[no-untyped-def]
@@ -54,7 +53,8 @@ class TestStudent:
 
     def test_no_event_when_risk_unchanged(self) -> None:
         s = self._make(
-            attendance_percent=Decimal("80"), gpa=Decimal("8"),
+            attendance_percent=Decimal("80"),
+            gpa=Decimal("8"),
             risk_level=RiskLevel.LOW,
         )
         s.recalculate_risk()
@@ -82,6 +82,7 @@ class TestStudent:
 
 
 # ── Lesson ────────────────────────────────────────────────────────────────────
+
 
 class TestLesson:
     def _make(self, **kw) -> Lesson:  # type: ignore[no-untyped-def]
@@ -148,6 +149,7 @@ class TestLesson:
 
 
 # ── Payment ───────────────────────────────────────────────────────────────────
+
 
 class TestPayment:
     def _make(self) -> Payment:

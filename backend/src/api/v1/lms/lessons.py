@@ -32,21 +32,28 @@
     POST /lessons/{id}/materials — добавление материала.
     DELETE /lessons/{id}/materials/{mid} — удаление материала.
 """
+
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Response, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
-from typing import Annotated
 from sqlalchemy import select
 
 from src.api.dependencies import CurrentUser, DbSession, require_roles
 from src.infrastructure.persistence.models.lms import (
-    AttendanceRecordModel, GradeRecordModel, DiamondRecordModel,
-    LessonMaterialModel, LessonModel, GroupModel, SubjectModel, StudentModel,
+    AttendanceRecordModel,
+    DiamondRecordModel,
+    GradeRecordModel,
+    GroupModel,
+    LessonMaterialModel,
+    LessonModel,
+    StudentModel,
+    SubjectModel,
 )
 
 router = APIRouter(prefix="/lessons", tags=["LMS - Lessons"])
@@ -64,10 +71,12 @@ class CamelModel(BaseModel):
     Используется для request-схем, принимающих данные в camelCase
     от фронтенд-приложений.
     """
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
+
 
 class LessonResponse(BaseModel):
     """Ответ с данными урока (camelCase).
@@ -87,6 +96,7 @@ class LessonResponse(BaseModel):
         cancelReason: Причина отмены.
         createdAt: Дата создания (ISO).
     """
+
     id: UUID
     groupId: UUID
     subjectId: UUID | None = None
@@ -121,10 +131,17 @@ class LessonResponse(BaseModel):
         end_dt = scheduled + timedelta(minutes=duration) if scheduled else None
         et = end_dt.strftime("%H:%M") if end_dt else "00:00"
         return cls(
-            id=m.id, groupId=m.group_id, subjectId=m.subject_id,
-            teacherId=m.teacher_id, roomId=m.room_id,
-            date=d, startTime=st, endTime=et,
-            status=m.status, topic=m.topic, isOnline=m.is_online,
+            id=m.id,
+            groupId=m.group_id,
+            subjectId=m.subject_id,
+            teacherId=m.teacher_id,
+            roomId=m.room_id,
+            date=d,
+            startTime=st,
+            endTime=et,
+            status=m.status,
+            topic=m.topic,
+            isOnline=m.is_online,
             cancelReason=m.cancel_reason,
             createdAt=m.created_at.isoformat() if m.created_at else None,
         )
@@ -139,6 +156,7 @@ class PagedLessons(BaseModel):
         page: Текущая страница.
         pages: Общее количество страниц.
     """
+
     items: list[LessonResponse]
     total: int
     page: int
@@ -159,13 +177,14 @@ class CreateLessonRequest(CamelModel):
         topic: Тема урока (опционально).
         is_online: Онлайн-формат (по умолчанию False).
     """
+
     group_id: UUID
     subject_id: UUID | None = None
     teacher_id: UUID | None = None
     room_id: UUID | None = None
-    date: str            # YYYY-MM-DD
-    start_time: str      # HH:MM
-    end_time: str        # HH:MM
+    date: str  # YYYY-MM-DD
+    start_time: str  # HH:MM
+    end_time: str  # HH:MM
     topic: str | None = None
     is_online: bool = False
 
@@ -187,15 +206,16 @@ class BulkCreateRequest(CamelModel):
         start_time: Время начала (HH:MM).
         end_time: Время окончания (HH:MM).
     """
+
     group_id: UUID
     subject_id: UUID | None = None
     teacher_id: UUID | None = None
     room_id: UUID | None = None
-    start_date: str      # YYYY-MM-DD
-    end_date: str        # YYYY-MM-DD
+    start_date: str  # YYYY-MM-DD
+    end_date: str  # YYYY-MM-DD
     weekdays: list[int]  # 1=Mon … 7=Sun
-    start_time: str      # HH:MM
-    end_time: str        # HH:MM
+    start_time: str  # HH:MM
+    end_time: str  # HH:MM
 
 
 class AttendanceIn(CamelModel):
@@ -206,9 +226,11 @@ class AttendanceIn(CamelModel):
         status: Статус (present, absent, late, excused).
         note: Примечание (опционально).
     """
+
     student_id: UUID
     status: str
     note: str | None = None
+
 
 class GradeIn(CamelModel):
     """Данные оценки одного студента при проведении урока.
@@ -218,9 +240,11 @@ class GradeIn(CamelModel):
         grade: Оценка (0-10).
         comment: Комментарий (опционально).
     """
+
     student_id: UUID
     grade: float
     comment: str | None = None
+
 
 class DiamondIn(CamelModel):
     """Данные начисления бриллиантов студенту при проведении урока.
@@ -229,8 +253,10 @@ class DiamondIn(CamelModel):
         student_id: UUID студента.
         diamonds: Количество бриллиантов для начисления.
     """
+
     student_id: UUID
     diamonds: int
+
 
 class ConductRequest(CamelModel):
     """Запрос на проведение урока (conduct).
@@ -244,6 +270,7 @@ class ConductRequest(CamelModel):
         grades: Список оценок (0-10).
         diamonds: Список начислений бриллиантов.
     """
+
     topic: str | None = None
     attendance: list[AttendanceIn] = []
     grades: list[GradeIn] = []
@@ -256,10 +283,12 @@ class CancelRequest(BaseModel):
     Attributes:
         reason: Причина отмены (обязательно).
     """
+
     reason: str
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 async def _validate_subject_direction(db, group_id: UUID, subject_id: UUID | None) -> None:
     """Проверяет, что предмет относится к тому же направлению, что и группа.
@@ -289,8 +318,12 @@ async def _validate_subject_direction(db, group_id: UUID, subject_id: UUID | Non
 
 
 async def _check_conflicts(
-    db, scheduled_at: datetime, duration: int,
-    group_id: UUID, teacher_id: UUID | None, room_id: UUID | None,
+    db,
+    scheduled_at: datetime,
+    duration: int,
+    group_id: UUID,
+    teacher_id: UUID | None,
+    room_id: UUID | None,
     exclude_id: UUID | None = None,
 ) -> None:
     """Проверяет конфликты расписания по преподавателю, кабинету и группе.
@@ -310,7 +343,7 @@ async def _check_conflicts(
     Raises:
         HTTPException: 409 Conflict — если обнаружены конфликты (список ошибок).
     """
-    from sqlalchemy import and_, or_
+    from sqlalchemy import and_
 
     end_at = scheduled_at + timedelta(minutes=duration)
     # Overlaps: existing.start < new.end AND existing.end > new.start
@@ -326,7 +359,7 @@ async def _check_conflicts(
     # We need: existing_end > scheduled_at
     # existing_end = LessonModel.scheduled_at + interval(duration_minutes)
     # SQLAlchemy: use text or func
-    from sqlalchemy import text as sa_text, literal_column
+    from sqlalchemy import literal_column
 
     overlap_cond = and_(
         LessonModel.status != "cancelled",
@@ -389,9 +422,15 @@ def _duration_minutes(start: str, end: str) -> int:
 
 
 def _create_lesson_model(
-    group_id: UUID, subject_id: UUID | None, teacher_id: UUID | None,
-    room_id: UUID | None, d: str, start_time: str, end_time: str,
-    is_online: bool = False, topic: str | None = None,
+    group_id: UUID,
+    subject_id: UUID | None,
+    teacher_id: UUID | None,
+    room_id: UUID | None,
+    d: str,
+    start_time: str,
+    end_time: str,
+    is_online: bool = False,
+    topic: str | None = None,
 ) -> LessonModel:
     """Создаёт ORM-модель урока с заполненными полями.
 
@@ -425,6 +464,7 @@ def _create_lesson_model(
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
+
 @router.post("", response_model=LessonResponse, status_code=status.HTTP_201_CREATED)
 async def create_lesson(body: CreateLessonRequest, _: StaffGuard, db: DbSession) -> LessonResponse:
     """Создание одного урока.
@@ -451,10 +491,15 @@ async def create_lesson(body: CreateLessonRequest, _: StaffGuard, db: DbSession)
     await _check_conflicts(db, scheduled, duration, body.group_id, body.teacher_id, body.room_id)
 
     m = _create_lesson_model(
-        group_id=body.group_id, subject_id=body.subject_id,
-        teacher_id=body.teacher_id, room_id=body.room_id,
-        d=body.date, start_time=body.start_time, end_time=body.end_time,
-        is_online=body.is_online, topic=body.topic,
+        group_id=body.group_id,
+        subject_id=body.subject_id,
+        teacher_id=body.teacher_id,
+        room_id=body.room_id,
+        d=body.date,
+        start_time=body.start_time,
+        end_time=body.end_time,
+        is_online=body.is_online,
+        topic=body.topic,
     )
     db.add(m)
     await db.commit()
@@ -501,9 +546,13 @@ async def create_bulk_lessons(body: BulkCreateRequest, _: StaffGuard, db: DbSess
             try:
                 await _check_conflicts(db, scheduled, duration, body.group_id, body.teacher_id, body.room_id)
                 m = _create_lesson_model(
-                    group_id=body.group_id, subject_id=body.subject_id,
-                    teacher_id=body.teacher_id, room_id=body.room_id,
-                    d=cur.isoformat(), start_time=body.start_time, end_time=body.end_time,
+                    group_id=body.group_id,
+                    subject_id=body.subject_id,
+                    teacher_id=body.teacher_id,
+                    room_id=body.room_id,
+                    d=cur.isoformat(),
+                    start_time=body.start_time,
+                    end_time=body.end_time,
                 )
                 db.add(m)
                 created.append(m)
@@ -573,19 +622,25 @@ async def list_lessons(
     start_str = week_start or date_from
     end_str = week_end or date_to
     if start_str:
-        q = q.where(LessonModel.scheduled_at >= datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc))
+        q = q.where(LessonModel.scheduled_at >= datetime.fromisoformat(start_str).replace(tzinfo=UTC))
     if end_str:
-        q = q.where(LessonModel.scheduled_at < datetime.fromisoformat(end_str).replace(tzinfo=timezone.utc) + timedelta(days=1))
+        q = q.where(LessonModel.scheduled_at < datetime.fromisoformat(end_str).replace(tzinfo=UTC) + timedelta(days=1))
 
     total = (await db.execute(select(fn.count()).select_from(q.subquery()))).scalar() or 0
-    rows = (await db.execute(
-        q.order_by(LessonModel.scheduled_at.asc().nullslast())
-        .offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                q.order_by(LessonModel.scheduled_at.asc().nullslast()).offset((page - 1) * page_size).limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     return PagedLessons(
         items=[LessonResponse.from_model(m) for m in rows],
-        total=total, page=page,
+        total=total,
+        page=page,
         pages=max(1, -(-total // page_size)),
     )
 
@@ -612,7 +667,9 @@ async def get_lesson(lesson_id: UUID, current_user: CurrentUser, db: DbSession) 
 
 
 @router.post("/{lesson_id}/conduct", response_model=LessonResponse)
-async def conduct_lesson(lesson_id: UUID, body: ConductRequest, _: StaffGuard, current_user: CurrentUser, db: DbSession) -> LessonResponse:
+async def conduct_lesson(
+    lesson_id: UUID, body: ConductRequest, _: StaffGuard, current_user: CurrentUser, db: DbSession
+) -> LessonResponse:
     """Проведение урока — сохранение посещаемости, оценок и бриллиантов.
 
     Комплексная операция, выполняющая в рамках одной транзакции:
@@ -654,9 +711,9 @@ async def conduct_lesson(lesson_id: UUID, body: ConductRequest, _: StaffGuard, c
 
     # Check edit window: lesson can be conducted on the same day (any time)
     # Compare dates only — ignore time, since server may be in different timezone
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if m.scheduled_at:
-        sched = m.scheduled_at if m.scheduled_at.tzinfo else m.scheduled_at.replace(tzinfo=timezone.utc)
+        sched = m.scheduled_at if m.scheduled_at.tzinfo else m.scheduled_at.replace(tzinfo=UTC)
         lesson_day_end = sched.replace(hour=23, minute=59, second=59)
         if now.date() < sched.date():
             raise HTTPException(status_code=400, detail="Урок ещё не начался")
@@ -664,12 +721,17 @@ async def conduct_lesson(lesson_id: UUID, body: ConductRequest, _: StaffGuard, c
             # Allow directors/MUP to bypass, or if there's an approved late request
             if current_user.role not in ("director", "mup"):
                 from src.infrastructure.persistence.models.lms import LateEntryRequestModel
-                approved = (await db.execute(
-                    select(LateEntryRequestModel.id).where(
-                        LateEntryRequestModel.lesson_id == lesson_id,
-                        LateEntryRequestModel.is_approved == True,  # noqa: E712
-                    ).limit(1)
-                )).scalar()
+
+                approved = (
+                    await db.execute(
+                        select(LateEntryRequestModel.id)
+                        .where(
+                            LateEntryRequestModel.lesson_id == lesson_id,
+                            LateEntryRequestModel.is_approved == True,  # noqa: E712
+                        )
+                        .limit(1)
+                    )
+                ).scalar()
                 if not approved:
                     raise HTTPException(
                         status_code=403,
@@ -680,42 +742,58 @@ async def conduct_lesson(lesson_id: UUID, body: ConductRequest, _: StaffGuard, c
     if body.topic:
         m.topic = body.topic
 
-    now_ts = datetime.now(timezone.utc)
+    now_ts = datetime.now(UTC)
 
     # Save attendance
     for att in body.attendance:
-        existing = (await db.execute(
-            select(AttendanceRecordModel).where(
-                AttendanceRecordModel.lesson_id == lesson_id,
-                AttendanceRecordModel.student_id == att.student_id,
+        existing = (
+            await db.execute(
+                select(AttendanceRecordModel).where(
+                    AttendanceRecordModel.lesson_id == lesson_id,
+                    AttendanceRecordModel.student_id == att.student_id,
+                )
             )
-        )).scalar_one_or_none()
+        ).scalar_one_or_none()
         if existing:
             existing.status = att.status
             existing.note = att.note
         else:
-            db.add(AttendanceRecordModel(
-                id=uuid4(), lesson_id=lesson_id, student_id=att.student_id,
-                status=att.status, note=att.note,
-                recorded_by=current_user.id, recorded_at=now_ts,
-            ))
+            db.add(
+                AttendanceRecordModel(
+                    id=uuid4(),
+                    lesson_id=lesson_id,
+                    student_id=att.student_id,
+                    status=att.status,
+                    note=att.note,
+                    recorded_by=current_user.id,
+                    recorded_at=now_ts,
+                )
+            )
 
     # Save grades
     for gr in body.grades:
-        existing = (await db.execute(
-            select(GradeRecordModel).where(
-                GradeRecordModel.lesson_id == lesson_id,
-                GradeRecordModel.student_id == gr.student_id,
+        existing = (
+            await db.execute(
+                select(GradeRecordModel).where(
+                    GradeRecordModel.lesson_id == lesson_id,
+                    GradeRecordModel.student_id == gr.student_id,
+                )
             )
-        )).scalar_one_or_none()
+        ).scalar_one_or_none()
         if existing:
             existing.score = gr.grade
             existing.comment = gr.comment
         else:
             grade_params: dict = {
-                "id": uuid4(), "student_id": gr.student_id, "lesson_id": lesson_id,
-                "type": "participation", "score": gr.grade, "max_score": 10,
-                "comment": gr.comment, "graded_by": current_user.id, "graded_at": now_ts,
+                "id": uuid4(),
+                "student_id": gr.student_id,
+                "lesson_id": lesson_id,
+                "type": "participation",
+                "score": gr.grade,
+                "max_score": 10,
+                "comment": gr.comment,
+                "graded_by": current_user.id,
+                "graded_at": now_ts,
             }
             if m.subject_id:
                 grade_params["subject_id"] = m.subject_id
@@ -723,16 +801,25 @@ async def conduct_lesson(lesson_id: UUID, body: ConductRequest, _: StaffGuard, c
 
     # Save diamonds
     for dia in body.diamonds:
-        db.add(DiamondRecordModel(
-            id=uuid4(), lesson_id=lesson_id, student_id=dia.student_id,
-            amount=dia.diamonds, reason="Урок",
-            awarded_by=current_user.id, awarded_at=now_ts,
-        ))
+        db.add(
+            DiamondRecordModel(
+                id=uuid4(),
+                lesson_id=lesson_id,
+                student_id=dia.student_id,
+                amount=dia.diamonds,
+                reason="Урок",
+                awarded_by=current_user.id,
+                awarded_at=now_ts,
+            )
+        )
 
     await db.flush()
 
     # Gamification: auto-award stars/crystals
-    from src.infrastructure.services.gamification_engine import on_lesson_conducted, on_diamonds_awarded
+    from src.infrastructure.services.gamification_engine import (
+        on_diamonds_awarded,
+        on_lesson_conducted,
+    )
 
     att_map = {a.student_id: a.status for a in body.attendance}
     grade_map = {g.student_id: g.grade for g in body.grades}
@@ -760,27 +847,26 @@ async def conduct_lesson(lesson_id: UUID, body: ConductRequest, _: StaffGuard, c
 
     # Recalculate GPA and attendance for affected students
     from sqlalchemy import func as fn
+
     affected_ids = {a.student_id for a in body.attendance}
     for sid in affected_ids:
         # GPA = avg of all grades
-        avg_gpa = (await db.execute(
-            select(fn.avg(GradeRecordModel.score)).where(GradeRecordModel.student_id == sid)
-        )).scalar()
+        avg_gpa = (
+            await db.execute(select(fn.avg(GradeRecordModel.score)).where(GradeRecordModel.student_id == sid))
+        ).scalar()
         # Attendance = present / total * 100
-        total_att = (await db.execute(
-            select(fn.count()).where(AttendanceRecordModel.student_id == sid)
-        )).scalar() or 0
-        present_att = (await db.execute(
-            select(fn.count()).where(
-                AttendanceRecordModel.student_id == sid,
-                AttendanceRecordModel.status.in_(["present", "late"]),
+        total_att = (await db.execute(select(fn.count()).where(AttendanceRecordModel.student_id == sid))).scalar() or 0
+        present_att = (
+            await db.execute(
+                select(fn.count()).where(
+                    AttendanceRecordModel.student_id == sid,
+                    AttendanceRecordModel.status.in_(["present", "late"]),
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
         att_pct = round(present_att / total_att * 100, 1) if total_att > 0 else 0.0
 
-        student = (await db.execute(
-            select(StudentModel).where(StudentModel.id == sid)
-        )).scalar_one_or_none()
+        student = (await db.execute(select(StudentModel).where(StudentModel.id == sid))).scalar_one_or_none()
         if student:
             if avg_gpa is not None:
                 student.gpa = round(float(avg_gpa), 2)
@@ -792,6 +878,7 @@ async def conduct_lesson(lesson_id: UUID, body: ConductRequest, _: StaffGuard, c
     # Trigger async auto-task generation via Celery/RabbitMQ
     try:
         from src.infrastructure.workers.tasks.auto_tasks import process_lesson_attendance
+
         process_lesson_attendance.delay(str(lesson_id))
     except Exception:
         pass  # Don't fail conduct if Celery is unavailable
@@ -841,6 +928,7 @@ class UpdateLessonRequest(CamelModel):
         room_id: Новый UUID кабинета.
         topic: Новая тема урока.
     """
+
     date: str | None = None
     start_time: str | None = None
     end_time: str | None = None
@@ -879,7 +967,7 @@ async def update_lesson(lesson_id: UUID, body: UpdateLessonRequest, _: StaffGuar
         raise HTTPException(status_code=400, detail="Нельзя редактировать проведённый урок")
 
     # Check if lesson day has passed
-    if m.scheduled_at and datetime.now(timezone.utc).date() > m.scheduled_at.date():
+    if m.scheduled_at and datetime.now(UTC).date() > m.scheduled_at.date():
         raise HTTPException(status_code=400, detail="Нельзя редактировать прошедший урок")
 
     new_date = body.date or (m.scheduled_at.strftime("%Y-%m-%d") if m.scheduled_at else None)
@@ -890,7 +978,13 @@ async def update_lesson(lesson_id: UUID, body: UpdateLessonRequest, _: StaffGuar
 
     if new_date and new_start:
         scheduled = _parse_scheduled(new_date, new_start)
-        duration = _duration_minutes(new_start, new_end or (m.scheduled_at + timedelta(minutes=m.duration_minutes or 60)).strftime("%H:%M")) if new_start else m.duration_minutes or 60
+        duration = (
+            _duration_minutes(
+                new_start, new_end or (m.scheduled_at + timedelta(minutes=m.duration_minutes or 60)).strftime("%H:%M")
+            )
+            if new_start
+            else m.duration_minutes or 60
+        )
         await _check_conflicts(db, scheduled, duration, m.group_id, new_teacher, new_room, exclude_id=m.id)
         m.scheduled_at = scheduled
         if new_end:
@@ -941,6 +1035,7 @@ async def delete_lesson(lesson_id: UUID, _: StaffGuard, db: DbSession) -> Respon
 
 # ── Lesson Full (lesson + attendance + grades + diamonds) ────────────────────
 
+
 class AttendanceOut(BaseModel):
     """Запись посещаемости в контексте полной информации об уроке.
 
@@ -950,6 +1045,7 @@ class AttendanceOut(BaseModel):
         status: Статус посещаемости.
         note: Примечание.
     """
+
     id: UUID
     studentId: UUID
     status: str
@@ -966,6 +1062,7 @@ class GradeOut(BaseModel):
         value: Числовое значение оценки.
         comment: Комментарий.
     """
+
     id: UUID
     studentId: UUID
     type: str
@@ -982,6 +1079,7 @@ class DiamondOut(BaseModel):
         amount: Количество бриллиантов.
         note: Примечание (причина начисления).
     """
+
     id: UUID
     studentId: UUID
     amount: int
@@ -1002,6 +1100,7 @@ class MaterialOut(BaseModel):
         uploadedBy: UUID загрузившего.
         uploadedAt: Дата загрузки (ISO).
     """
+
     id: UUID
     lessonId: UUID
     title: str
@@ -1025,6 +1124,7 @@ class LessonFullResponse(BaseModel):
         diamonds: Записи начислений бриллиантов.
         materials: Материалы урока.
     """
+
     lesson: LessonResponse
     attendance: list[AttendanceOut]
     grades: list[GradeOut]
@@ -1054,33 +1154,48 @@ async def get_lesson_full(lesson_id: UUID, current_user: CurrentUser, db: DbSess
     if m is None:
         raise HTTPException(status_code=404, detail="Lesson not found")
 
-    attendance = (await db.execute(
-        select(AttendanceRecordModel).where(AttendanceRecordModel.lesson_id == lesson_id)
-    )).scalars().all()
-    grades = (await db.execute(
-        select(GradeRecordModel).where(GradeRecordModel.lesson_id == lesson_id)
-    )).scalars().all()
-    diamonds = (await db.execute(
-        select(DiamondRecordModel).where(DiamondRecordModel.lesson_id == lesson_id)
-    )).scalars().all()
-    materials = (await db.execute(
-        select(LessonMaterialModel).where(LessonMaterialModel.lesson_id == lesson_id)
-    )).scalars().all()
+    attendance = (
+        (await db.execute(select(AttendanceRecordModel).where(AttendanceRecordModel.lesson_id == lesson_id)))
+        .scalars()
+        .all()
+    )
+    grades = (await db.execute(select(GradeRecordModel).where(GradeRecordModel.lesson_id == lesson_id))).scalars().all()
+    diamonds = (
+        (await db.execute(select(DiamondRecordModel).where(DiamondRecordModel.lesson_id == lesson_id))).scalars().all()
+    )
+    materials = (
+        (await db.execute(select(LessonMaterialModel).where(LessonMaterialModel.lesson_id == lesson_id)))
+        .scalars()
+        .all()
+    )
 
     return LessonFullResponse(
         lesson=LessonResponse.from_model(m),
         attendance=[AttendanceOut(id=a.id, studentId=a.student_id, status=a.status, note=a.note) for a in attendance],
-        grades=[GradeOut(id=g.id, studentId=g.student_id, type=g.type, value=float(g.score), comment=g.comment) for g in grades],
+        grades=[
+            GradeOut(id=g.id, studentId=g.student_id, type=g.type, value=float(g.score), comment=g.comment)
+            for g in grades
+        ],
         diamonds=[DiamondOut(id=d.id, studentId=d.student_id, amount=d.amount, note=d.reason) for d in diamonds],
-        materials=[MaterialOut(
-            id=m.id, lessonId=m.lesson_id, title=m.title, type=m.type,
-            language=m.language, url=m.url, s3Key=m.s3_key, uploadedBy=m.uploaded_by,
-            uploadedAt=m.created_at.isoformat() if m.created_at else "",
-        ) for m in materials],
+        materials=[
+            MaterialOut(
+                id=m.id,
+                lessonId=m.lesson_id,
+                title=m.title,
+                type=m.type,
+                language=m.language,
+                url=m.url,
+                s3Key=m.s3_key,
+                uploadedBy=m.uploaded_by,
+                uploadedAt=m.created_at.isoformat() if m.created_at else "",
+            )
+            for m in materials
+        ],
     )
 
 
 # ── Lesson Materials CRUD ────────────────────────────────────────────────────
+
 
 class AddMaterialRequest(BaseModel):
     """Запрос на добавление материала к уроку.
@@ -1092,6 +1207,7 @@ class AddMaterialRequest(BaseModel):
         url: URL файла или ссылка.
         key: Ключ S3/GCS (опционально, при загрузке через /files/upload).
     """
+
     title: str
     type: str = "pdf"
     language: str = "ru"
@@ -1111,20 +1227,33 @@ async def list_materials(lesson_id: UUID, current_user: CurrentUser, db: DbSessi
     Returns:
         list[MaterialOut]: Список материалов урока.
     """
-    rows = (await db.execute(
-        select(LessonMaterialModel).where(LessonMaterialModel.lesson_id == lesson_id)
-    )).scalars().all()
-    return [MaterialOut(
-        id=m.id, lessonId=m.lesson_id, title=m.title, type=m.type,
-        language=m.language, url=m.url, s3Key=m.s3_key, uploadedBy=m.uploaded_by,
-        uploadedAt=m.created_at.isoformat() if m.created_at else "",
-    ) for m in rows]
+    rows = (
+        (await db.execute(select(LessonMaterialModel).where(LessonMaterialModel.lesson_id == lesson_id)))
+        .scalars()
+        .all()
+    )
+    return [
+        MaterialOut(
+            id=m.id,
+            lessonId=m.lesson_id,
+            title=m.title,
+            type=m.type,
+            language=m.language,
+            url=m.url,
+            s3Key=m.s3_key,
+            uploadedBy=m.uploaded_by,
+            uploadedAt=m.created_at.isoformat() if m.created_at else "",
+        )
+        for m in rows
+    ]
 
 
 @router.post("/{lesson_id}/materials", response_model=MaterialOut, status_code=status.HTTP_201_CREATED)
 async def add_material(
-    lesson_id: UUID, body: AddMaterialRequest,
-    current_user: CurrentUser, db: DbSession,
+    lesson_id: UUID,
+    body: AddMaterialRequest,
+    current_user: CurrentUser,
+    db: DbSession,
 ) -> MaterialOut:
     """Добавление материала к уроку.
 
@@ -1139,19 +1268,31 @@ async def add_material(
     Returns:
         MaterialOut: Созданный материал.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     m = LessonMaterialModel(
-        id=uuid4(), lesson_id=lesson_id,
-        title=body.title, type=body.type, language=body.language, url=body.url,
+        id=uuid4(),
+        lesson_id=lesson_id,
+        title=body.title,
+        type=body.type,
+        language=body.language,
+        url=body.url,
         s3_key=body.key,
-        uploaded_by=current_user.id, created_at=now, updated_at=now,
+        uploaded_by=current_user.id,
+        created_at=now,
+        updated_at=now,
     )
     db.add(m)
     await db.commit()
     await db.refresh(m)
     return MaterialOut(
-        id=m.id, lessonId=m.lesson_id, title=m.title, type=m.type,
-        language=m.language, url=m.url, s3Key=m.s3_key, uploadedBy=m.uploaded_by,
+        id=m.id,
+        lessonId=m.lesson_id,
+        title=m.title,
+        type=m.type,
+        language=m.language,
+        url=m.url,
+        s3Key=m.s3_key,
+        uploadedBy=m.uploaded_by,
         uploadedAt=m.created_at.isoformat() if m.created_at else "",
     )
 
@@ -1172,12 +1313,14 @@ async def delete_material(lesson_id: UUID, material_id: UUID, current_user: Curr
     Raises:
         HTTPException: 404 — если материал не найден.
     """
-    m = (await db.execute(
-        select(LessonMaterialModel).where(
-            LessonMaterialModel.id == material_id,
-            LessonMaterialModel.lesson_id == lesson_id,
+    m = (
+        await db.execute(
+            select(LessonMaterialModel).where(
+                LessonMaterialModel.id == material_id,
+                LessonMaterialModel.lesson_id == lesson_id,
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if m is None:
         raise HTTPException(status_code=404, detail="Material not found")
     await db.delete(m)

@@ -1,4 +1,5 @@
 """Unit tests — Auth domain: value objects, specifications, policies."""
+
 from __future__ import annotations
 
 from uuid import uuid4
@@ -6,8 +7,9 @@ from uuid import uuid4
 import pytest
 
 from src.domain.auth.entities import User, UserRole
-from src.domain.auth.value_objects import Password
+from src.domain.auth.policies import PasswordPolicy, UserCreationPolicy
 from src.domain.auth.specifications import (
+    STRONG_PASSWORD_SPEC,
     HasDigitSpec,
     HasLowercaseSpec,
     HasSpecialCharSpec,
@@ -16,16 +18,19 @@ from src.domain.auth.specifications import (
     IsStaffSpec,
     MinLengthSpec,
     NoWhitespaceOnlySpec,
-    STRONG_PASSWORD_SPEC,
 )
-from src.domain.auth.policies import PasswordPolicy, UserCreationPolicy
+from src.domain.auth.value_objects import Password
 from src.domain.shared.value_objects import Email
 
 
 def _make_user(**kw) -> User:
     defaults = dict(
-        id=uuid4(), email=Email("test@test.com"), password_hash="hash",
-        name="Test", role=UserRole.DIRECTOR, is_active=True,
+        id=uuid4(),
+        email=Email("test@test.com"),
+        password_hash="hash",
+        name="Test",
+        role=UserRole.DIRECTOR,
+        is_active=True,
     )
     return User(**{**defaults, **kw})
 

@@ -6,7 +6,7 @@ from src.domain.shared.events import DomainEvent
 
 @dataclass(frozen=True)
 class AchievementUnlockedEvent(DomainEvent):
-    student_id: UUID = None      # type: ignore[assignment]
+    student_id: UUID = None  # type: ignore[assignment]
     achievement_id: UUID = None  # type: ignore[assignment]
 
 

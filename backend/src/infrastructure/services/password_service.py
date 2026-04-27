@@ -16,6 +16,7 @@ Example:
     >>> assert verify_password("password123", hashed) is True
     >>> assert verify_password("wrong", hashed) is False
 """
+
 import bcrypt as _bcrypt
 
 

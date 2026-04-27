@@ -1,19 +1,22 @@
 """Homework assignments, submissions, and grading API."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select, func, update
+from sqlalchemy import func, select, update
 
 from src.api.dependencies import CurrentUser, DbSession, require_roles
 from src.infrastructure.persistence.models.lms import (
-    HomeworkAssignmentModel, HomeworkSubmissionModel,
-    GradeRecordModel, StudentModel, LessonModel,
+    GradeRecordModel,
+    HomeworkAssignmentModel,
+    HomeworkSubmissionModel,
+    LessonModel,
+    StudentModel,
 )
 
 router = APIRouter(prefix="/homework", tags=["LMS - Homework"])
@@ -22,6 +25,7 @@ TeacherGuard = Annotated[object, Depends(require_roles("director", "mup", "teach
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
+
 
 class FileInfo(BaseModel):
     url: str
@@ -83,13 +87,12 @@ class ReviewHomeworkRequest(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 async def _submission_out(sub: HomeworkSubmissionModel, db) -> SubmissionOut:
     student_name = None
     homework_title = None
 
-    student = (await db.execute(
-        select(StudentModel.full_name).where(StudentModel.id == sub.student_id)
-    )).scalar()
+    student = (await db.execute(select(StudentModel.full_name).where(StudentModel.id == sub.student_id))).scalar()
     student_name = student
 
     assign = await db.get(HomeworkAssignmentModel, sub.assignment_id)
@@ -133,43 +136,47 @@ async def _sync_grade_record(sub: HomeworkSubmissionModel, graded_by: UUID, db) 
     subject_id = lesson.subject_id if lesson else None
 
     # Check for existing grade record for this homework
-    existing = (await db.execute(
-        select(GradeRecordModel).where(
-            GradeRecordModel.student_id == sub.student_id,
-            GradeRecordModel.lesson_id == assign.lesson_id,
-            GradeRecordModel.type == "homework",
+    existing = (
+        await db.execute(
+            select(GradeRecordModel).where(
+                GradeRecordModel.student_id == sub.student_id,
+                GradeRecordModel.lesson_id == assign.lesson_id,
+                GradeRecordModel.type == "homework",
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if existing:
         existing.score = sub.score
         existing.max_score = assign.max_score
         existing.graded_by = graded_by
         existing.graded_at = now
     else:
-        db.add(GradeRecordModel(
-            id=uuid4(),
-            student_id=sub.student_id,
-            subject_id=subject_id,
-            lesson_id=assign.lesson_id,
-            type="homework",
-            score=sub.score,
-            max_score=assign.max_score,
-            graded_by=graded_by,
-            graded_at=now,
-        ))
+        db.add(
+            GradeRecordModel(
+                id=uuid4(),
+                student_id=sub.student_id,
+                subject_id=subject_id,
+                lesson_id=assign.lesson_id,
+                type="homework",
+                score=sub.score,
+                max_score=assign.max_score,
+                graded_by=graded_by,
+                graded_at=now,
+            )
+        )
 
     # Recalculate GPA
-    avg = (await db.execute(
-        select(func.avg(GradeRecordModel.score / GradeRecordModel.max_score * 10))
-        .where(GradeRecordModel.student_id == sub.student_id)
-    )).scalar()
-    if avg is not None:
+    avg = (
         await db.execute(
-            update(StudentModel).where(StudentModel.id == sub.student_id)
-            .values(gpa=round(float(avg), 2))
+            select(func.avg(GradeRecordModel.score / GradeRecordModel.max_score * 10)).where(
+                GradeRecordModel.student_id == sub.student_id
+            )
         )
+    ).scalar()
+    if avg is not None:
+        await db.execute(update(StudentModel).where(StudentModel.id == sub.student_id).values(gpa=round(float(avg), 2)))
 
 
 def _assignment_out(m: HomeworkAssignmentModel) -> AssignmentOut:
@@ -177,7 +184,10 @@ def _assignment_out(m: HomeworkAssignmentModel) -> AssignmentOut:
     if m.file_urls:
         files = [FileInfo(url=f["url"], filename=f["filename"], key=f.get("key")) for f in m.file_urls]
     return AssignmentOut(
-        id=m.id, lesson_id=m.lesson_id, title=m.title, description=m.description,
+        id=m.id,
+        lesson_id=m.lesson_id,
+        title=m.title,
+        description=m.description,
         due_date=m.due_date.isoformat() if m.due_date else "",
         max_score=float(m.max_score) if m.max_score else 10.0,
         file_urls=files,
@@ -185,6 +195,7 @@ def _assignment_out(m: HomeworkAssignmentModel) -> AssignmentOut:
 
 
 # ── Assignments (teacher creates) ─────────────────────────────────────────────
+
 
 @router.post("/assignments", response_model=AssignmentOut, status_code=status.HTTP_201_CREATED)
 async def create_assignment(
@@ -216,19 +227,28 @@ async def create_assignment(
     lesson = await db.get(LessonModel, body.lesson_id)
     if lesson:
         from src.infrastructure.persistence.models.lms import EnrollmentModel
-        enrolled = (await db.execute(
-            select(EnrollmentModel.student_id).where(
-                EnrollmentModel.group_id == lesson.group_id,
-                EnrollmentModel.is_active == True,  # noqa: E712
+
+        enrolled = (
+            (
+                await db.execute(
+                    select(EnrollmentModel.student_id).where(
+                        EnrollmentModel.group_id == lesson.group_id,
+                        EnrollmentModel.is_active == True,  # noqa: E712
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
         for sid in enrolled:
-            db.add(HomeworkSubmissionModel(
-                id=uuid4(),
-                assignment_id=m.id,
-                student_id=sid,
-                status="pending",
-            ))
+            db.add(
+                HomeworkSubmissionModel(
+                    id=uuid4(),
+                    assignment_id=m.id,
+                    student_id=sid,
+                    status="pending",
+                )
+            )
 
     await db.commit()
 
@@ -237,7 +257,8 @@ async def create_assignment(
 
 @router.get("/assignments", response_model=list[AssignmentOut])
 async def list_assignments_by_lesson(
-    current_user: CurrentUser, db: DbSession,
+    current_user: CurrentUser,
+    db: DbSession,
     lesson_id: UUID | None = None,
 ) -> list[AssignmentOut]:
     q = select(HomeworkAssignmentModel)
@@ -257,9 +278,11 @@ async def get_assignment(assignment_id: UUID, current_user: CurrentUser, db: DbS
 
 # ── Submissions list (paginated, for teacher review page) ───────────────────
 
+
 @router.get("/submissions")
 async def list_all_submissions(
-    _: TeacherGuard, db: DbSession,
+    _: TeacherGuard,
+    db: DbSession,
     status_filter: str | None = Query(None, alias="status"),
     teacher_id: str | None = Query(None, alias="teacherId"),
     page: int = Query(1, ge=1),
@@ -269,13 +292,19 @@ async def list_all_submissions(
 
     # Filter by teacher's lessons
     if teacher_id:
-        lesson_ids = (await db.execute(
-            select(LessonModel.id).where(LessonModel.teacher_id == teacher_id)
-        )).scalars().all()
+        lesson_ids = (
+            (await db.execute(select(LessonModel.id).where(LessonModel.teacher_id == teacher_id))).scalars().all()
+        )
         if lesson_ids:
-            assign_ids = (await db.execute(
-                select(HomeworkAssignmentModel.id).where(HomeworkAssignmentModel.lesson_id.in_(lesson_ids))
-            )).scalars().all()
+            assign_ids = (
+                (
+                    await db.execute(
+                        select(HomeworkAssignmentModel.id).where(HomeworkAssignmentModel.lesson_id.in_(lesson_ids))
+                    )
+                )
+                .scalars()
+                .all()
+            )
             q = q.where(HomeworkSubmissionModel.assignment_id.in_(assign_ids))
         else:
             return {"data": [], "total": 0, "page": page}
@@ -284,16 +313,24 @@ async def list_all_submissions(
         q = q.where(HomeworkSubmissionModel.status == status_filter)
 
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
-    rows = (await db.execute(
-        q.order_by(HomeworkSubmissionModel.submitted_at.desc().nullslast())
-        .offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                q.order_by(HomeworkSubmissionModel.submitted_at.desc().nullslast())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     data = [await _submission_out(r, db) for r in rows]
     return {"data": data, "total": total, "page": page}
 
 
 # ── Submissions (student submits) ─────────────────────────────────────────────
+
 
 @router.post("/assignments/{assignment_id}/submit", response_model=SubmissionOut)
 async def submit_homework(
@@ -306,21 +343,22 @@ async def submit_homework(
     if assignment is None:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         raise HTTPException(status_code=403, detail="Only students can submit homework")
 
-    now = datetime.now(timezone.utc)
-    is_overdue = assignment.due_date and now > assignment.due_date
+    now = datetime.now(UTC)
 
-    existing = (await db.execute(
-        select(HomeworkSubmissionModel).where(
-            HomeworkSubmissionModel.assignment_id == assignment_id,
-            HomeworkSubmissionModel.student_id == student.id,
+    existing = (
+        await db.execute(
+            select(HomeworkSubmissionModel).where(
+                HomeworkSubmissionModel.assignment_id == assignment_id,
+                HomeworkSubmissionModel.student_id == student.id,
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
 
     if existing:
         existing.answer_text = body.answer_text
@@ -346,6 +384,7 @@ async def submit_homework(
 
 # ── Grading (teacher grades) ────────────────────────────────────────────────
 
+
 @router.post("/submissions/{submission_id}/grade", response_model=SubmissionOut)
 async def grade_submission(
     submission_id: UUID,
@@ -366,13 +405,14 @@ async def grade_submission(
     sub.feedback = body.feedback
     sub.status = "graded"
     sub.graded_by = current_user.id
-    sub.graded_at = datetime.now(timezone.utc)
+    sub.graded_at = datetime.now(UTC)
 
     # Sync to GradeRecordModel for GPA calculation
     await _sync_grade_record(sub, current_user.id, db)
 
     # Gamification: award stars for homework grade
     from src.infrastructure.services.gamification_engine import on_homework_graded
+
     max_s = float(assignment.max_score) if assignment and assignment.max_score else 10
     await on_homework_graded(sub.student_id, body.score, max_s, db)
 
@@ -381,6 +421,7 @@ async def grade_submission(
 
 
 # ── Review alias (used by logbook frontend) ─────────────────────────────────
+
 
 @router.post("/submissions/{submission_id}/review", response_model=SubmissionOut)
 async def review_submission(
@@ -397,14 +438,21 @@ async def review_submission(
 
 # ── Submissions for assignment ──────────────────────────────────────────────
 
+
 @router.get("/assignments/{assignment_id}/submissions", response_model=list[SubmissionOut])
 async def list_submissions(
     assignment_id: UUID,
     _: TeacherGuard,
     db: DbSession,
 ) -> list[SubmissionOut]:
-    rows = (await db.execute(
-        select(HomeworkSubmissionModel).where(HomeworkSubmissionModel.assignment_id == assignment_id)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(HomeworkSubmissionModel).where(HomeworkSubmissionModel.assignment_id == assignment_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     return [await _submission_out(r, db) for r in rows]

@@ -1,9 +1,10 @@
 """LMS Group use cases."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from src.application.interfaces.repositories import GroupRepository, Page
 from src.domain.lms.entities import Group

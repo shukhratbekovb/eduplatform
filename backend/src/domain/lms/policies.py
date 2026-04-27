@@ -8,6 +8,7 @@
     RiskCalculationPolicy: Политика расчёта уровня риска (ML + fallback).
     PaymentOverduePolicy: Политика определения просроченных платежей.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -17,7 +18,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from src.domain.lms.entities import Payment
 
-from src.domain.lms.entities import RiskLevel, PaymentStatus
+from src.domain.lms.entities import PaymentStatus, RiskLevel
 
 
 class RiskCalculationPolicy:
@@ -146,7 +147,5 @@ class PaymentOverduePolicy:
                 переведён в статус OVERDUE.
         """
         return (
-            payment.status == PaymentStatus.PENDING
-            and payment.due_date is not None
-            and payment.due_date < date.today()
+            payment.status == PaymentStatus.PENDING and payment.due_date is not None and payment.due_date < date.today()
         )

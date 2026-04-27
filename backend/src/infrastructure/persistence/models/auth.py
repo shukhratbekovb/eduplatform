@@ -13,16 +13,15 @@ director, mup, teacher, sales_manager, cashier, student.
     - LessonModel.teacher_id → users.id (преподаватель урока).
     - SubjectModel.teacher_id → users.id (преподаватель предмета).
 """
-import uuid
+
 from datetime import date
 
-from sqlalchemy import Boolean, Date, String, Enum as SAEnum
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Date, String
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
 from src.infrastructure.persistence.models.base import TimestampMixin, UUIDPrimaryKey
-from src.domain.auth.entities import UserRole
 
 
 class UserModel(Base, UUIDPrimaryKey, TimestampMixin):
@@ -47,6 +46,7 @@ class UserModel(Base, UUIDPrimaryKey, TimestampMixin):
         Поле role — строка, НЕ enum Python. Никогда не используйте
         `user.role.value` — просто `user.role`.
     """
+
     __tablename__ = "users"
 
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
@@ -54,8 +54,14 @@ class UserModel(Base, UUIDPrimaryKey, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(
         SAEnum(
-            "director", "mup", "teacher", "sales_manager", "cashier", "student",
-            name="user_role", create_type=False,
+            "director",
+            "mup",
+            "teacher",
+            "sales_manager",
+            "cashier",
+            "student",
+            name="user_role",
+            create_type=False,
         ),
         nullable=False,
         index=True,

@@ -1,4 +1,5 @@
 """LMS Notifications — list and mark-read."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -44,6 +45,7 @@ async def mark_read(notif_id: UUID, current_user: CurrentUser, db: DbSession) ->
     m = await db.get(LmsNotificationModel, notif_id)
     if m is None or m.user_id != current_user.id:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Notification not found")
     m.is_read = True
     await db.commit()
@@ -64,7 +66,11 @@ async def mark_all_read(current_user: CurrentUser, db: DbSession) -> dict:  # ty
 
 def _out(m: LmsNotificationModel) -> NotifOut:
     return NotifOut(
-        id=m.id, type=m.type, title=m.title, body=m.body,
-        is_read=m.is_read, linked_lesson_id=m.linked_lesson_id,
+        id=m.id,
+        type=m.type,
+        title=m.title,
+        body=m.body,
+        is_read=m.is_read,
+        linked_lesson_id=m.linked_lesson_id,
         created_at=m.created_at.isoformat() if m.created_at else "",
     )

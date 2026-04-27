@@ -21,10 +21,11 @@ LMS — уведомления директору/МУП:
 Все уведомления сохраняются в таблицах ``crm_notifications`` или
 ``lms_notifications`` и отображаются в соответствующих фронтендах.
 """
+
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from src.infrastructure.workers.celery_app import celery_app
@@ -43,13 +44,21 @@ async def _get_director_mup_ids(session) -> list:
         Список UUID активных пользователей с ролями "director" и "mup".
     """
     from sqlalchemy import select
+
     from src.infrastructure.persistence.models.auth import UserModel
-    rows = (await session.execute(
-        select(UserModel.id).where(
-            UserModel.role.in_(["director", "mup"]),
-            UserModel.is_active.is_(True),
+
+    rows = (
+        (
+            await session.execute(
+                select(UserModel.id).where(
+                    UserModel.role.in_(["director", "mup"]),
+                    UserModel.is_active.is_(True),
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     return list(rows)
 
 
@@ -76,11 +85,12 @@ async def _mark_overdue_crm_tasks() -> dict:  # type: ignore[type-arg]
     Returns:
         Словарь {"marked_overdue": int}.
     """
-    from sqlalchemy import select, update
-    from src.database import async_session_factory
-    from src.infrastructure.persistence.models.crm import CrmTaskModel, CrmNotificationModel
+    from sqlalchemy import update
 
-    now = datetime.now(timezone.utc)
+    from src.database import async_session_factory
+    from src.infrastructure.persistence.models.crm import CrmNotificationModel, CrmTaskModel
+
+    now = datetime.now(UTC)
 
     async with async_session_factory() as session:
         # Mark overdue tasks
@@ -141,11 +151,17 @@ async def _send_payment_reminders() -> dict:  # type: ignore[type-arg]
         Словарь {"notifications_created": int}.
     """
     from datetime import timedelta
-    from sqlalchemy import select
-    from src.database import async_session_factory
-    from src.infrastructure.persistence.models.lms import PaymentModel, LmsNotificationModel, StudentModel
 
-    now = datetime.now(timezone.utc)
+    from sqlalchemy import select
+
+    from src.database import async_session_factory
+    from src.infrastructure.persistence.models.lms import (
+        LmsNotificationModel,
+        PaymentModel,
+        StudentModel,
+    )
+
+    now = datetime.now(UTC)
     threshold = now + timedelta(days=3)
 
     async with async_session_factory() as session:
@@ -182,6 +198,7 @@ async def _send_payment_reminders() -> dict:  # type: ignore[type-arg]
 
 # ── LMS: Debt alerts for director/MUP ────────────────────────────────────────
 
+
 @celery_app.task(name="src.infrastructure.workers.tasks.notifications.notify_overdue_debts")
 def notify_overdue_debts() -> dict:  # type: ignore[type-arg]
     """Ежедневно уведомляет директора/МУП о студентах с задолженностями.
@@ -206,11 +223,16 @@ async def _notify_overdue_debts() -> dict:  # type: ignore[type-arg]
     Returns:
         Словарь {"notifications_created": int, "debtors": int}.
     """
-    from sqlalchemy import select, func
-    from src.database import async_session_factory
-    from src.infrastructure.persistence.models.lms import PaymentModel, StudentModel, LmsNotificationModel
+    from sqlalchemy import func, select
 
-    now = datetime.now(timezone.utc)
+    from src.database import async_session_factory
+    from src.infrastructure.persistence.models.lms import (
+        LmsNotificationModel,
+        PaymentModel,
+        StudentModel,
+    )
+
+    now = datetime.now(UTC)
 
     async with async_session_factory() as session:
         # Count students with overdue payments
@@ -234,19 +256,23 @@ async def _notify_overdue_debts() -> dict:  # type: ignore[type-arg]
         top3 = ", ".join(d.full_name for d in debtors[:3])
 
         title = f"Задолженности: {count} студентов"
-        body = (
-            f"Общая сумма долга: {total_debt:,.0f} UZS\n"
-            f"Топ должники: {top3}"
-            + (f" и ещё {count - 3}" if count > 3 else "")
+        body = f"Общая сумма долга: {total_debt:,.0f} UZS\n" f"Топ должники: {top3}" + (
+            f" и ещё {count - 3}" if count > 3 else ""
         )
 
         recipients = await _get_director_mup_ids(session)
         created = 0
         for uid in recipients:
-            session.add(LmsNotificationModel(
-                id=uuid4(), user_id=uid, type="debt_alert",
-                title=title, body=body, created_at=now,
-            ))
+            session.add(
+                LmsNotificationModel(
+                    id=uuid4(),
+                    user_id=uid,
+                    type="debt_alert",
+                    title=title,
+                    body=body,
+                    created_at=now,
+                )
+            )
             created += 1
 
         await session.commit()
@@ -254,6 +280,7 @@ async def _notify_overdue_debts() -> dict:  # type: ignore[type-arg]
 
 
 # ── LMS: Risk change alerts ──────────────────────────────────────────────────
+
 
 @celery_app.task(name="src.infrastructure.workers.tasks.notifications.notify_risk_changes")
 def notify_risk_changes() -> dict:  # type: ignore[type-arg]
@@ -282,18 +309,25 @@ async def _notify_risk_changes() -> dict:  # type: ignore[type-arg]
         Словарь {"notifications_created": int, "at_risk_students": int}.
     """
     from sqlalchemy import select
-    from src.database import async_session_factory
-    from src.infrastructure.persistence.models.lms import StudentModel, LmsNotificationModel
 
-    now = datetime.now(timezone.utc)
+    from src.database import async_session_factory
+    from src.infrastructure.persistence.models.lms import LmsNotificationModel, StudentModel
+
+    now = datetime.now(UTC)
 
     async with async_session_factory() as session:
         # Find students with high/critical risk
-        rows = (await session.execute(
-            select(StudentModel.id, StudentModel.full_name, StudentModel.risk_level,
-                   StudentModel.gpa, StudentModel.attendance_percent)
-            .where(StudentModel.risk_level.in_(["high", "critical"]))
-        )).all()
+        rows = (
+            await session.execute(
+                select(
+                    StudentModel.id,
+                    StudentModel.full_name,
+                    StudentModel.risk_level,
+                    StudentModel.gpa,
+                    StudentModel.attendance_percent,
+                ).where(StudentModel.risk_level.in_(["high", "critical"]))
+            )
+        ).all()
 
         if not rows:
             return {"notifications_created": 0}
@@ -309,10 +343,16 @@ async def _notify_risk_changes() -> dict:  # type: ignore[type-arg]
             body = f"Уровень: {risk_label}\nGPA: {gpa_str}, Посещаемость: {att_str}"
 
             for uid in recipients:
-                session.add(LmsNotificationModel(
-                    id=uuid4(), user_id=uid, type="risk_alert",
-                    title=title, body=body, created_at=now,
-                ))
+                session.add(
+                    LmsNotificationModel(
+                        id=uuid4(),
+                        user_id=uid,
+                        type="risk_alert",
+                        title=title,
+                        body=body,
+                        created_at=now,
+                    )
+                )
                 created += 1
 
         await session.commit()
@@ -320,6 +360,7 @@ async def _notify_risk_changes() -> dict:  # type: ignore[type-arg]
 
 
 # ── LMS: Homework overdue weekly summary ─────────────────────────────────────
+
 
 @celery_app.task(name="src.infrastructure.workers.tasks.notifications.notify_homework_overdue")
 def notify_homework_overdue() -> dict:  # type: ignore[type-arg]
@@ -344,18 +385,22 @@ async def _notify_homework_overdue() -> dict:  # type: ignore[type-arg]
     Returns:
         Словарь {"notifications_created": int, "total_overdue": int}.
     """
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
+
     from src.database import async_session_factory
     from src.infrastructure.persistence.models.lms import (
-        HomeworkSubmissionModel, HomeworkAssignmentModel, LessonModel,
+        HomeworkAssignmentModel,
+        HomeworkSubmissionModel,
+        LessonModel,
         LmsNotificationModel,
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     async with async_session_factory() as session:
         # Count overdue submissions grouped by group
         from src.infrastructure.persistence.models.lms import GroupModel
+
         result = await session.execute(
             select(
                 GroupModel.name.label("group_name"),
@@ -383,10 +428,16 @@ async def _notify_homework_overdue() -> dict:  # type: ignore[type-arg]
         recipients = await _get_director_mup_ids(session)
         created = 0
         for uid in recipients:
-            session.add(LmsNotificationModel(
-                id=uuid4(), user_id=uid, type="homework_overdue",
-                title=title, body=body, created_at=now,
-            ))
+            session.add(
+                LmsNotificationModel(
+                    id=uuid4(),
+                    user_id=uid,
+                    type="homework_overdue",
+                    title=title,
+                    body=body,
+                    created_at=now,
+                )
+            )
             created += 1
 
         await session.commit()

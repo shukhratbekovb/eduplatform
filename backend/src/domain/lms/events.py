@@ -40,7 +40,7 @@ class LessonConductedEvent(DomainEvent):
     """
 
     lesson_id: UUID = None  # type: ignore[assignment]
-    group_id: UUID = None   # type: ignore[assignment]
+    group_id: UUID = None  # type: ignore[assignment]
     teacher_id: UUID | None = None
 
 
@@ -59,7 +59,7 @@ class LessonCancelledEvent(DomainEvent):
     """
 
     lesson_id: UUID = None  # type: ignore[assignment]
-    group_id: UUID = None   # type: ignore[assignment]
+    group_id: UUID = None  # type: ignore[assignment]
     reason: str = ""
 
 
@@ -96,7 +96,7 @@ class StudentEnrolledEvent(DomainEvent):
     """
 
     student_id: UUID = None  # type: ignore[assignment]
-    group_id: UUID = None    # type: ignore[assignment]
+    group_id: UUID = None  # type: ignore[assignment]
 
 
 @dataclass(frozen=True)
@@ -113,6 +113,6 @@ class PaymentReceivedEvent(DomainEvent):
         amount: Сумма платежа в виде строки (для сериализации Decimal).
     """
 
-    payment_id: UUID = None   # type: ignore[assignment]
-    student_id: UUID = None   # type: ignore[assignment]
+    payment_id: UUID = None  # type: ignore[assignment]
+    student_id: UUID = None  # type: ignore[assignment]
     amount: str = ""

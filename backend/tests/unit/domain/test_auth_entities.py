@@ -1,5 +1,5 @@
 """Unit tests — Auth domain entities."""
-import pytest
+
 from uuid import uuid4
 
 from src.domain.auth.entities import User, UserRole

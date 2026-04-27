@@ -1,4 +1,5 @@
 """Directions, Subjects, Rooms — catalog CRUD."""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -8,10 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, DbSession, require_roles
-from src.infrastructure.persistence.models.lms import DirectionModel, SubjectModel, RoomModel
+from src.infrastructure.persistence.models.lms import DirectionModel, RoomModel, SubjectModel
 
 router = APIRouter(tags=["LMS - Catalog"])
 
@@ -19,6 +19,7 @@ AdminGuard = Annotated[object, Depends(require_roles("director", "mup"))]
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
+
 
 class CamelModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
@@ -70,27 +71,48 @@ class RoomIn(CamelModel):
 
 # ── Directions ────────────────────────────────────────────────────────────────
 
+
 @router.post("/directions", response_model=DirectionOut, status_code=status.HTTP_201_CREATED)
 async def create_direction(body: DirectionIn, _: AdminGuard, db: DbSession) -> DirectionOut:
     m = DirectionModel(
-        id=uuid4(), name=body.name, description=body.description,
-        duration_months=body.duration_months, total_lessons=body.total_lessons,
+        id=uuid4(),
+        name=body.name,
+        description=body.description,
+        duration_months=body.duration_months,
+        total_lessons=body.total_lessons,
     )
     db.add(m)
     await db.commit()
     await db.refresh(m)
-    return DirectionOut(id=m.id, name=m.name, description=m.description, is_active=m.is_active,
-                        duration_months=m.duration_months, total_lessons=m.total_lessons)
+    return DirectionOut(
+        id=m.id,
+        name=m.name,
+        description=m.description,
+        is_active=m.is_active,
+        duration_months=m.duration_months,
+        total_lessons=m.total_lessons,
+    )
 
 
 @router.get("/directions", response_model=list[DirectionOut])
-async def list_directions(current_user: CurrentUser, db: DbSession, is_active: bool | None = None) -> list[DirectionOut]:
+async def list_directions(
+    current_user: CurrentUser, db: DbSession, is_active: bool | None = None
+) -> list[DirectionOut]:
     q = select(DirectionModel)
     if is_active is not None:
         q = q.where(DirectionModel.is_active == is_active)
     rows = (await db.execute(q)).scalars().all()
-    return [DirectionOut(id=r.id, name=r.name, description=r.description, is_active=r.is_active,
-                        duration_months=r.duration_months, total_lessons=r.total_lessons) for r in rows]
+    return [
+        DirectionOut(
+            id=r.id,
+            name=r.name,
+            description=r.description,
+            is_active=r.is_active,
+            duration_months=r.duration_months,
+            total_lessons=r.total_lessons,
+        )
+        for r in rows
+    ]
 
 
 @router.get("/directions/{direction_id}", response_model=DirectionOut)
@@ -98,14 +120,18 @@ async def get_direction(direction_id: UUID, current_user: CurrentUser, db: DbSes
     m = await db.get(DirectionModel, direction_id)
     if m is None:
         raise HTTPException(status_code=404, detail="Direction not found")
-    return DirectionOut(id=m.id, name=m.name, description=m.description, is_active=m.is_active,
-                        duration_months=m.duration_months, total_lessons=m.total_lessons)
+    return DirectionOut(
+        id=m.id,
+        name=m.name,
+        description=m.description,
+        is_active=m.is_active,
+        duration_months=m.duration_months,
+        total_lessons=m.total_lessons,
+    )
 
 
 @router.patch("/directions/{direction_id}", response_model=DirectionOut)
-async def update_direction(
-    direction_id: UUID, body: DirectionIn, _: AdminGuard, db: DbSession
-) -> DirectionOut:
+async def update_direction(direction_id: UUID, body: DirectionIn, _: AdminGuard, db: DbSession) -> DirectionOut:
     m = await db.get(DirectionModel, direction_id)
     if m is None:
         raise HTTPException(status_code=404, detail="Direction not found")
@@ -118,8 +144,14 @@ async def update_direction(
         m.total_lessons = body.total_lessons
     await db.commit()
     await db.refresh(m)
-    return DirectionOut(id=m.id, name=m.name, description=m.description, is_active=m.is_active,
-                        duration_months=m.duration_months, total_lessons=m.total_lessons)
+    return DirectionOut(
+        id=m.id,
+        name=m.name,
+        description=m.description,
+        is_active=m.is_active,
+        duration_months=m.duration_months,
+        total_lessons=m.total_lessons,
+    )
 
 
 @router.post("/directions/{direction_id}/archive", response_model=DirectionOut)
@@ -130,11 +162,18 @@ async def archive_direction(direction_id: UUID, _: AdminGuard, db: DbSession) ->
     m.is_active = False
     await db.commit()
     await db.refresh(m)
-    return DirectionOut(id=m.id, name=m.name, description=m.description, is_active=m.is_active,
-                        duration_months=m.duration_months, total_lessons=m.total_lessons)
+    return DirectionOut(
+        id=m.id,
+        name=m.name,
+        description=m.description,
+        is_active=m.is_active,
+        duration_months=m.duration_months,
+        total_lessons=m.total_lessons,
+    )
 
 
 # ── Subjects ──────────────────────────────────────────────────────────────────
+
 
 @router.post("/subjects", response_model=SubjectOut, status_code=status.HTTP_201_CREATED)
 async def create_subject(body: SubjectIn, _: AdminGuard, db: DbSession) -> SubjectOut:
@@ -148,7 +187,14 @@ async def create_subject(body: SubjectIn, _: AdminGuard, db: DbSession) -> Subje
     db.add(m)
     await db.commit()
     await db.refresh(m)
-    return SubjectOut(id=m.id, name=m.name, direction_id=m.direction_id, teacher_id=m.teacher_id, description=m.description, is_active=m.is_active)
+    return SubjectOut(
+        id=m.id,
+        name=m.name,
+        direction_id=m.direction_id,
+        teacher_id=m.teacher_id,
+        description=m.description,
+        is_active=m.is_active,
+    )
 
 
 @router.get("/subjects", response_model=list[SubjectOut])
@@ -164,7 +210,17 @@ async def list_subjects(
     if teacher_id is not None:
         q = q.where(SubjectModel.teacher_id == teacher_id)
     rows = (await db.execute(q)).scalars().all()
-    return [SubjectOut(id=r.id, name=r.name, direction_id=r.direction_id, teacher_id=r.teacher_id, description=r.description, is_active=r.is_active) for r in rows]
+    return [
+        SubjectOut(
+            id=r.id,
+            name=r.name,
+            direction_id=r.direction_id,
+            teacher_id=r.teacher_id,
+            description=r.description,
+            is_active=r.is_active,
+        )
+        for r in rows
+    ]
 
 
 @router.get("/subjects/{subject_id}", response_model=SubjectOut)
@@ -172,13 +228,18 @@ async def get_subject(subject_id: UUID, current_user: CurrentUser, db: DbSession
     m = await db.get(SubjectModel, subject_id)
     if m is None:
         raise HTTPException(status_code=404, detail="Subject not found")
-    return SubjectOut(id=m.id, name=m.name, direction_id=m.direction_id, teacher_id=m.teacher_id, description=m.description, is_active=m.is_active)
+    return SubjectOut(
+        id=m.id,
+        name=m.name,
+        direction_id=m.direction_id,
+        teacher_id=m.teacher_id,
+        description=m.description,
+        is_active=m.is_active,
+    )
 
 
 @router.patch("/subjects/{subject_id}", response_model=SubjectOut)
-async def update_subject(
-    subject_id: UUID, body: SubjectIn, _: AdminGuard, db: DbSession
-) -> SubjectOut:
+async def update_subject(subject_id: UUID, body: SubjectIn, _: AdminGuard, db: DbSession) -> SubjectOut:
     m = await db.get(SubjectModel, subject_id)
     if m is None:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -191,7 +252,14 @@ async def update_subject(
         m.description = body.description
     await db.commit()
     await db.refresh(m)
-    return SubjectOut(id=m.id, name=m.name, direction_id=m.direction_id, teacher_id=m.teacher_id, description=m.description, is_active=m.is_active)
+    return SubjectOut(
+        id=m.id,
+        name=m.name,
+        direction_id=m.direction_id,
+        teacher_id=m.teacher_id,
+        description=m.description,
+        is_active=m.is_active,
+    )
 
 
 @router.post("/subjects/{subject_id}/archive", response_model=SubjectOut)
@@ -202,10 +270,18 @@ async def archive_subject(subject_id: UUID, _: AdminGuard, db: DbSession) -> Sub
     m.is_active = False
     await db.commit()
     await db.refresh(m)
-    return SubjectOut(id=m.id, name=m.name, direction_id=m.direction_id, teacher_id=m.teacher_id, description=m.description, is_active=m.is_active)
+    return SubjectOut(
+        id=m.id,
+        name=m.name,
+        direction_id=m.direction_id,
+        teacher_id=m.teacher_id,
+        description=m.description,
+        is_active=m.is_active,
+    )
 
 
 # ── Rooms ─────────────────────────────────────────────────────────────────────
+
 
 @router.post("/rooms", response_model=RoomOut, status_code=status.HTTP_201_CREATED)
 async def create_room(body: RoomIn, _: AdminGuard, db: DbSession) -> RoomOut:

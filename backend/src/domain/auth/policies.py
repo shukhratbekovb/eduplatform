@@ -10,6 +10,7 @@
     UserCreationPolicy: Определяет иерархию ролей и права на создание пользователей.
     PasswordPolicy: Валидация надёжности пароля в стиле Apple.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -109,8 +110,4 @@ class PasswordPolicy:
             >>> PasswordPolicy.validate("Strong1Pass!")
             []
         """
-        return [
-            message
-            for spec, message in PASSWORD_RULES
-            if not spec.is_satisfied_by(password)
-        ]
+        return [message for spec, message in PASSWORD_RULES if not spec.is_satisfied_by(password)]

@@ -1,4 +1,5 @@
 """Unit tests — CRM domain entities."""
+
 from __future__ import annotations
 
 from uuid import uuid4
@@ -15,8 +16,8 @@ from src.domain.crm.entities import (
     TaskStatus,
 )
 
-
 # ── Lead ──────────────────────────────────────────────────────────────────────
+
 
 class TestLead:
     def _make(self, **kw) -> Lead:
@@ -117,6 +118,7 @@ class TestLead:
 
 # ── Funnel ────────────────────────────────────────────────────────────────────
 
+
 class TestFunnel:
     def test_create(self) -> None:
         f = Funnel.create(name="Sales")
@@ -131,34 +133,41 @@ class TestFunnel:
 
 # ── Stage ─────────────────────────────────────────────────────────────────────
 
+
 class TestStage:
     def test_valid_win_probability(self) -> None:
-        from src.domain.crm.value_objects import WinProbability, HexColor
+        from src.domain.crm.value_objects import WinProbability
+
         s = Stage(funnel_id=uuid4(), name="Qualified", win_probability=WinProbability(60))
         assert s.win_probability.value == 60
 
     def test_win_probability_boundary_zero(self) -> None:
         from src.domain.crm.value_objects import WinProbability
+
         s = Stage(funnel_id=uuid4(), name="Cold", win_probability=WinProbability(0))
         assert s.win_probability.value == 0
 
     def test_win_probability_boundary_hundred(self) -> None:
         from src.domain.crm.value_objects import WinProbability
+
         s = Stage(funnel_id=uuid4(), name="Won", win_probability=WinProbability(100))
         assert s.win_probability.value == 100
 
     def test_invalid_win_probability_raises(self) -> None:
         from src.domain.crm.value_objects import WinProbability
+
         with pytest.raises(ValueError):
             WinProbability(101)
 
     def test_negative_win_probability_raises(self) -> None:
         from src.domain.crm.value_objects import WinProbability
+
         with pytest.raises(ValueError):
             WinProbability(-1)
 
 
 # ── CrmTask ───────────────────────────────────────────────────────────────────
+
 
 class TestCrmTask:
     def _make(self, **kw) -> CrmTask:

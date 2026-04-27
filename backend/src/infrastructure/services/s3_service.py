@@ -5,9 +5,9 @@ Upload flow (presigned URL strategy):
   2. Client uploads directly to S3 using presigned POST
   3. Client calls POST /files/confirm with s3_key → backend validates & records
 """
+
 from __future__ import annotations
 
-import mimetypes
 import uuid
 from dataclasses import dataclass
 
@@ -15,16 +15,22 @@ import aioboto3
 
 from src.config import settings
 
-
 _ALLOWED_CONTENT_TYPES = {
     # Documents
     "application/pdf",
     # Images
-    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
     # Audio
-    "audio/mpeg", "audio/ogg", "audio/mp4",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/mp4",
     # Video
-    "video/mp4", "video/webm", "video/quicktime",
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
     # Archives
     "application/zip",
 }

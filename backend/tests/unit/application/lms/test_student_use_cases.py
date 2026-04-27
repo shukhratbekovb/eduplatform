@@ -1,4 +1,5 @@
 """Unit tests — LMS Student use cases (in-memory repos)."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -20,8 +21,8 @@ from src.domain.auth.entities import User, UserRole
 from src.domain.lms.entities import RiskLevel, Student
 from src.domain.shared.value_objects import Email
 
-
 # ── In-memory stubs ───────────────────────────────────────────────────────────
+
 
 class InMemoryStudentRepo:
     def __init__(self) -> None:
@@ -74,6 +75,7 @@ def _make_user(name: str = "Alisher") -> User:
 
 # ── CreateStudentUseCase ──────────────────────────────────────────────────────
 
+
 class TestCreateStudentUseCase:
     async def test_creates_student(self) -> None:
         students = InMemoryStudentRepo()
@@ -106,6 +108,7 @@ class TestCreateStudentUseCase:
 
 # ── GetStudentUseCase ─────────────────────────────────────────────────────────
 
+
 class TestGetStudentUseCase:
     async def test_get_existing(self) -> None:
         students = InMemoryStudentRepo()
@@ -123,6 +126,7 @@ class TestGetStudentUseCase:
 
 
 # ── UpdateStudentUseCase ──────────────────────────────────────────────────────
+
 
 class TestUpdateStudentUseCase:
     async def test_update_phone(self) -> None:
@@ -142,12 +146,16 @@ class TestUpdateStudentUseCase:
 
 # ── RecalculateRiskUseCase ────────────────────────────────────────────────────
 
+
 class TestRecalculateRiskUseCase:
     async def test_recalculates_and_saves(self) -> None:
         students = InMemoryStudentRepo()
         s = Student(
-            id=uuid4(), user_id=uuid4(), full_name="At Risk",
-            attendance_percent=Decimal("40"), gpa=Decimal("3"),
+            id=uuid4(),
+            user_id=uuid4(),
+            full_name="At Risk",
+            attendance_percent=Decimal("40"),
+            gpa=Decimal("3"),
         )
         await students.save(s)
 

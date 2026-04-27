@@ -30,16 +30,16 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
-from src.domain.shared.entity import AggregateRoot
-from src.domain.shared.value_objects import Grade, Money, TimeRange
 from src.domain.lms.events import (
-    LessonConductedEvent,
     LessonCancelledEvent,
+    LessonConductedEvent,
     StudentRiskChangedEvent,
 )
-
+from src.domain.shared.entity import AggregateRoot
+from src.domain.shared.value_objects import Money, TimeRange
 
 # ── Enums ─────────────────────────────────────────────────────────────────────
+
 
 class RiskLevel(StrEnum):
     """Уровень риска отчисления студента.
@@ -162,6 +162,7 @@ class PaymentStatus(StrEnum):
 
 # ── Student ───────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class Student(AggregateRoot):
     """Сущность студента — корень агрегата.
@@ -252,11 +253,13 @@ class Student(AggregateRoot):
 
         if new != old:
             self.risk_level = new
-            self.add_event(StudentRiskChangedEvent(
-                student_id=self.id,
-                old_level=old,
-                new_level=new,
-            ))
+            self.add_event(
+                StudentRiskChangedEvent(
+                    student_id=self.id,
+                    old_level=old,
+                    new_level=new,
+                )
+            )
 
     def add_stars(self, amount: int) -> None:
         """Начисляет звёзды студенту.
@@ -294,6 +297,7 @@ class Student(AggregateRoot):
 
 
 # ── Direction / Subject / Room ────────────────────────────────────────────────
+
 
 @dataclass
 class Direction(AggregateRoot):
@@ -394,6 +398,7 @@ class Room(AggregateRoot):
 
 # ── Group ─────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class Group(AggregateRoot):
     """Учебная группа студентов.
@@ -434,6 +439,7 @@ class Group(AggregateRoot):
 
 
 # ── Lesson ────────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class Lesson(AggregateRoot):
@@ -550,11 +556,13 @@ class Lesson(AggregateRoot):
             raise ValueError(f"Cannot conduct lesson with status {self.status}")
         self.status = LessonStatus.COMPLETED
         self.topic = topic
-        self.add_event(LessonConductedEvent(
-            lesson_id=self.id,
-            group_id=self.group_id,
-            teacher_id=self.teacher_id,
-        ))
+        self.add_event(
+            LessonConductedEvent(
+                lesson_id=self.id,
+                group_id=self.group_id,
+                teacher_id=self.teacher_id,
+            )
+        )
 
     def cancel(self, reason: str) -> None:
         """Отменяет урок с указанием причины.
@@ -576,14 +584,17 @@ class Lesson(AggregateRoot):
             raise ValueError("Cancel reason is required")
         self.status = LessonStatus.CANCELLED
         self.cancel_reason = reason
-        self.add_event(LessonCancelledEvent(
-            lesson_id=self.id,
-            group_id=self.group_id,
-            reason=reason,
-        ))
+        self.add_event(
+            LessonCancelledEvent(
+                lesson_id=self.id,
+                group_id=self.group_id,
+                reason=reason,
+            )
+        )
 
 
 # ── Payment ───────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class Payment(AggregateRoot):

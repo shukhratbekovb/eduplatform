@@ -21,14 +21,13 @@
     POST /auth/users — создание пользователя (директор).
     GET /auth/users — список пользователей (директор).
 """
+
 from __future__ import annotations
 
 from typing import Annotated
-from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response as FastAPIResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, DbSession, require_roles
 from src.api.v1.auth.schemas import (
@@ -44,9 +43,8 @@ from src.api.v1.auth.schemas import (
 )
 from src.application.auth.use_cases import (
     ChangePasswordUseCase,
-    CreateUserUseCase,
     CreateUserInput,
-    GetMeUseCase,
+    CreateUserUseCase,
     LoginUseCase,
     RefreshTokenUseCase,
 )
@@ -83,30 +81,30 @@ async def _build_student_profile(user, db: DbSession) -> StudentProfile | None: 
             или запись студента не найдена.
     """
     from sqlalchemy import select
-    from src.infrastructure.persistence.models.lms import StudentModel, EnrollmentModel, GroupModel
 
-    role = user.role.value if hasattr(user.role, 'value') else user.role
+    from src.infrastructure.persistence.models.lms import EnrollmentModel, GroupModel, StudentModel
+
+    role = user.role.value if hasattr(user.role, "value") else user.role
     if role != "student":
         return None
-    from sqlalchemy.ext.asyncio import AsyncSession
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == user.id)
-    )).scalar_one_or_none()
+    student = (await db.execute(select(StudentModel).where(StudentModel.user_id == user.id))).scalar_one_or_none()
     if student is None:
         return None
     # Find first active enrollment to get group info
-    enrollment = (await db.execute(
-        select(EnrollmentModel).where(
-            EnrollmentModel.student_id == student.id,
-            EnrollmentModel.is_active == True,  # noqa: E712
-        ).limit(1)
-    )).scalar_one_or_none()
+    enrollment = (
+        await db.execute(
+            select(EnrollmentModel)
+            .where(
+                EnrollmentModel.student_id == student.id,
+                EnrollmentModel.is_active == True,  # noqa: E712
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
     group_id = None
     group_name = None
     if enrollment:
-        group = (await db.execute(
-            select(GroupModel).where(GroupModel.id == enrollment.group_id)
-        )).scalar_one_or_none()
+        group = (await db.execute(select(GroupModel).where(GroupModel.id == enrollment.group_id))).scalar_one_or_none()
         if group:
             group_id = str(group.id)
             group_name = group.name
@@ -138,10 +136,10 @@ def _user_out(user) -> UserOut:  # type: ignore[no-untyped-def]
         id=user.id,
         name=user.name,
         email=str(user.email),
-        role=user.role.value if hasattr(user.role, 'value') else user.role,
-        avatarUrl=getattr(user, 'avatar_url', None),
-        phone=getattr(user, 'phone', None),
-        dateOfBirth=user.date_of_birth.isoformat() if getattr(user, 'date_of_birth', None) else None,
+        role=user.role.value if hasattr(user.role, "value") else user.role,
+        avatarUrl=getattr(user, "avatar_url", None),
+        phone=getattr(user, "phone", None),
+        dateOfBirth=user.date_of_birth.isoformat() if getattr(user, "date_of_birth", None) else None,
         isActive=user.is_active,
     )
 
@@ -168,6 +166,7 @@ def _user_response(user) -> UserResponse:  # type: ignore[no-untyped-def]
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────
+
 
 @router.post("/login", response_model=LoginResponse)
 async def login(body: LoginRequest, db: DbSession) -> LoginResponse:
@@ -201,6 +200,7 @@ async def login(body: LoginRequest, db: DbSession) -> LoginResponse:
 
     # Fetch user to include in response
     from src.infrastructure.persistence.repositories.user_repository import SqlUserRepository
+
     user = await SqlUserRepository(db).get_by_email(body.email)
     student_profile = await _build_student_profile(user, db)
     return LoginResponse(
@@ -212,6 +212,7 @@ async def login(body: LoginRequest, db: DbSession) -> LoginResponse:
 
 
 # ── Refresh ───────────────────────────────────────────────────────────────────
+
 
 @router.post("/refresh", response_model=LoginResponse)
 async def refresh(body: RefreshRequest, db: DbSession) -> LoginResponse:
@@ -238,9 +239,10 @@ async def refresh(body: RefreshRequest, db: DbSession) -> LoginResponse:
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
-    from jose import JWTError
-    from src.infrastructure.services.jwt_service import decode_token
     from uuid import UUID as _UUID
+
+    from src.infrastructure.services.jwt_service import decode_token
+
     try:
         payload = decode_token(body.refresh_token)
         user = await repo.get_by_id(_UUID(payload["sub"]))
@@ -259,6 +261,7 @@ async def refresh(body: RefreshRequest, db: DbSession) -> LoginResponse:
 
 # ── Logout ────────────────────────────────────────────────────────────────────
 
+
 @router.post("/logout")
 async def logout() -> FastAPIResponse:
     """Выход из системы (stateless).
@@ -273,6 +276,7 @@ async def logout() -> FastAPIResponse:
 
 
 # ── Current user ──────────────────────────────────────────────────────────────
+
 
 @router.get("/me", response_model=UserOut)
 async def get_me(current_user: CurrentUser, db: DbSession) -> UserOut:
@@ -289,7 +293,9 @@ async def get_me(current_user: CurrentUser, db: DbSession) -> UserOut:
         UserOut: Полные данные пользователя в camelCase.
     """
     from sqlalchemy import select
+
     from src.infrastructure.persistence.models.auth import UserModel
+
     m = (await db.execute(select(UserModel).where(UserModel.id == current_user.id))).scalar_one()
     return _user_out(m)
 
@@ -314,6 +320,7 @@ async def update_profile(
         UserOut: Обновлённые данные пользователя.
     """
     from sqlalchemy import select
+
     from src.infrastructure.persistence.models.auth import UserModel
 
     # Update via ORM model (domain entity doesn't have phone/dob)
@@ -326,6 +333,7 @@ async def update_profile(
         m.phone = body.phone
     if body.date_of_birth is not None:
         from datetime import date as date_type
+
         try:
             m.date_of_birth = date_type.fromisoformat(body.date_of_birth)
         except ValueError:
@@ -336,6 +344,7 @@ async def update_profile(
 
 
 # ── Change password ───────────────────────────────────────────────────────────
+
 
 @router.post("/change-password")
 async def change_password(
@@ -399,12 +408,14 @@ async def create_user(
     """
     uc = CreateUserUseCase(_user_repo(db))
     try:
-        user = await uc.execute(CreateUserInput(
-            email=body.email,
-            password=body.password,
-            name=body.name,
-            role=body.role,
-        ))
+        user = await uc.execute(
+            CreateUserInput(
+                email=body.email,
+                password=body.password,
+                name=body.name,
+                role=body.role,
+            )
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     await db.commit()

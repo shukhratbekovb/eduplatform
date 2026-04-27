@@ -5,6 +5,7 @@ Upload flow:
   2. Backend uploads to GCS, returns signed URL + metadata
   3. Signed URLs expire after 7 days — client can request fresh URL via /files/url/{key}
 """
+
 from __future__ import annotations
 
 import uuid
@@ -33,6 +34,7 @@ class StorageService:
     def _get_client(self):
         if self._client is None:
             from google.cloud import storage as gcs
+
             if settings.GCS_CREDENTIALS_JSON:
                 self._client = gcs.Client.from_service_account_json(settings.GCS_CREDENTIALS_JSON)
             else:

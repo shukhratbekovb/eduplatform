@@ -18,7 +18,6 @@
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from uuid import UUID
 
 from src.domain.shared.entity import AggregateRoot
 from src.domain.shared.value_objects import Email

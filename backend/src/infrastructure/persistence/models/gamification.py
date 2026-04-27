@@ -15,11 +15,12 @@
     - Кристаллы: серия 5 уроков (+5), серия 10 уроков (+15), ручное начисление.
     - Бейджи: Bronze(0) → Silver(100) → Gold(300) → Platinum(600) → Diamond(1000).
 """
+
 import uuid
 from datetime import datetime
-from decimal import Decimal
 
-from sqlalchemy import Boolean, Enum as SAEnum, ForeignKey, Integer, Numeric, String, Text, DateTime
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -46,6 +47,7 @@ class AchievementModel(Base, UUIDPrimaryKey, TimestampMixin):
         trigger_value: Пороговое значение для триггера (опционально).
         is_active: Флаг активности (неактивные не показываются в каталоге).
     """
+
     __tablename__ = "achievements"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -73,14 +75,18 @@ class StudentAchievementModel(Base, UUIDPrimaryKey):
         achievement_id: UUID разблокированного достижения.
         unlocked_at: Дата и время разблокировки (UTC).
     """
+
     __tablename__ = "student_achievements"
 
     student_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     achievement_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("achievements.id", ondelete="CASCADE"),
+        UUID(as_uuid=True),
+        ForeignKey("achievements.id", ondelete="CASCADE"),
         nullable=False,
     )
     unlocked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -105,17 +111,25 @@ class StudentActivityEventModel(Base, UUIDPrimaryKey):
         linked_lesson_id: UUID урока, связанного с событием (опционально).
         created_at: Дата и время создания события (UTC, индексировано).
     """
+
     __tablename__ = "student_activity_events"
 
     student_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     type: Mapped[str] = mapped_column(
         SAEnum(
-            "stars_earned", "crystals_earned", "homework_graded",
-            "attendance", "teacher_reply", "badge_unlocked",
-            name="activity_event_type", create_type=False,
+            "stars_earned",
+            "crystals_earned",
+            "homework_graded",
+            "attendance",
+            "teacher_reply",
+            "badge_unlocked",
+            name="activity_event_type",
+            create_type=False,
         ),
         nullable=False,
     )
@@ -147,6 +161,7 @@ class ShopItemModel(Base, UUIDPrimaryKey, TimestampMixin):
         stock: Количество в наличии (None = безлимитно).
         is_active: Флаг активности (неактивные не показываются).
     """
+
     __tablename__ = "shop_items"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -170,14 +185,18 @@ class StudentPurchaseModel(Base, UUIDPrimaryKey):
         item_id: UUID купленного товара.
         purchased_at: Дата и время покупки (UTC).
     """
+
     __tablename__ = "student_purchases"
 
     student_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     item_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("shop_items.id", ondelete="CASCADE"),
+        UUID(as_uuid=True),
+        ForeignKey("shop_items.id", ondelete="CASCADE"),
         nullable=False,
     )
     purchased_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -1,4 +1,5 @@
 """Integration tests — CRM Leads API."""
+
 from __future__ import annotations
 
 from uuid import uuid4
@@ -7,11 +8,10 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import auth_headers, make_user
 from src.domain.auth.entities import UserRole
+from src.infrastructure.persistence.models.crm import FunnelModel, LeadModel, StageModel
 from src.infrastructure.persistence.repositories.user_repository import SqlUserRepository
-from src.infrastructure.persistence.models.crm import FunnelModel, StageModel, LeadModel
-
+from tests.conftest import auth_headers, make_user
 
 pytestmark = pytest.mark.asyncio
 
@@ -20,7 +20,7 @@ async def _persist_user(db: AsyncSession, **kwargs):  # type: ignore[no-untyped-
     user = make_user(**kwargs)
     repo = SqlUserRepository(db)
     await repo.save(user)
-    await db.flush()
+    await db.commit()
     return user
 
 
@@ -36,11 +36,12 @@ async def _make_funnel_with_stage(db: AsyncSession):  # type: ignore[no-untyped-
     )
     db.add(funnel)
     db.add(stage)
-    await db.flush()
+    await db.commit()
     return funnel, stage
 
 
 # ── POST /crm/leads ───────────────────────────────────────────────────────────
+
 
 class TestCreateLead:
     async def test_sales_manager_can_create(self, client: AsyncClient, db_session: AsyncSession) -> None:
@@ -60,7 +61,7 @@ class TestCreateLead:
         )
         assert resp.status_code == 201
         data = resp.json()
-        assert data["full_name"] == "Potential Student"
+        assert data["fullName"] == "Potential Student"
         assert data["status"] == "active"
 
     async def test_invalid_stage_raises(self, client: AsyncClient, db_session: AsyncSession) -> None:
@@ -83,15 +84,19 @@ class TestCreateLead:
 
 # ── GET /crm/leads ────────────────────────────────────────────────────────────
 
+
 class TestListLeads:
     async def test_returns_list(self, client: AsyncClient, db_session: AsyncSession) -> None:
         manager = await _persist_user(db_session, email="mgr_list@test.com", role=UserRole.SALES_MANAGER)
-        resp = await client.get("/api/v1/crm/leads/", headers=auth_headers(manager))
+        resp = await client.get("/api/v1/crm/leads", headers=auth_headers(manager))
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        data = resp.json()
+        assert "data" in data
+        assert isinstance(data["data"], list)
 
 
 # ── GET /crm/leads/{id} ───────────────────────────────────────────────────────
+
 
 class TestGetLead:
     async def test_get_existing(self, client: AsyncClient, db_session: AsyncSession) -> None:
@@ -108,11 +113,11 @@ class TestGetLead:
             status="active",
         )
         db_session.add(lead)
-        await db_session.flush()
+        await db_session.commit()
 
         resp = await client.get(f"/api/v1/crm/leads/{lead.id}", headers=auth_headers(manager))
         assert resp.status_code == 200
-        assert resp.json()["full_name"] == "Ali Valiyev"
+        assert resp.json()["fullName"] == "Ali Valiyev"
 
     async def test_missing_returns_404(self, client: AsyncClient, db_session: AsyncSession) -> None:
         manager = await _persist_user(db_session, email="mgr_404@test.com", role=UserRole.SALES_MANAGER)
@@ -121,6 +126,7 @@ class TestGetLead:
 
 
 # ── POST /crm/leads/{id}/win ──────────────────────────────────────────────────
+
 
 class TestWinLead:
     async def test_win_lead(self, client: AsyncClient, db_session: AsyncSession) -> None:
@@ -137,8 +143,8 @@ class TestWinLead:
             status="active",
         )
         db_session.add(lead)
-        await db_session.flush()
+        await db_session.commit()
 
-        resp = await client.post(f"/api/v1/crm/leads/{lead.id}/win", headers=auth_headers(manager))
+        resp = await client.post(f"/api/v1/crm/leads/{lead.id}/mark-won", headers=auth_headers(manager))
         assert resp.status_code == 200
         assert resp.json()["status"] == "won"

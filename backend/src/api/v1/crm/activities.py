@@ -1,7 +1,8 @@
 """CRM Lead Activities (calls, meetings, messages) and Comments."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query
@@ -21,6 +22,7 @@ VALID_ACTIVITY_TYPES = {"call", "meeting", "message", "other"}
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
+
 
 class ActivityOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -66,10 +68,9 @@ class CommentIn(BaseModel):
 
 # ── Activities ───────────────────────────────────────────────────────────────
 
+
 @router.post("/activities", response_model=ActivityOut, status_code=201)
-async def create_activity(
-    lead_id: UUID, body: ActivityIn, current_user: CurrentUser, db: DbSession
-) -> ActivityOut:
+async def create_activity(lead_id: UUID, body: ActivityIn, current_user: CurrentUser, db: DbSession) -> ActivityOut:
     if body.type not in VALID_ACTIVITY_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid type. Must be one of {sorted(VALID_ACTIVITY_TYPES)}")
 
@@ -82,7 +83,7 @@ async def create_activity(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format (use ISO 8601)")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     m = LeadActivityModel(
         id=uuid4(),
         lead_id=lead_id,
@@ -107,24 +108,33 @@ async def create_activity(
 
 @router.get("/activities", response_model=list[ActivityOut])
 async def list_activities(
-    lead_id: UUID, current_user: CurrentUser, db: DbSession,
-    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    lead_id: UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
 ) -> list[ActivityOut]:
-    rows = (await db.execute(
-        select(LeadActivityModel)
-        .where(LeadActivityModel.lead_id == lead_id)
-        .order_by(LeadActivityModel.date.desc())
-        .offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(LeadActivityModel)
+                .where(LeadActivityModel.lead_id == lead_id)
+                .order_by(LeadActivityModel.date.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [_activity_out(r) for r in rows]
 
 
 # ── Comments ─────────────────────────────────────────────────────────────────
 
+
 @router.post("/comments", response_model=CommentOut, status_code=201)
-async def create_comment(
-    lead_id: UUID, body: CommentIn, current_user: CurrentUser, db: DbSession
-) -> CommentOut:
+async def create_comment(lead_id: UUID, body: CommentIn, current_user: CurrentUser, db: DbSession) -> CommentOut:
     if not body.text.strip():
         raise HTTPException(status_code=400, detail="Comment text cannot be empty")
 
@@ -146,18 +156,22 @@ async def create_comment(
 
 @router.get("/comments", response_model=list[CommentOut])
 async def list_comments(lead_id: UUID, current_user: CurrentUser, db: DbSession) -> list[CommentOut]:
-    rows = (await db.execute(
-        select(LeadCommentModel)
-        .where(LeadCommentModel.lead_id == lead_id)
-        .order_by(LeadCommentModel.created_at.asc())
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(LeadCommentModel)
+                .where(LeadCommentModel.lead_id == lead_id)
+                .order_by(LeadCommentModel.created_at.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [_comment_out(r) for r in rows]
 
 
 @router.delete("/comments/{comment_id}")
-async def delete_comment(
-    lead_id: UUID, comment_id: UUID, current_user: CurrentUser, db: DbSession
-) -> dict:  # type: ignore[type-arg]
+async def delete_comment(lead_id: UUID, comment_id: UUID, current_user: CurrentUser, db: DbSession) -> dict:  # type: ignore[type-arg]
     m = await db.get(LeadCommentModel, comment_id)
     if m is None or m.lead_id != lead_id:
         raise HTTPException(status_code=404, detail="Comment not found")
@@ -170,10 +184,11 @@ async def delete_comment(
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 def _activity_out(m: LeadActivityModel, user=None) -> ActivityOut:  # type: ignore[no-untyped-def]
     created_by_user = None
-    if user and hasattr(user, 'name'):
-        created_by_user = {"name": user.name, "avatarUrl": getattr(user, 'avatar_url', None)}
+    if user and hasattr(user, "name"):
+        created_by_user = {"name": user.name, "avatarUrl": getattr(user, "avatar_url", None)}
     return ActivityOut(
         id=m.id,
         leadId=m.lead_id,

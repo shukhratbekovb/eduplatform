@@ -18,12 +18,13 @@ Example:
     >>> payload = decode_token(token)
     >>> print(payload["sub"])  # UUID пользователя в виде строки
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from jose import JWTError, jwt
+from jose import jwt
 
 from src.config import settings
 
@@ -34,7 +35,7 @@ def _now() -> datetime:
     Returns:
         datetime: Текущий момент времени с timezone-aware UTC.
     """
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def create_access_token(user_id: UUID, role: str) -> str:

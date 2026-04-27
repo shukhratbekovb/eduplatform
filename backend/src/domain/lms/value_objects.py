@@ -1,4 +1,5 @@
 """LMS domain value objects."""
+
 import re
 from dataclasses import dataclass
 from decimal import Decimal
@@ -7,6 +8,7 @@ from decimal import Decimal
 @dataclass(frozen=True)
 class StudentCode:
     """Unique student identifier code (e.g. STU-001)."""
+
     value: str
 
     def __post_init__(self) -> None:
@@ -25,6 +27,7 @@ class StudentCode:
 @dataclass(frozen=True)
 class Percentage:
     """A value constrained to 0–100 (attendance, completion rate, etc.)."""
+
     value: Decimal
 
     def __post_init__(self) -> None:
@@ -37,13 +40,13 @@ class Percentage:
     def __lt__(self, other: object) -> bool:
         if isinstance(other, Percentage):
             return self.value < other.value
-        if isinstance(other, (int, float, Decimal)):
+        if isinstance(other, int | float | Decimal):
             return self.value < Decimal(str(other))
         return NotImplemented
 
     def __ge__(self, other: object) -> bool:
         if isinstance(other, Percentage):
             return self.value >= other.value
-        if isinstance(other, (int, float, Decimal)):
+        if isinstance(other, int | float | Decimal):
             return self.value >= Decimal(str(other))
         return NotImplemented

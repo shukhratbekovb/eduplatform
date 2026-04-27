@@ -1,13 +1,88 @@
-"""Unit tests — Shared domain: value objects & specification pattern."""
+"""Unit tests — Shared domain: value objects, entity base, specification pattern."""
+
 from __future__ import annotations
 
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 
-from src.domain.shared.value_objects import Email, Grade, Money, Phone, TimeRange
+from src.domain.shared.entity import AggregateRoot, Entity
+from src.domain.shared.events import DomainEvent
 from src.domain.shared.specification import Specification
+from src.domain.shared.value_objects import Email, Grade, Money, Phone, TimeRange
 
+# ── Entity base class ───────────────────────────────────────────────────────
+
+
+class TestEntity:
+    def test_equality_same_id(self) -> None:
+        uid = uuid4()
+        e1 = Entity(id=uid)
+        e2 = Entity(id=uid)
+        assert e1 == e2
+
+    def test_inequality_different_id(self) -> None:
+        e1 = Entity(id=uuid4())
+        e2 = Entity(id=uuid4())
+        assert e1 != e2
+
+    def test_not_equal_to_non_entity(self) -> None:
+        e = Entity(id=uuid4())
+        assert e != "not an entity"
+        assert e != 42
+        assert e != None  # noqa: E711
+
+    def test_hash_based_on_id(self) -> None:
+        uid = uuid4()
+        e = Entity(id=uid)
+        assert hash(e) == hash(uid)
+
+    def test_usable_in_set(self) -> None:
+        uid = uuid4()
+        e1 = Entity(id=uid)
+        e2 = Entity(id=uid)
+        s = {e1, e2}
+        assert len(s) == 1
+
+
+# ── AggregateRoot ───────────────────────────────────────────────────────────
+
+
+class TestAggregateRoot:
+    def test_add_and_pull_events(self) -> None:
+        agg = AggregateRoot(id=uuid4())
+        event = DomainEvent()
+        agg.add_event(event)
+        events = agg.pull_events()
+        assert len(events) == 1
+        assert events[0] is event
+        # pulling again returns empty
+        assert agg.pull_events() == []
+
+    def test_domain_events_property_does_not_clear(self) -> None:
+        agg = AggregateRoot(id=uuid4())
+        event = DomainEvent()
+        agg.add_event(event)
+        # domain_events returns a copy without clearing
+        events = agg.domain_events
+        assert len(events) == 1
+        # still available
+        assert len(agg.domain_events) == 1
+        # pull clears
+        pulled = agg.pull_events()
+        assert len(pulled) == 1
+        assert agg.domain_events == []
+
+    def test_multiple_events(self) -> None:
+        agg = AggregateRoot(id=uuid4())
+        e1 = DomainEvent()
+        e2 = DomainEvent()
+        agg.add_event(e1)
+        agg.add_event(e2)
+        assert len(agg.domain_events) == 2
+        pulled = agg.pull_events()
+        assert len(pulled) == 2
 
 # ── Email ────────────────────────────────────────────────────────────────────
 

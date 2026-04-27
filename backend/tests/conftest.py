@@ -1,16 +1,20 @@
 """Shared pytest fixtures for all test layers."""
+
 from __future__ import annotations
 
-import asyncio
 import os
 from collections.abc import AsyncGenerator
-from typing import Any
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 # Force test environment before any src import
 os.environ.setdefault("APP_ENV", "test")
@@ -20,70 +24,59 @@ from src.domain.shared.value_objects import Email
 from src.infrastructure.services.jwt_service import create_access_token
 from src.infrastructure.services.password_service import hash_password
 
+# ── Database ─────────────────────────────────────────────────────────────────
 
-# ── Database (testcontainers) ─────────────────────────────────────────────────
-
-@pytest.fixture(scope="session")
-def pg_url() -> str:
-    """
-    Returns a PostgreSQL URL.
-    If TESTCONTAINERS_HOST is set → use it (CI).
-    Otherwise spin up a Docker container via testcontainers.
-    """
-    tc_url = os.environ.get("TEST_DATABASE_URL")
-    if tc_url:
-        return tc_url
-
-    try:
-        from testcontainers.postgres import PostgresContainer
-
-        container = PostgresContainer("postgres:16-alpine")
-        container.start()
-        url = container.get_connection_url().replace("postgresql://", "postgresql+asyncpg://")
-        # Store for cleanup — pytest-sessionfinish not trivial, so we just let Docker clean up
-        return url
-    except Exception:
-        # Fallback: use local DB
-        return "postgresql+asyncpg://edu:edu@localhost:5432/eduplatform_test"
+TEST_DB_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://edu:edu@localhost:5433/eduplatform_test",
+)
 
 
-@pytest_asyncio.fixture(scope="session")
-async def engine(pg_url: str):  # type: ignore[no-untyped-def]
+@pytest_asyncio.fixture()
+async def engine():
     from src.database import Base
-    # Import all models so metadata is populated
-    from src.infrastructure.persistence.models import auth, lms, crm, gamification  # noqa: F401
+    from src.infrastructure.persistence.models import auth, crm, gamification, lms  # noqa: F401
 
-    eng = create_async_engine(pg_url, echo=False)
+    eng = create_async_engine(TEST_DB_URL, echo=False, pool_size=5, max_overflow=10)
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield eng
+    # Cleanup all data after test
     async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(
+            text(
+                "DO $$ DECLARE r RECORD; BEGIN "
+                "FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP "
+                "EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE'; "
+                "END LOOP; END $$;"
+            )
+        )
     await eng.dispose()
 
 
 @pytest_asyncio.fixture()
-async def db_session(engine) -> AsyncGenerator[AsyncSession, None]:  # type: ignore[no-untyped-def]
-    """Per-test transactional session — rolls back after each test."""
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with factory() as session:
-        async with session.begin():
-            yield session
-            await session.rollback()
+async def db_session(engine) -> AsyncGenerator[AsyncSession, None]:
+    """Per-test session for setup/assertions. Commits are real."""
+    session = AsyncSession(engine, expire_on_commit=False)
+    yield session
+    await session.close()
 
 
 # ── App / HTTP client ─────────────────────────────────────────────────────────
 
+
 @pytest_asyncio.fixture()
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """AsyncClient wired to the FastAPI app with the test DB session."""
-    from src.main import create_app
+async def client(engine) -> AsyncGenerator[AsyncClient, None]:
+    """AsyncClient wired to the FastAPI app with independent DB sessions."""
     from src.database import get_db
+    from src.main import create_app
 
     app = create_app()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
 
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        yield db_session
+        async with factory() as session:
+            yield session
 
     app.dependency_overrides[get_db] = override_get_db
 
@@ -94,6 +87,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
+
 
 def make_user(
     role: UserRole = UserRole.DIRECTOR,
@@ -114,6 +108,23 @@ def make_user(
 def auth_headers(user: User) -> dict[str, str]:
     token = create_access_token(user.id, user.role.value)
     return {"Authorization": f"Bearer {token}"}
+
+
+async def persist_user(session: AsyncSession, user: User) -> None:
+    """Persist a domain User entity to the DB as a UserModel row."""
+    from src.infrastructure.persistence.models.auth import UserModel
+
+    session.add(
+        UserModel(
+            id=user.id,
+            email=str(user.email),
+            password_hash=user.password_hash,
+            name=user.name,
+            role=user.role.value,
+            is_active=user.is_active,
+        )
+    )
+    await session.commit()
 
 
 @pytest.fixture()

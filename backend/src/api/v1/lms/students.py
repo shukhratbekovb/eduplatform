@@ -21,26 +21,23 @@
     POST /students/{id}/enroll — зачисление в группу.
     POST /students/{id}/transfer — перевод между группами.
 """
+
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-
 from sqlalchemy import select
-from src.api.dependencies import CurrentUser, DbSession, require_roles
+
+from src.api.dependencies import DbSession, require_roles
 from src.application.lms.students.use_cases import (
     CreateStudentInput,
     CreateStudentUseCase,
-    GetStudentUseCase,
-    ListStudentsUseCase,
     RecalculateRiskUseCase,
-    UpdateStudentInput,
-    UpdateStudentUseCase,
 )
-from src.domain.lms.entities import Student
 from src.infrastructure.persistence.models.lms import StudentModel
 from src.infrastructure.persistence.repositories.lms.student_repository import SqlStudentRepository
 from src.infrastructure.persistence.repositories.user_repository import SqlUserRepository
@@ -78,6 +75,7 @@ class StudentResponse(BaseModel):
         attendancePercent: Процент посещаемости.
         groupCount: Количество активных зачислений в группы.
     """
+
     id: UUID
     userId: UUID | None = None
     studentCode: str | None = None
@@ -99,7 +97,7 @@ class StudentResponse(BaseModel):
     groupCount: int = 0
 
     @classmethod
-    def from_model(cls, m, group_count: int = 0) -> "StudentResponse":  # type: ignore[no-untyped-def]
+    def from_model(cls, m, group_count: int = 0) -> StudentResponse:  # type: ignore[no-untyped-def]
         """Создаёт StudentResponse из ORM-модели StudentModel.
 
         Args:
@@ -142,6 +140,7 @@ class PagedStudents(BaseModel):
         limit: Размер страницы.
         totalPages: Общее количество страниц.
     """
+
     data: list[StudentResponse]
     total: int
     page: int
@@ -158,6 +157,7 @@ class CreateStudentRequest(BaseModel):
         parent_phone: Телефон родителя (опционально).
         student_code: Уникальный код студента (опционально, автогенерация).
     """
+
     user_id: UUID
     phone: str | None = None
     parent_phone: str | None = None
@@ -179,6 +179,7 @@ class UpdateStudentRequest(BaseModel):
         address: Новый адрес.
         studentCode: Новый код студента.
     """
+
     fullName: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -216,18 +217,18 @@ async def create_student(
         users=SqlUserRepository(db),
     )
     try:
-        student = await uc.execute(CreateStudentInput(
-            user_id=body.user_id,
-            phone=body.phone,
-            parent_phone=body.parent_phone,
-            student_code=body.student_code,
-        ))
+        student = await uc.execute(
+            CreateStudentInput(
+                user_id=body.user_id,
+                phone=body.phone,
+                parent_phone=body.parent_phone,
+                student_code=body.student_code,
+            )
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     await db.commit()
-    m = (await db.execute(
-        select(StudentModel).where(StudentModel.id == student.id)
-    )).scalar_one()
+    m = (await db.execute(select(StudentModel).where(StudentModel.id == student.id))).scalar_one()
     return StudentResponse.from_model(m)
 
 
@@ -267,25 +268,38 @@ async def list_students(
         PagedStudents: Пагинированный список с общим количеством.
     """
     from sqlalchemy import func as fn
-    from src.infrastructure.persistence.models.lms import SubjectModel, EnrollmentModel, GroupModel
+
+    from src.infrastructure.persistence.models.lms import EnrollmentModel, GroupModel, SubjectModel
 
     q = select(StudentModel)
 
     # If teacherId — find students in groups whose direction matches teacher's subjects
     if teacher_id:
-        teacher_dir_ids = (await db.execute(
-            select(SubjectModel.direction_id).where(
-                SubjectModel.teacher_id == teacher_id,
-                SubjectModel.direction_id != None,  # noqa: E711
-            ).distinct()
-        )).scalars().all()
+        teacher_dir_ids = (
+            (
+                await db.execute(
+                    select(SubjectModel.direction_id)
+                    .where(
+                        SubjectModel.teacher_id == teacher_id,
+                        SubjectModel.direction_id != None,  # noqa: E711
+                    )
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        )
         if teacher_dir_ids:
             # Students enrolled in groups of those directions
             group_ids_q = select(GroupModel.id).where(GroupModel.direction_id.in_(teacher_dir_ids))
-            enrolled_student_ids = select(EnrollmentModel.student_id).where(
-                EnrollmentModel.group_id.in_(group_ids_q),
-                EnrollmentModel.is_active == True,  # noqa: E712
-            ).distinct()
+            enrolled_student_ids = (
+                select(EnrollmentModel.student_id)
+                .where(
+                    EnrollmentModel.group_id.in_(group_ids_q),
+                    EnrollmentModel.is_active == True,  # noqa: E712
+                )
+                .distinct()
+            )
             q = q.where(StudentModel.id.in_(enrolled_student_ids))
         else:
             q = q.where(False)  # teacher has no subjects → no students
@@ -302,20 +316,23 @@ async def list_students(
         )
 
     total = (await db.execute(select(fn.count()).select_from(q.subquery()))).scalar() or 0
-    rows = (await db.execute(
-        q.order_by(StudentModel.full_name)
-        .offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (await db.execute(q.order_by(StudentModel.full_name).offset((page - 1) * page_size).limit(page_size)))
+        .scalars()
+        .all()
+    )
 
     # Bulk count enrollments
     student_ids = [m.id for m in rows]
     enroll_counts: dict = {}
     if student_ids:
-        enroll_rows = (await db.execute(
-            select(EnrollmentModel.student_id, fn.count(EnrollmentModel.id).label("cnt"))
-            .where(EnrollmentModel.student_id.in_(student_ids), EnrollmentModel.is_active == True)  # noqa: E712
-            .group_by(EnrollmentModel.student_id)
-        )).all()
+        enroll_rows = (
+            await db.execute(
+                select(EnrollmentModel.student_id, fn.count(EnrollmentModel.id).label("cnt"))
+                .where(EnrollmentModel.student_id.in_(student_ids), EnrollmentModel.is_active == True)  # noqa: E712
+                .group_by(EnrollmentModel.student_id)
+            )
+        ).all()
         enroll_counts = {r.student_id: r.cnt for r in enroll_rows}
 
     return PagedStudents(
@@ -377,6 +394,7 @@ async def update_student(
         HTTPException: 404 — если студент не найден.
     """
     from datetime import date as _date
+
     m = (await db.execute(select(StudentModel).where(StudentModel.id == student_id))).scalar_one_or_none()
     if m is None:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -432,9 +450,7 @@ async def recalculate_risk(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     await db.commit()
-    m = (await db.execute(
-        select(StudentModel).where(StudentModel.id == student_id)
-    )).scalar_one()
+    m = (await db.execute(select(StudentModel).where(StudentModel.id == student_id))).scalar_one()
     return StudentResponse.from_model(m)
 
 
@@ -448,6 +464,7 @@ class RiskDetailsResponse(BaseModel):
         debtDays: Количество дней просрочки оплаты.
         dropoutProbability: Вероятность отчисления (0.0 - 1.0).
     """
+
     attendancePercent14d: float
     avgGradeLast5: float
     missedHomeworkStreak: int
@@ -468,6 +485,7 @@ class RiskFactorsResponse(BaseModel):
         calculatedAt: Дата и время расчёта (ISO).
         details: Детализация числовых показателей.
     """
+
     studentId: str
     attendanceScore: str
     gradesScore: str
@@ -501,14 +519,13 @@ async def get_student_risk(
         HTTPException: 404 — если студент не найден.
         HTTPException: 503 — если ML-модуль недоступен.
     """
-    m = (await db.execute(
-        select(StudentModel).where(StudentModel.id == student_id)
-    )).scalar_one_or_none()
+    m = (await db.execute(select(StudentModel).where(StudentModel.id == student_id))).scalar_one_or_none()
     if m is None:
         raise HTTPException(status_code=404, detail="Student not found")
 
     try:
         from src.ml.risk_scorer import MLRiskScorer
+
         scorer = MLRiskScorer(db)
         result = await scorer.score_student(student_id)
         return RiskFactorsResponse(
@@ -558,7 +575,9 @@ async def reset_student_password(
         HTTPException: 404 — если студент или его учётная запись не найдены.
         HTTPException: 400 — если у студента нет привязанного пользователя.
     """
-    import secrets, string
+    import secrets
+    import string
+
     from src.infrastructure.persistence.models.auth import UserModel
     from src.infrastructure.services.password_service import hash_password
 
@@ -574,8 +593,12 @@ async def reset_student_password(
 
     # Generate new password
     chars = string.ascii_letters + string.digits + "!@#$"
-    pw = [secrets.choice(string.ascii_uppercase), secrets.choice(string.ascii_lowercase),
-          secrets.choice(string.digits), secrets.choice("!@#$")]
+    pw = [
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.digits),
+        secrets.choice("!@#$"),
+    ]
     pw += [secrets.choice(chars) for _ in range(6)]
     secrets.SystemRandom().shuffle(pw)
     new_password = "".join(pw)
@@ -588,9 +611,12 @@ async def reset_student_password(
 
 # ── Student Groups (enrollments + transfer) ──────────────────────────────────
 
+
 @router.get("/{student_id}/groups")
 async def get_student_groups(
-    student_id: UUID, _: StaffGuard, db: DbSession,
+    student_id: UUID,
+    _: StaffGuard,
+    db: DbSession,
 ) -> dict:  # type: ignore[type-arg]
     """Получение текущих зачислений и доступных групп для студента.
 
@@ -611,21 +637,26 @@ async def get_student_groups(
     Raises:
         HTTPException: 404 — если студент не найден.
     """
-    from src.infrastructure.persistence.models.lms import EnrollmentModel, GroupModel, SubjectModel, DirectionModel
-    from src.infrastructure.persistence.models.crm import ContractModel
-    from sqlalchemy import func as fn
+
+    from src.infrastructure.persistence.models.lms import (
+        DirectionModel,
+        EnrollmentModel,
+        GroupModel,
+    )
 
     m = (await db.execute(select(StudentModel).where(StudentModel.id == student_id))).scalar_one_or_none()
     if m is None:
         raise HTTPException(status_code=404, detail="Student not found")
 
     # Current enrollments with group info
-    enrollments = (await db.execute(
-        select(EnrollmentModel, GroupModel)
-        .join(GroupModel, GroupModel.id == EnrollmentModel.group_id)
-        .where(EnrollmentModel.student_id == student_id)
-        .order_by(EnrollmentModel.enrolled_at.desc())
-    )).all()
+    enrollments = (
+        await db.execute(
+            select(EnrollmentModel, GroupModel)
+            .join(GroupModel, GroupModel.id == EnrollmentModel.group_id)
+            .where(EnrollmentModel.student_id == student_id)
+            .order_by(EnrollmentModel.enrolled_at.desc())
+        )
+    ).all()
 
     # Resolve direction names
     dir_ids = {grp.direction_id for _, grp in enrollments if grp.direction_id}
@@ -636,44 +667,58 @@ async def get_student_groups(
 
     current_groups = []
     for enr, grp in enrollments:
-        current_groups.append({
-            "enrollmentId": str(enr.id),
-            "groupId": str(grp.id),
-            "groupName": grp.name,
-            "directionName": dir_map.get(grp.direction_id),
-            "isActive": enr.is_active,
-            "enrolledAt": enr.enrolled_at.isoformat() if enr.enrolled_at else None,
-            "droppedAt": enr.dropped_at.isoformat() if enr.dropped_at else None,
-        })
+        current_groups.append(
+            {
+                "enrollmentId": str(enr.id),
+                "groupId": str(grp.id),
+                "groupName": grp.name,
+                "directionName": dir_map.get(grp.direction_id),
+                "isActive": enr.is_active,
+                "enrolledAt": enr.enrolled_at.isoformat() if enr.enrolled_at else None,
+                "droppedAt": enr.dropped_at.isoformat() if enr.dropped_at else None,
+            }
+        )
 
     # Available groups: all active groups not yet enrolled
     enrolled_group_ids = {g["groupId"] for g in current_groups if g["isActive"]}
-    all_groups = (await db.execute(
-        select(GroupModel).where(GroupModel.is_active == True)  # noqa: E712
-    )).scalars().all()
+    all_groups = (
+        (
+            await db.execute(
+                select(GroupModel).where(GroupModel.is_active == True)  # noqa: E712
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     # Resolve all direction names
     all_dir_ids = {g.direction_id for g in all_groups if g.direction_id} - set(dir_map.keys())
     if all_dir_ids:
-        extra_dirs = (await db.execute(select(DirectionModel).where(DirectionModel.id.in_(all_dir_ids)))).scalars().all()
+        extra_dirs = (
+            (await db.execute(select(DirectionModel).where(DirectionModel.id.in_(all_dir_ids)))).scalars().all()
+        )
         for d in extra_dirs:
             dir_map[d.id] = d.name
 
     available_groups = []
     for grp in all_groups:
-        available_groups.append({
-            "groupId": str(grp.id),
-            "groupName": grp.name,
-            "directionName": dir_map.get(grp.direction_id),
-            "isEnrolled": str(grp.id) in enrolled_group_ids,
-        })
+        available_groups.append(
+            {
+                "groupId": str(grp.id),
+                "groupName": grp.name,
+                "directionName": dir_map.get(grp.direction_id),
+                "isEnrolled": str(grp.id) in enrolled_group_ids,
+            }
+        )
 
     return {"currentGroups": current_groups, "availableGroups": available_groups}
 
 
 @router.post("/{student_id}/enroll")
 async def enroll_student(
-    student_id: UUID, _: StaffGuard, db: DbSession,
+    student_id: UUID,
+    _: StaffGuard,
+    db: DbSession,
     groupId: str = "",
 ) -> dict:  # type: ignore[type-arg]
     """Зачисление студента в группу.
@@ -695,10 +740,11 @@ async def enroll_student(
         HTTPException: 404 — если студент или группа не найдены.
         HTTPException: 409 — если студент уже зачислен в группу.
     """
-    from src.infrastructure.persistence.models.lms import EnrollmentModel, GroupModel, SubjectModel
-    from src.infrastructure.persistence.models.crm import ContractModel
+    from datetime import datetime
     from uuid import uuid4 as _uid
-    from datetime import datetime, timezone
+
+    from src.infrastructure.persistence.models.crm import ContractModel
+    from src.infrastructure.persistence.models.lms import EnrollmentModel, GroupModel
 
     if not groupId:
         raise HTTPException(status_code=400, detail="groupId is required")
@@ -716,38 +762,57 @@ async def enroll_student(
 
     # Check direction constraint from contracts
     if grp.direction_id:
-        allowed_dirs = (await db.execute(
-            select(ContractModel.direction_id).where(
-                ContractModel.student_id == student_id, ContractModel.status == "active",
-                ContractModel.direction_id.isnot(None),
-            ).distinct()
-        )).scalars().all()
+        allowed_dirs = (
+            (
+                await db.execute(
+                    select(ContractModel.direction_id)
+                    .where(
+                        ContractModel.student_id == student_id,
+                        ContractModel.status == "active",
+                        ContractModel.direction_id.isnot(None),
+                    )
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        )
         if allowed_dirs and grp.direction_id not in allowed_dirs:
             raise HTTPException(status_code=400, detail="Student contract does not include this direction")
 
     # Check not already enrolled
-    existing = (await db.execute(
-        select(EnrollmentModel).where(
-            EnrollmentModel.student_id == student_id,
-            EnrollmentModel.group_id == group_uuid,
-            EnrollmentModel.is_active == True,  # noqa: E712
+    existing = (
+        await db.execute(
+            select(EnrollmentModel).where(
+                EnrollmentModel.student_id == student_id,
+                EnrollmentModel.group_id == group_uuid,
+                EnrollmentModel.is_active == True,  # noqa: E712
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail="Already enrolled in this group")
 
-    db.add(EnrollmentModel(
-        id=_uid(), student_id=student_id, group_id=group_uuid,
-        enrolled_at=datetime.now(timezone.utc), is_active=True,
-    ))
+    db.add(
+        EnrollmentModel(
+            id=_uid(),
+            student_id=student_id,
+            group_id=group_uuid,
+            enrolled_at=datetime.now(UTC),
+            is_active=True,
+        )
+    )
     await db.commit()
     return {"message": "Enrolled successfully"}
 
 
 @router.post("/{student_id}/transfer")
 async def transfer_student(
-    student_id: UUID, _: StaffGuard, db: DbSession,
-    fromGroupId: str = "", toGroupId: str = "",
+    student_id: UUID,
+    _: StaffGuard,
+    db: DbSession,
+    fromGroupId: str = "",
+    toGroupId: str = "",
 ) -> dict:  # type: ignore[type-arg]
     """Перевод студента из одной группы в другую.
 
@@ -770,10 +835,11 @@ async def transfer_student(
             целевой группы не покрывается договором.
         HTTPException: 404 — если студент или целевая группа не найдены.
     """
-    from src.infrastructure.persistence.models.lms import EnrollmentModel, GroupModel, SubjectModel
-    from src.infrastructure.persistence.models.crm import ContractModel
+    from datetime import datetime
     from uuid import uuid4 as _uid
-    from datetime import datetime, timezone
+
+    from src.infrastructure.persistence.models.crm import ContractModel
+    from src.infrastructure.persistence.models.lms import EnrollmentModel, GroupModel
 
     if not fromGroupId or not toGroupId:
         raise HTTPException(status_code=400, detail="fromGroupId and toGroupId required")
@@ -791,32 +857,48 @@ async def transfer_student(
     if to_grp is None:
         raise HTTPException(status_code=404, detail="Target group not found")
     if to_grp.direction_id:
-        allowed_dirs = (await db.execute(
-            select(ContractModel.direction_id).where(
-                ContractModel.student_id == student_id, ContractModel.status == "active",
-                ContractModel.direction_id.isnot(None),
-            ).distinct()
-        )).scalars().all()
+        allowed_dirs = (
+            (
+                await db.execute(
+                    select(ContractModel.direction_id)
+                    .where(
+                        ContractModel.student_id == student_id,
+                        ContractModel.status == "active",
+                        ContractModel.direction_id.isnot(None),
+                    )
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        )
         if allowed_dirs and to_grp.direction_id not in allowed_dirs:
             raise HTTPException(status_code=400, detail="Student contract does not include target direction")
 
     # Deactivate old enrollment
-    now = datetime.now(timezone.utc)
-    old_enr = (await db.execute(
-        select(EnrollmentModel).where(
-            EnrollmentModel.student_id == student_id,
-            EnrollmentModel.group_id == from_uuid,
-            EnrollmentModel.is_active == True,  # noqa: E712
+    now = datetime.now(UTC)
+    old_enr = (
+        await db.execute(
+            select(EnrollmentModel).where(
+                EnrollmentModel.student_id == student_id,
+                EnrollmentModel.group_id == from_uuid,
+                EnrollmentModel.is_active == True,  # noqa: E712
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if old_enr:
         old_enr.is_active = False
         old_enr.dropped_at = now
 
     # Create new enrollment
-    db.add(EnrollmentModel(
-        id=_uid(), student_id=student_id, group_id=to_uuid,
-        enrolled_at=now, is_active=True,
-    ))
+    db.add(
+        EnrollmentModel(
+            id=_uid(),
+            student_id=student_id,
+            group_id=to_uuid,
+            enrolled_at=now,
+            is_active=True,
+        )
+    )
     await db.commit()
     return {"message": "Transferred successfully"}

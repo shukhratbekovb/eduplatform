@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.interfaces.repositories import FunnelRepository, StageRepository
@@ -78,8 +78,6 @@ class SqlStageRepository(StageRepository):
 
     async def get_by_funnel(self, funnel_id: UUID) -> list[Stage]:
         result = await self._s.execute(
-            select(StageModel)
-            .where(StageModel.funnel_id == funnel_id)
-            .order_by(StageModel.order)
+            select(StageModel).where(StageModel.funnel_id == funnel_id).order_by(StageModel.order)
         )
         return [_stage_to_domain(r) for r in result.scalars().all()]

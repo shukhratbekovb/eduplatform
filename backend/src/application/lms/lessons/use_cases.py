@@ -1,12 +1,13 @@
 """LMS Lesson use cases."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from src.application.interfaces.repositories import GroupRepository, LessonRepository, Page
-from src.domain.lms.entities import Lesson, LessonStatus
+from src.domain.lms.entities import Lesson
 
 
 @dataclass

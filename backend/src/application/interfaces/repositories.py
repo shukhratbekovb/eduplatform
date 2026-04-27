@@ -17,6 +17,7 @@
       RoomRepository, GroupRepository, LessonRepository, PaymentRepository
     - CRM: FunnelRepository, StageRepository, LeadRepository, CrmTaskRepository
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -25,6 +26,7 @@ from typing import Generic, TypeVar
 from uuid import UUID
 
 from src.domain.auth.entities import User
+from src.domain.crm.entities import CrmTask, Funnel, Lead, Stage
 from src.domain.lms.entities import (
     Direction,
     Group,
@@ -34,7 +36,6 @@ from src.domain.lms.entities import (
     Student,
     Subject,
 )
-from src.domain.crm.entities import CrmTask, Funnel, Lead, Stage
 
 T = TypeVar("T")
 
@@ -74,6 +75,7 @@ class Page(Generic[T]):
 
 
 # ─── Auth ───────────────────────────────────────────────────────────────────
+
 
 class UserRepository(ABC):
     """Абстрактный репозиторий для агрегата User.
@@ -143,6 +145,7 @@ class UserRepository(ABC):
 
 
 # ─── LMS ────────────────────────────────────────────────────────────────────
+
 
 class StudentRepository(ABC):
     """Абстрактный репозиторий для агрегата Student.
@@ -518,6 +521,7 @@ class PaymentRepository(ABC):
 
 
 # ─── CRM ────────────────────────────────────────────────────────────────────
+
 
 class FunnelRepository(ABC):
     """Абстрактный репозиторий для агрегата Funnel (воронка продаж CRM).

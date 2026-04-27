@@ -27,6 +27,7 @@ def _to_domain(m: CrmTaskModel) -> CrmTask:
 
 def _apply_fields(m: CrmTaskModel, t: CrmTask) -> None:
     from datetime import datetime
+
     m.title = t.title
     m.description = t.description
     m.linked_lead_id = t.linked_lead_id

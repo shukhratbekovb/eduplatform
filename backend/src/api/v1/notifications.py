@@ -13,17 +13,18 @@
     POST /notifications/{id}/read — пометить уведомление как прочитанное.
     POST /notifications/read-all — пометить все уведомления как прочитанные.
 """
+
 from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Response, Query
+from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from src.api.dependencies import CurrentUser, DbSession
-from src.infrastructure.persistence.models.lms import LmsNotificationModel
 from src.infrastructure.persistence.models.crm import CrmNotificationModel
+from src.infrastructure.persistence.models.lms import LmsNotificationModel
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -40,12 +41,13 @@ class NotificationOut(BaseModel):
         source: Источник уведомления ("lms" или "crm").
         createdAt: Дата и время создания (ISO формат).
     """
+
     id: UUID
     type: str
     title: str
     body: str | None
     isRead: bool
-    source: str      # "lms" | "crm"
+    source: str  # "lms" | "crm"
     createdAt: str
 
 
@@ -84,15 +86,17 @@ async def list_notifications(
         lms_q = lms_q.where(LmsNotificationModel.is_read == False)  # noqa: E712
     lms_rows = (await db.execute(lms_q.order_by(LmsNotificationModel.created_at.desc()))).scalars().all()
     for n in lms_rows:
-        result.append(NotificationOut(
-            id=n.id,
-            type=n.type or "notification",
-            title=n.title,
-            body=n.body,
-            isRead=n.is_read,
-            source="lms",
-            createdAt=n.created_at.isoformat(),
-        ))
+        result.append(
+            NotificationOut(
+                id=n.id,
+                type=n.type or "notification",
+                title=n.title,
+                body=n.body,
+                isRead=n.is_read,
+                source="lms",
+                createdAt=n.created_at.isoformat(),
+            )
+        )
 
     # CRM notifications
     crm_q = select(CrmNotificationModel).where(CrmNotificationModel.user_id == current_user.id)
@@ -100,19 +104,21 @@ async def list_notifications(
         crm_q = crm_q.where(CrmNotificationModel.is_read == False)  # noqa: E712
     crm_rows = (await db.execute(crm_q.order_by(CrmNotificationModel.created_at.desc()))).scalars().all()
     for n in crm_rows:
-        result.append(NotificationOut(
-            id=n.id,
-            type=n.type,
-            title=n.title,
-            body=n.body,
-            isRead=n.is_read,
-            source="crm",
-            createdAt=n.created_at.isoformat(),
-        ))
+        result.append(
+            NotificationOut(
+                id=n.id,
+                type=n.type,
+                title=n.title,
+                body=n.body,
+                isRead=n.is_read,
+                source="crm",
+                createdAt=n.created_at.isoformat(),
+            )
+        )
 
     result.sort(key=lambda n: n.createdAt, reverse=True)
     start = (page - 1) * limit
-    return result[start: start + limit]
+    return result[start : start + limit]
 
 
 @router.post("/{notification_id}/read", response_model=NotificationOut)
@@ -134,33 +140,52 @@ async def mark_read(notification_id: UUID, current_user: CurrentUser, db: DbSess
         HTTPException: 404 — если уведомление не найдено ни в LMS, ни в CRM.
     """
     # Try LMS first
-    lms = (await db.execute(
-        select(LmsNotificationModel).where(
-            LmsNotificationModel.id == notification_id,
-            LmsNotificationModel.user_id == current_user.id,
+    lms = (
+        await db.execute(
+            select(LmsNotificationModel).where(
+                LmsNotificationModel.id == notification_id,
+                LmsNotificationModel.user_id == current_user.id,
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if lms:
         lms.is_read = True
         await db.commit()
         await db.refresh(lms)
-        return NotificationOut(id=lms.id, type="notification", title=lms.title, body=lms.body,
-                               isRead=lms.is_read, source="lms", createdAt=lms.created_at.isoformat())
-
-    crm = (await db.execute(
-        select(CrmNotificationModel).where(
-            CrmNotificationModel.id == notification_id,
-            CrmNotificationModel.user_id == current_user.id,
+        return NotificationOut(
+            id=lms.id,
+            type="notification",
+            title=lms.title,
+            body=lms.body,
+            isRead=lms.is_read,
+            source="lms",
+            createdAt=lms.created_at.isoformat(),
         )
-    )).scalar_one_or_none()
+
+    crm = (
+        await db.execute(
+            select(CrmNotificationModel).where(
+                CrmNotificationModel.id == notification_id,
+                CrmNotificationModel.user_id == current_user.id,
+            )
+        )
+    ).scalar_one_or_none()
     if crm:
         crm.is_read = True
         await db.commit()
         await db.refresh(crm)
-        return NotificationOut(id=crm.id, type=crm.type, title=crm.title, body=crm.body,
-                               isRead=crm.is_read, source="crm", createdAt=crm.created_at.isoformat())
+        return NotificationOut(
+            id=crm.id,
+            type=crm.type,
+            title=crm.title,
+            body=crm.body,
+            isRead=crm.is_read,
+            source="crm",
+            createdAt=crm.created_at.isoformat(),
+        )
 
     from fastapi import HTTPException
+
     raise HTTPException(status_code=404, detail="Notification not found")
 
 

@@ -17,10 +17,11 @@
 feature importances из обученной модели. Это позволяет понять, какой именно
 домен вносит наибольший вклад в итоговый риск.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -28,7 +29,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.lms.entities import RiskLevel
 from src.infrastructure.persistence.models.lms import StudentModel
-
 from src.ml.feature_extractor import RiskFeatureExtractor
 from src.ml.predictor import RiskPredictor
 
@@ -237,9 +237,7 @@ class MLRiskScorer:
             Список RiskScoreResult для каждого активного студента.
             Пустой список, если нет активных студентов.
         """
-        rows = (await session.execute(
-            select(StudentModel.id).where(StudentModel.is_active.is_(True))
-        )).scalars().all()
+        rows = (await session.execute(select(StudentModel.id).where(StudentModel.is_active.is_(True)))).scalars().all()
 
         student_ids = list(rows)
         if not student_ids:
@@ -251,7 +249,7 @@ class MLRiskScorer:
         importances = self._predictor.feature_importances()
 
         results = []
-        for sid, features, prob in zip(student_ids, features_list, probas):
+        for sid, features, prob in zip(student_ids, features_list, probas, strict=False):
             results.append(self._build_result(sid, features, prob, importances))
 
         return results
@@ -301,5 +299,5 @@ class MLRiskScorer:
             homework_score=probability_to_risk_level(hw_score_val),
             payment_score=probability_to_risk_level(pay_score_val),
             details=details,
-            computed_at=datetime.now(timezone.utc),
+            computed_at=datetime.now(UTC),
         )

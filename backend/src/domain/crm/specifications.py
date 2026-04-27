@@ -1,4 +1,5 @@
 """CRM domain specifications."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -16,6 +17,7 @@ class ActiveLeadSpec(Specification["Lead"]):
 
     def is_satisfied_by(self, candidate: Lead) -> bool:
         from src.domain.crm.entities import LeadStatus
+
         return candidate.status == LeadStatus.ACTIVE
 
 
@@ -24,6 +26,7 @@ class OverdueTaskSpec(Specification["CrmTask"]):
 
     def is_satisfied_by(self, candidate: CrmTask) -> bool:
         from src.domain.crm.entities import TaskStatus
+
         if candidate.status == TaskStatus.DONE:
             return False
         if not candidate.due_date:

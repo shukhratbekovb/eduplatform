@@ -78,10 +78,12 @@ class SqlLeadRepository(LeadRepository):
             q = q.where(LeadModel.status == status)
         if search:
             pattern = f"%{search}%"
-            q = q.where(or_(
-                LeadModel.full_name.ilike(pattern),
-                LeadModel.phone.ilike(pattern),
-            ))
+            q = q.where(
+                or_(
+                    LeadModel.full_name.ilike(pattern),
+                    LeadModel.phone.ilike(pattern),
+                )
+            )
 
         total = (await self._s.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
         q = q.order_by(LeadModel.created_at.desc()).offset((page - 1) * page_size).limit(page_size)

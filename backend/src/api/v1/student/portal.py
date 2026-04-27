@@ -1,36 +1,37 @@
 """Student Portal API — endpoints used by the student-facing frontend."""
+
 from __future__ import annotations
 
-from datetime import date, datetime, timezone, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from src.api.dependencies import CurrentUser, DbSession
 from src.domain.auth.entities import UserRole
-from src.infrastructure.persistence.models.lms import (
-    AttendanceRecordModel,
-    DirectionModel,
-    EnrollmentModel,
-    GradeRecordModel,
-    HomeworkAssignmentModel,
-    HomeworkSubmissionModel,
-    LessonModel,
-    LessonMaterialModel,
-    PaymentModel,
-    StudentModel,
-    GroupModel,
-    SubjectModel,
-)
 from src.infrastructure.persistence.models.auth import UserModel
 from src.infrastructure.persistence.models.crm import ContractModel
 from src.infrastructure.persistence.models.gamification import (
     AchievementModel,
     StudentAchievementModel,
     StudentActivityEventModel,
+)
+from src.infrastructure.persistence.models.lms import (
+    AttendanceRecordModel,
+    DirectionModel,
+    EnrollmentModel,
+    GradeRecordModel,
+    GroupModel,
+    HomeworkAssignmentModel,
+    HomeworkSubmissionModel,
+    LessonMaterialModel,
+    LessonModel,
+    PaymentModel,
+    StudentModel,
+    SubjectModel,
 )
 
 router = APIRouter(prefix="/student", tags=["Student Portal"])
@@ -42,6 +43,7 @@ def _require_student(current_user: CurrentUser) -> None:
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
+
 
 class DashboardResponse(BaseModel):
     student_id: UUID
@@ -66,26 +68,28 @@ class DashboardResponse(BaseModel):
 async def get_dashboard(current_user: CurrentUser, db: DbSession) -> DashboardResponse:
     _require_student(current_user)
 
-    result = await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )
+    result = await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
     student = result.scalar_one_or_none()
     if student is None:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
     # Assignments stats
-    subs = (await db.execute(
-        select(HomeworkSubmissionModel).where(HomeworkSubmissionModel.student_id == student.id)
-    )).scalars().all()
+    subs = (
+        (await db.execute(select(HomeworkSubmissionModel).where(HomeworkSubmissionModel.student_id == student.id)))
+        .scalars()
+        .all()
+    )
     total_assignments = len(subs)
     pending_assignments = sum(1 for s in subs if s.status == "pending")
     overdue_assignments = sum(1 for s in subs if s.status == "overdue")
     on_time = sum(1 for s in subs if s.status in ("submitted", "graded"))
 
     # Attendance breakdown
-    att_rows = (await db.execute(
-        select(AttendanceRecordModel).where(AttendanceRecordModel.student_id == student.id)
-    )).scalars().all()
+    att_rows = (
+        (await db.execute(select(AttendanceRecordModel).where(AttendanceRecordModel.student_id == student.id)))
+        .scalars()
+        .all()
+    )
     total_att = len(att_rows)
     present = sum(1 for a in att_rows if a.status == "present")
     absent = sum(1 for a in att_rows if a.status == "absent")
@@ -97,12 +101,18 @@ async def get_dashboard(current_user: CurrentUser, db: DbSession) -> DashboardRe
     }
 
     # Recent grades (last 10)
-    grade_rows = (await db.execute(
-        select(GradeRecordModel)
-        .where(GradeRecordModel.student_id == student.id)
-        .order_by(GradeRecordModel.graded_at.desc())
-        .limit(10)
-    )).scalars().all()
+    grade_rows = (
+        (
+            await db.execute(
+                select(GradeRecordModel)
+                .where(GradeRecordModel.student_id == student.id)
+                .order_by(GradeRecordModel.graded_at.desc())
+                .limit(10)
+            )
+        )
+        .scalars()
+        .all()
+    )
     # Resolve subject names and lesson topics for grades
     subject_name_cache: dict = {}
     lesson_topic_cache: dict = {}
@@ -124,15 +134,17 @@ async def get_dashboard(current_user: CurrentUser, db: DbSession) -> DashboardRe
                 lesson_topic_cache[lid] = lesson or ""
             lesson_topic = lesson_topic_cache[lid]
 
-        recent_grades.append({
-            "id": str(g.id),
-            "date": g.graded_at.date().isoformat() if g.graded_at else "",
-            "type": g.type,
-            "value": float(g.score),
-            "subjectId": str(g.subject_id) if g.subject_id else "",
-            "subjectName": subj_name,
-            "lessonTopic": lesson_topic,
-        })
+        recent_grades.append(
+            {
+                "id": str(g.id),
+                "date": g.graded_at.date().isoformat() if g.graded_at else "",
+                "type": g.type,
+                "value": float(g.score),
+                "subjectId": str(g.subject_id) if g.subject_id else "",
+                "subjectName": subj_name,
+                "lessonTopic": lesson_topic,
+            }
+        )
 
     return DashboardResponse(
         student_id=student.id,
@@ -156,6 +168,7 @@ async def get_dashboard(current_user: CurrentUser, db: DbSession) -> DashboardRe
 
 # ── My Lessons (schedule) ─────────────────────────────────────────────────────
 
+
 class LessonSummary(BaseModel):
     id: UUID
     group_id: UUID
@@ -177,9 +190,7 @@ async def my_lessons(
     _require_student(current_user)
 
     # Get student record
-    student_result = await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )
+    student_result = await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
     student = student_result.scalar_one_or_none()
     if student is None:
         return []
@@ -210,7 +221,9 @@ async def my_lessons(
             group_id=l.group_id,
             date=l.scheduled_at.strftime("%Y-%m-%d") if l.scheduled_at else "",
             startTime=l.scheduled_at.strftime("%H:%M") if l.scheduled_at else "",
-            endTime=(l.scheduled_at + timedelta(minutes=l.duration_minutes or 60)).strftime("%H:%M") if l.scheduled_at else "",
+            endTime=(l.scheduled_at + timedelta(minutes=l.duration_minutes or 60)).strftime("%H:%M")
+            if l.scheduled_at
+            else "",
             status=l.status,
             topic=l.topic,
             is_online=l.is_online,
@@ -220,6 +233,7 @@ async def my_lessons(
 
 
 # ── My Homework ───────────────────────────────────────────────────────────────
+
 
 class HomeworkSummary(BaseModel):
     id: UUID
@@ -239,9 +253,7 @@ async def my_homework(
 ) -> list[HomeworkSummary]:
     _require_student(current_user)
 
-    student_result = await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )
+    student_result = await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
     student = student_result.scalar_one_or_none()
     if student is None:
         return []
@@ -257,19 +269,22 @@ async def my_homework(
     rows = (await db.execute(q)).all()
     result = []
     for sub, assign in rows:
-        result.append(HomeworkSummary(
-            id=sub.id,
-            assignment_id=assign.id,
-            title=assign.title,
-            due_date=assign.due_date.isoformat() if assign.due_date else "",
-            status=sub.status,
-            score=float(sub.score) if sub.score is not None else None,
-            feedback=sub.feedback,
-        ))
+        result.append(
+            HomeworkSummary(
+                id=sub.id,
+                assignment_id=assign.id,
+                title=assign.title,
+                due_date=assign.due_date.isoformat() if assign.due_date else "",
+                status=sub.status,
+                score=float(sub.score) if sub.score is not None else None,
+                feedback=sub.feedback,
+            )
+        )
     return result
 
 
 # ── My Payments ───────────────────────────────────────────────────────────────
+
 
 class CamelModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
@@ -321,14 +336,15 @@ async def my_payments(
 ) -> list[PaymentSummary]:
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         return []
 
     # Auto-mark overdue
     from sqlalchemy import update as sa_update
+
     today = date.today()
     await db.execute(
         sa_update(PaymentModel)
@@ -336,11 +352,15 @@ async def my_payments(
         .values(status="overdue")
     )
 
-    rows = (await db.execute(
-        select(PaymentModel)
-        .where(PaymentModel.student_id == student.id)
-        .order_by(PaymentModel.due_date)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(PaymentModel).where(PaymentModel.student_id == student.id).order_by(PaymentModel.due_date)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     # Build contract lookup
     contract_ids = {p.contract_id for p in rows if p.contract_id}
@@ -362,20 +382,22 @@ async def my_payments(
         if c:
             cn = c.contract_number
             dn = dir_map.get(c.direction_id)
-        result.append(PaymentSummary(
-            id=p.id,
-            amount=float(p.amount),
-            paid_amount=float(p.paid_amount or 0),
-            currency=p.currency,
-            status=p.status,
-            due_date=p.due_date.isoformat() if p.due_date else "",
-            paid_at=p.paid_at.isoformat() if p.paid_at else None,
-            description=p.description,
-            method=p.method,
-            period_number=p.period_number,
-            contract_number=cn,
-            direction_name=dn,
-        ))
+        result.append(
+            PaymentSummary(
+                id=p.id,
+                amount=float(p.amount),
+                paid_amount=float(p.paid_amount or 0),
+                currency=p.currency,
+                status=p.status,
+                due_date=p.due_date.isoformat() if p.due_date else "",
+                paid_at=p.paid_at.isoformat() if p.paid_at else None,
+                description=p.description,
+                method=p.method,
+                period_number=p.period_number,
+                contract_number=cn,
+                direction_name=dn,
+            )
+        )
     return result
 
 
@@ -386,14 +408,15 @@ async def my_finance(
 ) -> StudentFinanceDashboard:
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
     # Auto-mark overdue
     from sqlalchemy import update as sa_update
+
     today = date.today()
     await db.execute(
         sa_update(PaymentModel)
@@ -401,10 +424,17 @@ async def my_finance(
         .values(status="overdue")
     )
 
-    contracts = (await db.execute(
-        select(ContractModel).where(ContractModel.student_id == student.id)
-        .order_by(ContractModel.created_at.desc())
-    )).scalars().all()
+    contracts = (
+        (
+            await db.execute(
+                select(ContractModel)
+                .where(ContractModel.student_id == student.id)
+                .order_by(ContractModel.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     dir_ids = {c.direction_id for c in contracts if c.direction_id}
     dir_map: dict = {}
@@ -419,10 +449,15 @@ async def my_finance(
     contract_infos = []
 
     for c in contracts:
-        payments = (await db.execute(
-            select(PaymentModel).where(PaymentModel.contract_id == c.id)
-            .order_by(PaymentModel.period_number)
-        )).scalars().all()
+        payments = (
+            (
+                await db.execute(
+                    select(PaymentModel).where(PaymentModel.contract_id == c.id).order_by(PaymentModel.period_number)
+                )
+            )
+            .scalars()
+            .all()
+        )
 
         c_expected = sum(float(p.amount) for p in payments)
         c_paid = sum(float(p.paid_amount or 0) for p in payments)
@@ -457,23 +492,25 @@ async def my_finance(
         elif c_paid < c_expected:
             bal_status = "has_debt"
 
-        contract_infos.append(ContractPaymentInfo(
-            contract_id=c.id,
-            contract_number=c.contract_number,
-            direction_name=dn,
-            payment_type=c.payment_type,
-            payment_amount=float(c.payment_amount or 0),
-            total_expected=c_expected,
-            total_paid=c_paid,
-            remaining=c_expected - c_paid,
-            total_periods=len(payments),
-            paid_periods=c_paid_periods,
-            overdue_periods=c_overdue,
-            status=bal_status,
-            payments=payment_summaries,
-        ))
+        contract_infos.append(
+            ContractPaymentInfo(
+                contract_id=c.id,
+                contract_number=c.contract_number,
+                direction_name=dn,
+                payment_type=c.payment_type,
+                payment_amount=float(c.payment_amount or 0),
+                total_expected=c_expected,
+                total_paid=c_paid,
+                remaining=c_expected - c_paid,
+                total_periods=len(payments),
+                paid_periods=c_paid_periods,
+                overdue_periods=c_overdue,
+                status=bal_status,
+                payments=payment_summaries,
+            )
+        )
 
-        total_debt += (c_expected - c_paid)
+        total_debt += c_expected - c_paid
         total_paid += c_paid
         overdue_count += c_overdue
 
@@ -487,6 +524,7 @@ async def my_finance(
 
 
 # ── Activity Feed ─────────────────────────────────────────────────────────────
+
 
 class ActivityEvent(BaseModel):
     id: UUID
@@ -506,32 +544,40 @@ async def my_activity(
 ) -> list[ActivityEvent]:
     _require_student(current_user)
 
-    student_result = await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )
+    student_result = await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
     student = student_result.scalar_one_or_none()
     if student is None:
         return []
 
-    rows = (await db.execute(
-        select(StudentActivityEventModel)
-        .where(StudentActivityEventModel.student_id == student.id)
-        .order_by(StudentActivityEventModel.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(StudentActivityEventModel)
+                .where(StudentActivityEventModel.student_id == student.id)
+                .order_by(StudentActivityEventModel.created_at.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
-    return [ActivityEvent(
-        id=r.id,
-        type=r.type,
-        description=r.description,
-        stars_amount=r.stars_amount,
-        crystals_amount=r.crystals_amount,
-        created_at=r.created_at.isoformat(),
-    ) for r in rows]
+    return [
+        ActivityEvent(
+            id=r.id,
+            type=r.type,
+            description=r.description,
+            stars_amount=r.stars_amount,
+            crystals_amount=r.crystals_amount,
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ]
 
 
 # ── Achievements ──────────────────────────────────────────────────────────────
+
 
 class AchievementOut(BaseModel):
     id: UUID
@@ -548,32 +594,36 @@ class AchievementOut(BaseModel):
 async def my_achievements(current_user: CurrentUser, db: DbSession) -> list[AchievementOut]:
     _require_student(current_user)
 
-    student_result = await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )
+    student_result = await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
     student = student_result.scalar_one_or_none()
     if student is None:
         return []
 
-    rows = (await db.execute(
-        select(AchievementModel, StudentAchievementModel)
-        .join(StudentAchievementModel, StudentAchievementModel.achievement_id == AchievementModel.id)
-        .where(StudentAchievementModel.student_id == student.id)
-    )).all()
+    rows = (
+        await db.execute(
+            select(AchievementModel, StudentAchievementModel)
+            .join(StudentAchievementModel, StudentAchievementModel.achievement_id == AchievementModel.id)
+            .where(StudentAchievementModel.student_id == student.id)
+        )
+    ).all()
 
-    return [AchievementOut(
-        id=ach.id,
-        name=ach.name,
-        description=ach.description,
-        category=ach.category,
-        icon=ach.icon,
-        reward_stars=ach.reward_stars,
-        reward_crystals=ach.reward_crystals,
-        unlocked_at=sa.unlocked_at.isoformat() if sa.unlocked_at else None,
-    ) for ach, sa in rows]
+    return [
+        AchievementOut(
+            id=ach.id,
+            name=ach.name,
+            description=ach.description,
+            category=ach.category,
+            icon=ach.icon,
+            reward_stars=ach.reward_stars,
+            reward_crystals=ach.reward_crystals,
+            unlocked_at=sa.unlocked_at.isoformat() if sa.unlocked_at else None,
+        )
+        for ach, sa in rows
+    ]
 
 
 # ── Schedule (week view) ──────────────────────────────────────────────────────
+
 
 class ScheduleLesson(BaseModel):
     id: UUID
@@ -596,18 +646,24 @@ async def my_schedule(
 ) -> list[ScheduleLesson]:
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         return []
 
-    group_ids = (await db.execute(
-        select(EnrollmentModel.group_id).where(
-            EnrollmentModel.student_id == student.id,
-            EnrollmentModel.is_active == True,  # noqa: E712
+    group_ids = (
+        (
+            await db.execute(
+                select(EnrollmentModel.group_id).where(
+                    EnrollmentModel.student_id == student.id,
+                    EnrollmentModel.is_active == True,  # noqa: E712
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     if not group_ids:
         return []
 
@@ -625,39 +681,38 @@ async def my_schedule(
 
     result = []
     for l in lessons:
-        group = (await db.execute(
-            select(GroupModel).where(GroupModel.id == l.group_id)
-        )).scalar_one_or_none()
+        group = (await db.execute(select(GroupModel).where(GroupModel.id == l.group_id))).scalar_one_or_none()
         subject_name = ""
         subject_id_str = None
         if l.subject_id:
             subject_id_str = str(l.subject_id)
-            subj = (await db.execute(
-                select(SubjectModel).where(SubjectModel.id == l.subject_id)
-            )).scalar_one_or_none()
+            subj = (await db.execute(select(SubjectModel).where(SubjectModel.id == l.subject_id))).scalar_one_or_none()
             subject_name = subj.name if subj else ""
         teacher_name = ""
         if l.teacher_id:
-            u = (await db.execute(
-                select(UserModel.name).where(UserModel.id == l.teacher_id)
-            )).scalar()
+            u = (await db.execute(select(UserModel.name).where(UserModel.id == l.teacher_id))).scalar()
             teacher_name = u or ""
-        result.append(ScheduleLesson(
-            id=l.id,
-            subjectName=subject_name,
-            subjectId=subject_id_str,
-            teacherName=teacher_name,
-            startTime=l.scheduled_at.strftime("%H:%M") if l.scheduled_at else "",
-            endTime=(l.scheduled_at + timedelta(minutes=l.duration_minutes or 60)).strftime("%H:%M") if l.scheduled_at else "",
-            weekDate=l.scheduled_at.strftime("%Y-%m-%d") if l.scheduled_at else "",
-            groupNumber=group.name if group else "",
-            room=None,
-            isOnline=l.is_online,
-        ))
+        result.append(
+            ScheduleLesson(
+                id=l.id,
+                subjectName=subject_name,
+                subjectId=subject_id_str,
+                teacherName=teacher_name,
+                startTime=l.scheduled_at.strftime("%H:%M") if l.scheduled_at else "",
+                endTime=(l.scheduled_at + timedelta(minutes=l.duration_minutes or 60)).strftime("%H:%M")
+                if l.scheduled_at
+                else "",
+                weekDate=l.scheduled_at.strftime("%Y-%m-%d") if l.scheduled_at else "",
+                groupNumber=group.name if group else "",
+                room=None,
+                isOnline=l.is_online,
+            )
+        )
     return result
 
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
+
 
 class LeaderboardEntry(BaseModel):
     rank: int
@@ -676,29 +731,38 @@ async def leaderboard(
 ) -> list[LeaderboardEntry]:
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
 
     # Sort by stars descending
-    students = (await db.execute(
-        select(StudentModel).where(StudentModel.is_active == True).order_by(StudentModel.stars.desc()).limit(50)  # noqa: E712
-    )).scalars().all()
+    students = (
+        (
+            await db.execute(
+                select(StudentModel).where(StudentModel.is_active == True).order_by(StudentModel.stars.desc()).limit(50)  # noqa: E712
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     result = []
     for i, s in enumerate(students):
-        result.append(LeaderboardEntry(
-            rank=i + 1,
-            studentId=s.id,
-            fullName=s.full_name,
-            photo=s.photo_url,
-            points=s.stars,
-            isCurrentUser=(student is not None and s.id == student.id),
-        ))
+        result.append(
+            LeaderboardEntry(
+                rank=i + 1,
+                studentId=s.id,
+                fullName=s.full_name,
+                photo=s.photo_url,
+                points=s.stars,
+                isCurrentUser=(student is not None and s.id == student.id),
+            )
+        )
     return result
 
 
 # ── Assignments ───────────────────────────────────────────────────────────────
+
 
 class AssignmentFileInfo(BaseModel):
     url: str
@@ -733,23 +797,29 @@ async def my_assignments(
 ) -> list[AssignmentOut]:
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         return []
 
     # Auto-mark overdue: pending submissions past due_date
-    now = datetime.now(timezone.utc)
-    overdue_subs = (await db.execute(
-        select(HomeworkSubmissionModel)
-        .join(HomeworkAssignmentModel, HomeworkAssignmentModel.id == HomeworkSubmissionModel.assignment_id)
-        .where(
-            HomeworkSubmissionModel.student_id == student.id,
-            HomeworkSubmissionModel.status == "pending",
-            HomeworkAssignmentModel.due_date < now,
+    now = datetime.now(UTC)
+    overdue_subs = (
+        (
+            await db.execute(
+                select(HomeworkSubmissionModel)
+                .join(HomeworkAssignmentModel, HomeworkAssignmentModel.id == HomeworkSubmissionModel.assignment_id)
+                .where(
+                    HomeworkSubmissionModel.student_id == student.id,
+                    HomeworkSubmissionModel.status == "pending",
+                    HomeworkAssignmentModel.due_date < now,
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     for s in overdue_subs:
         s.status = "overdue"
     if overdue_subs:
@@ -768,9 +838,7 @@ async def my_assignments(
 
     result = []
     for sub, assign in rows:
-        lesson = (await db.execute(
-            select(LessonModel).where(LessonModel.id == assign.lesson_id)
-        )).scalar_one_or_none()
+        lesson = (await db.execute(select(LessonModel).where(LessonModel.id == assign.lesson_id))).scalar_one_or_none()
         subject_name = ""
         subject_id = ""
         teacher_name = ""
@@ -782,33 +850,39 @@ async def my_assignments(
                 teacher_name = u or ""
             if lesson.subject_id:
                 subject_id = str(lesson.subject_id)
-                subj = (await db.execute(select(SubjectModel).where(SubjectModel.id == lesson.subject_id))).scalar_one_or_none()
+                subj = (
+                    await db.execute(select(SubjectModel).where(SubjectModel.id == lesson.subject_id))
+                ).scalar_one_or_none()
                 subject_name = subj.name if subj else ""
         # Map "graded" → "reviewed" for frontend compatibility
         display_status = "reviewed" if sub.status == "graded" else sub.status
         # Parse assignment files
         a_files = []
         if assign.file_urls:
-            a_files = [AssignmentFileInfo(url=f["url"], filename=f["filename"], key=f.get("key")) for f in assign.file_urls]
+            a_files = [
+                AssignmentFileInfo(url=f["url"], filename=f["filename"], key=f.get("key")) for f in assign.file_urls
+            ]
 
-        result.append(AssignmentOut(
-            id=sub.id,
-            title=assign.title,
-            type="homework",
-            subjectId=subject_id,
-            subjectName=subject_name,
-            teacherName=teacher_name,
-            description=assign.description,
-            lessonDate=lesson_date,
-            deadline=assign.due_date.isoformat() if assign.due_date else "",
-            status=display_status,
-            grade=float(sub.score) if sub.score is not None else None,
-            teacherComment=sub.feedback,
-            submittedFileUrl=sub.file_url,
-            submittedText=sub.answer_text,
-            assignmentFiles=a_files,
-            materialsCount=len(a_files),
-        ))
+        result.append(
+            AssignmentOut(
+                id=sub.id,
+                title=assign.title,
+                type="homework",
+                subjectId=subject_id,
+                subjectName=subject_name,
+                teacherName=teacher_name,
+                description=assign.description,
+                lessonDate=lesson_date,
+                deadline=assign.due_date.isoformat() if assign.due_date else "",
+                status=display_status,
+                grade=float(sub.score) if sub.score is not None else None,
+                teacherComment=sub.feedback,
+                submittedFileUrl=sub.file_url,
+                submittedText=sub.answer_text,
+                assignmentFiles=a_files,
+                materialsCount=len(a_files),
+            )
+        )
     return result
 
 
@@ -826,31 +900,34 @@ async def submit_assignment(
 ) -> AssignmentOut:
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
     # Frontend sends submission.id — try by sub.id first, then by assignment_id
     from sqlalchemy import or_
-    sub = (await db.execute(
-        select(HomeworkSubmissionModel).where(
-            or_(
-                HomeworkSubmissionModel.id == assignment_id,
-                HomeworkSubmissionModel.assignment_id == assignment_id,
-            ),
-            HomeworkSubmissionModel.student_id == student.id,
+
+    sub = (
+        await db.execute(
+            select(HomeworkSubmissionModel).where(
+                or_(
+                    HomeworkSubmissionModel.id == assignment_id,
+                    HomeworkSubmissionModel.assignment_id == assignment_id,
+                ),
+                HomeworkSubmissionModel.student_id == student.id,
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if sub is None:
         raise HTTPException(status_code=404, detail="Assignment submission not found")
 
-    assign = (await db.execute(
-        select(HomeworkAssignmentModel).where(HomeworkAssignmentModel.id == sub.assignment_id)
-    )).scalar_one_or_none()
+    assign = (
+        await db.execute(select(HomeworkAssignmentModel).where(HomeworkAssignmentModel.id == sub.assignment_id))
+    ).scalar_one_or_none()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     is_overdue = assign and assign.due_date and now > assign.due_date
 
     # Always mark as submitted — teacher will see it was late by comparing dates
@@ -864,6 +941,7 @@ async def submit_assignment(
     # Gamification: reward for on-time submission
     if not is_overdue:
         from src.infrastructure.services.gamification_engine import on_homework_submitted
+
         await on_homework_submitted(student.id, on_time=True, db=db)
 
     await db.commit()
@@ -895,6 +973,7 @@ async def submit_assignment(
 
 # ── Subjects ──────────────────────────────────────────────────────────────────
 
+
 class SubjectOut(BaseModel):
     id: UUID
     name: str
@@ -906,26 +985,36 @@ class SubjectOut(BaseModel):
 async def my_subjects(current_user: CurrentUser, db: DbSession) -> list[SubjectOut]:
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         return []
 
-    group_ids = (await db.execute(
-        select(EnrollmentModel.group_id).where(
-            EnrollmentModel.student_id == student.id,
-            EnrollmentModel.is_active == True,  # noqa: E712
+    group_ids = (
+        (
+            await db.execute(
+                select(EnrollmentModel.group_id).where(
+                    EnrollmentModel.student_id == student.id,
+                    EnrollmentModel.is_active == True,  # noqa: E712
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
     result = []
     for gid in group_ids:
-        group = (await db.execute(select(GroupModel).where(GroupModel.id == gid))).scalar_one_or_none()
+        (await db.execute(select(GroupModel).where(GroupModel.id == gid))).scalar_one_or_none()
         # Find subject through lessons of this group
-        lesson_subj_id = (await db.execute(
-            select(LessonModel.subject_id).where(LessonModel.group_id == gid, LessonModel.subject_id != None).limit(1)  # noqa: E711
-        )).scalar()
+        lesson_subj_id = (
+            await db.execute(
+                select(LessonModel.subject_id)
+                .where(LessonModel.group_id == gid, LessonModel.subject_id != None)
+                .limit(1)  # noqa: E711
+            )
+        ).scalar()
         if not lesson_subj_id:
             continue
         subj = (await db.execute(select(SubjectModel).where(SubjectModel.id == lesson_subj_id))).scalar_one_or_none()
@@ -936,28 +1025,31 @@ async def my_subjects(current_user: CurrentUser, db: DbSession) -> list[SubjectO
             u = (await db.execute(select(UserModel.name).where(UserModel.id == subj.teacher_id))).scalar()
             teacher_name = u or ""
         # Average grade for this subject
-        lesson_ids = (await db.execute(
-            select(LessonModel.id).where(LessonModel.group_id == gid)
-        )).scalars().all()
+        lesson_ids = (await db.execute(select(LessonModel.id).where(LessonModel.group_id == gid))).scalars().all()
         avg_grade = 0.0
         if lesson_ids:
-            avg = (await db.execute(
-                select(func.avg(GradeRecordModel.score)).where(
-                    GradeRecordModel.student_id == student.id,
-                    GradeRecordModel.lesson_id.in_(lesson_ids),
+            avg = (
+                await db.execute(
+                    select(func.avg(GradeRecordModel.score)).where(
+                        GradeRecordModel.student_id == student.id,
+                        GradeRecordModel.lesson_id.in_(lesson_ids),
+                    )
                 )
-            )).scalar()
+            ).scalar()
             avg_grade = round(float(avg), 2) if avg else 0.0
-        result.append(SubjectOut(
-            id=subj.id,
-            name=subj.name,
-            teacherName=teacher_name,
-            currentAvgGrade=avg_grade,
-        ))
+        result.append(
+            SubjectOut(
+                id=subj.id,
+                name=subj.name,
+                teacherName=teacher_name,
+                currentAvgGrade=avg_grade,
+            )
+        )
     return result
 
 
 # ── Performance per subject ───────────────────────────────────────────────────
+
 
 class GradeEntry(BaseModel):
     id: UUID
@@ -988,9 +1080,9 @@ class SubjectPerformance(BaseModel):
 async def subject_performance(subject_id: UUID, current_user: CurrentUser, db: DbSession) -> SubjectPerformance:
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
@@ -999,19 +1091,27 @@ async def subject_performance(subject_id: UUID, current_user: CurrentUser, db: D
         raise HTTPException(status_code=404, detail="Subject not found")
 
     # Find group for this subject
-    group_ids = (await db.execute(
-        select(EnrollmentModel.group_id).where(
-            EnrollmentModel.student_id == student.id,
-            EnrollmentModel.is_active == True,  # noqa: E712
+    group_ids = (
+        (
+            await db.execute(
+                select(EnrollmentModel.group_id).where(
+                    EnrollmentModel.student_id == student.id,
+                    EnrollmentModel.is_active == True,  # noqa: E712
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # Find group that has lessons with this subject
     subject_group = None
     for gid in group_ids:
-        has_subject = (await db.execute(
-            select(LessonModel.id).where(LessonModel.group_id == gid, LessonModel.subject_id == subject_id).limit(1)
-        )).scalar()
+        has_subject = (
+            await db.execute(
+                select(LessonModel.id).where(LessonModel.group_id == gid, LessonModel.subject_id == subject_id).limit(1)
+            )
+        ).scalar()
         if has_subject:
             subject_group = (await db.execute(select(GroupModel).where(GroupModel.id == gid))).scalar_one_or_none()
             break
@@ -1024,29 +1124,49 @@ async def subject_performance(subject_id: UUID, current_user: CurrentUser, db: D
     lesson_ids: list = []
     lesson_date_map: dict = {}
     if subject_group:
-        lesson_rows = (await db.execute(
-            select(LessonModel.id, LessonModel.scheduled_at).where(LessonModel.group_id == subject_group.id)
-        )).all()
+        lesson_rows = (
+            await db.execute(
+                select(LessonModel.id, LessonModel.scheduled_at).where(LessonModel.group_id == subject_group.id)
+            )
+        ).all()
         lesson_ids = [r.id for r in lesson_rows]
         lesson_date_map = {r.id: r.scheduled_at for r in lesson_rows}
 
     # Grades
-    grade_rows = (await db.execute(
-        select(GradeRecordModel).where(
-            GradeRecordModel.student_id == student.id,
-            GradeRecordModel.lesson_id.in_(lesson_ids),
-        ).order_by(GradeRecordModel.graded_at)
-    )).scalars().all() if lesson_ids else []
+    grade_rows = (
+        (
+            await db.execute(
+                select(GradeRecordModel)
+                .where(
+                    GradeRecordModel.student_id == student.id,
+                    GradeRecordModel.lesson_id.in_(lesson_ids),
+                )
+                .order_by(GradeRecordModel.graded_at)
+            )
+        )
+        .scalars()
+        .all()
+        if lesson_ids
+        else []
+    )
 
     avg_grade = round(sum(float(g.score) for g in grade_rows) / len(grade_rows), 2) if grade_rows else 0.0
 
     # Attendance
-    att_rows = (await db.execute(
-        select(AttendanceRecordModel).where(
-            AttendanceRecordModel.student_id == student.id,
-            AttendanceRecordModel.lesson_id.in_(lesson_ids),
+    att_rows = (
+        (
+            await db.execute(
+                select(AttendanceRecordModel).where(
+                    AttendanceRecordModel.student_id == student.id,
+                    AttendanceRecordModel.lesson_id.in_(lesson_ids),
+                )
+            )
         )
-    )).scalars().all() if lesson_ids else []
+        .scalars()
+        .all()
+        if lesson_ids
+        else []
+    )
 
     total_att = len(att_rows)
     present = sum(1 for a in att_rows if a.status == "present")
@@ -1086,22 +1206,31 @@ async def subject_performance(subject_id: UUID, current_user: CurrentUser, db: D
             "absentPercent": round(absent / total_att * 100, 1) if total_att else 0.0,
             "latePercent": round(late / total_att * 100, 1) if total_att else 0.0,
         },
-        grades=[GradeEntry(
-            id=g.id,
-            date=g.graded_at.date().isoformat(),
-            subjectId=str(subject_id),
-            type=g.type,
-            value=float(g.score),
-        ) for g in grade_rows],
-        attendanceCalendar=[AttendanceEntry(
-            date=lesson_date_map.get(a.lesson_id, a.recorded_at).date().isoformat() if lesson_date_map.get(a.lesson_id) or a.recorded_at else "",
-            subjectId=str(subject_id),
-            status=a.status,
-        ) for a in att_rows],
+        grades=[
+            GradeEntry(
+                id=g.id,
+                date=g.graded_at.date().isoformat(),
+                subjectId=str(subject_id),
+                type=g.type,
+                value=float(g.score),
+            )
+            for g in grade_rows
+        ],
+        attendanceCalendar=[
+            AttendanceEntry(
+                date=lesson_date_map.get(a.lesson_id, a.recorded_at).date().isoformat()
+                if lesson_date_map.get(a.lesson_id) or a.recorded_at
+                else "",
+                subjectId=str(subject_id),
+                status=a.status,
+            )
+            for a in att_rows
+        ],
     )
 
 
 # ── Materials ─────────────────────────────────────────────────────────────────
+
 
 class MaterialOut(BaseModel):
     id: UUID
@@ -1123,22 +1252,30 @@ async def my_materials(
 ) -> list[MaterialOut]:
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         return []
 
-    group_ids = (await db.execute(
-        select(EnrollmentModel.group_id).where(
-            EnrollmentModel.student_id == student.id,
-            EnrollmentModel.is_active == True,  # noqa: E712
+    group_ids = (
+        (
+            await db.execute(
+                select(EnrollmentModel.group_id).where(
+                    EnrollmentModel.student_id == student.id,
+                    EnrollmentModel.is_active == True,  # noqa: E712
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
-    lesson_ids = (await db.execute(
-        select(LessonModel.id).where(LessonModel.group_id.in_(group_ids))
-    )).scalars().all() if group_ids else []
+    lesson_ids = (
+        (await db.execute(select(LessonModel.id).where(LessonModel.group_id.in_(group_ids)))).scalars().all()
+        if group_ids
+        else []
+    )
 
     if not lesson_ids:
         return []
@@ -1157,7 +1294,9 @@ async def my_materials(
             sid_str = str(lesson.subject_id)
             lesson_subject[str(lid)] = sid_str
             if sid_str not in subject_names:
-                subj = (await db.execute(select(SubjectModel.name).where(SubjectModel.id == lesson.subject_id))).scalar()
+                subj = (
+                    await db.execute(select(SubjectModel.name).where(SubjectModel.id == lesson.subject_id))
+                ).scalar()
                 subject_names[sid_str] = subj or ""
 
     result = []
@@ -1165,20 +1304,23 @@ async def my_materials(
         sid = lesson_subject.get(str(m.lesson_id))
         if subjectId and sid != subjectId:
             continue
-        result.append(MaterialOut(
-            id=m.id,
-            title=m.title,
-            type=m.type,
-            language=m.language,
-            url=m.url,
-            subjectId=sid,
-            subjectName=subject_names.get(sid, "") if sid else "",
-            uploadedAt=m.created_at.isoformat() if m.created_at else "",
-        ))
+        result.append(
+            MaterialOut(
+                id=m.id,
+                title=m.title,
+                type=m.type,
+                language=m.language,
+                url=m.url,
+                subjectId=sid,
+                subjectName=subject_names.get(sid, "") if sid else "",
+                uploadedAt=m.created_at.isoformat() if m.created_at else "",
+            )
+        )
     return result
 
 
 # ── Lessons with Materials ───────────────────────────────────────────────────
+
 
 class LessonMaterialItem(BaseModel):
     id: UUID
@@ -1208,38 +1350,56 @@ async def my_lessons_materials(
     """Lessons that have materials, grouped by lesson. For the Materials page."""
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         return []
 
-    group_ids = (await db.execute(
-        select(EnrollmentModel.group_id).where(
-            EnrollmentModel.student_id == student.id,
-            EnrollmentModel.is_active == True,  # noqa: E712
+    group_ids = (
+        (
+            await db.execute(
+                select(EnrollmentModel.group_id).where(
+                    EnrollmentModel.student_id == student.id,
+                    EnrollmentModel.is_active == True,  # noqa: E712
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     if not group_ids:
         return []
 
     # Get completed lessons that have materials
-    lessons = (await db.execute(
-        select(LessonModel)
-        .where(
-            LessonModel.group_id.in_(group_ids),
-            LessonModel.status == "completed",
+    lessons = (
+        (
+            await db.execute(
+                select(LessonModel)
+                .where(
+                    LessonModel.group_id.in_(group_ids),
+                    LessonModel.status == "completed",
+                )
+                .order_by(LessonModel.scheduled_at.desc())
+            )
         )
-        .order_by(LessonModel.scheduled_at.desc())
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
     result = []
     for lesson in lessons:
-        mats = (await db.execute(
-            select(LessonMaterialModel)
-            .where(LessonMaterialModel.lesson_id == lesson.id)
-            .order_by(LessonMaterialModel.created_at)
-        )).scalars().all()
+        mats = (
+            (
+                await db.execute(
+                    select(LessonMaterialModel)
+                    .where(LessonMaterialModel.lesson_id == lesson.id)
+                    .order_by(LessonMaterialModel.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
 
         if not mats:
             continue
@@ -1255,31 +1415,34 @@ async def my_lessons_materials(
             tn = (await db.execute(select(UserModel.name).where(UserModel.id == lesson.teacher_id))).scalar()
             teacher_name = tn or ""
 
-        result.append(LessonWithMaterials(
-            id=lesson.id,
-            topic=lesson.topic,
-            date=lesson.scheduled_at.strftime("%Y-%m-%d") if lesson.scheduled_at else "",
-            subjectName=subject_name,
-            teacherName=teacher_name,
-            materialsCount=len(mats),
-            materials=[
-                LessonMaterialItem(
-                    id=m.id,
-                    title=m.title,
-                    type=m.type,
-                    language=m.language,
-                    url=m.url,
-                    key=m.s3_key,
-                    uploadedAt=m.created_at.isoformat() if m.created_at else "",
-                )
-                for m in mats
-            ],
-        ))
+        result.append(
+            LessonWithMaterials(
+                id=lesson.id,
+                topic=lesson.topic,
+                date=lesson.scheduled_at.strftime("%Y-%m-%d") if lesson.scheduled_at else "",
+                subjectName=subject_name,
+                teacherName=teacher_name,
+                materialsCount=len(mats),
+                materials=[
+                    LessonMaterialItem(
+                        id=m.id,
+                        title=m.title,
+                        type=m.type,
+                        language=m.language,
+                        url=m.url,
+                        key=m.s3_key,
+                        uploadedAt=m.created_at.isoformat() if m.created_at else "",
+                    )
+                    for m in mats
+                ],
+            )
+        )
 
     return result
 
 
 # ── Contacts ─────────────────────────────────────────────────────────────────
+
 
 class ContactOut(BaseModel):
     id: UUID
@@ -1296,27 +1459,37 @@ class ContactOut(BaseModel):
 async def my_contacts(current_user: CurrentUser, db: DbSession) -> list[ContactOut]:
     _require_student(current_user)
 
-    student = (await db.execute(
-        select(StudentModel).where(StudentModel.user_id == current_user.id)
-    )).scalar_one_or_none()
+    student = (
+        await db.execute(select(StudentModel).where(StudentModel.user_id == current_user.id))
+    ).scalar_one_or_none()
     if student is None:
         return []
 
-    group_ids = (await db.execute(
-        select(EnrollmentModel.group_id).where(
-            EnrollmentModel.student_id == student.id,
-            EnrollmentModel.is_active == True,  # noqa: E712
+    group_ids = (
+        (
+            await db.execute(
+                select(EnrollmentModel.group_id).where(
+                    EnrollmentModel.student_id == student.id,
+                    EnrollmentModel.is_active == True,  # noqa: E712
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
     result = []
     seen_ids: set = set()
     for gid in group_ids:
-        group = (await db.execute(select(GroupModel).where(GroupModel.id == gid))).scalar_one_or_none()
+        (await db.execute(select(GroupModel).where(GroupModel.id == gid))).scalar_one_or_none()
         # Find subject through lessons of this group
-        lesson_subj_id = (await db.execute(
-            select(LessonModel.subject_id).where(LessonModel.group_id == gid, LessonModel.subject_id != None).limit(1)  # noqa: E711
-        )).scalar()
+        lesson_subj_id = (
+            await db.execute(
+                select(LessonModel.subject_id)
+                .where(LessonModel.group_id == gid, LessonModel.subject_id != None)
+                .limit(1)  # noqa: E711
+            )
+        ).scalar()
         if not lesson_subj_id:
             continue
         subj = (await db.execute(select(SubjectModel).where(SubjectModel.id == lesson_subj_id))).scalar_one_or_none()
@@ -1328,14 +1501,16 @@ async def my_contacts(current_user: CurrentUser, db: DbSession) -> list[ContactO
         teacher = (await db.execute(select(UserModel).where(UserModel.id == subj.teacher_id))).scalar_one_or_none()
         if not teacher:
             continue
-        result.append(ContactOut(
-            id=teacher.id,
-            fullName=teacher.name,
-            role="teacher",
-            subject=subj.name,
-            photo=None,
-            email=teacher.email,
-            phone=None,
-            telegram=None,
-        ))
+        result.append(
+            ContactOut(
+                id=teacher.id,
+                fullName=teacher.name,
+                role="teacher",
+                subject=subj.name,
+                photo=None,
+                email=teacher.email,
+                phone=None,
+                telegram=None,
+            )
+        )
     return result

@@ -1,4 +1,5 @@
 """Unit tests — LMS domain: value objects, specifications, policies."""
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -8,9 +9,16 @@ from uuid import uuid4
 import pytest
 
 from src.domain.lms.entities import (
-    Lesson, LessonStatus, Payment, PaymentStatus, RiskLevel, Student,
+    Direction,
+    Group,
+    Lesson,
+    Payment,
+    RiskLevel,
+    Room,
+    Student,
+    Subject,
 )
-from src.domain.lms.value_objects import Percentage, StudentCode
+from src.domain.lms.policies import PaymentOverduePolicy, RiskCalculationPolicy
 from src.domain.lms.specifications import (
     HighRiskStudentSpec,
     LessonCancellableSpec,
@@ -18,8 +26,7 @@ from src.domain.lms.specifications import (
     OverduePaymentSpec,
     StudentAtRiskSpec,
 )
-from src.domain.lms.policies import PaymentOverduePolicy, RiskCalculationPolicy
-from src.domain.shared.value_objects import Money
+from src.domain.lms.value_objects import Percentage, StudentCode
 
 
 def _make_student(**kw) -> Student:
@@ -28,8 +35,11 @@ def _make_student(**kw) -> Student:
 
 def _make_lesson(**kw) -> Lesson:
     return Lesson.create(
-        group_id=uuid4(), lesson_date=date.today(),
-        start_time="09:00", end_time="10:30", **kw,
+        group_id=uuid4(),
+        lesson_date=date.today(),
+        start_time="09:00",
+        end_time="10:30",
+        **kw,
     )
 
 
@@ -297,3 +307,88 @@ class TestLmsSpecCombinators:
         medium = _make_student(risk_level=RiskLevel.MEDIUM)
         assert spec.is_satisfied_by(normal) is True
         assert spec.is_satisfied_by(medium) is False
+
+
+# ── RiskCalculationPolicy.from_probability ──────────────────────────────────
+
+
+class TestRiskFromProbability:
+    def test_critical(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.80) == RiskLevel.CRITICAL
+
+    def test_critical_boundary(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.75) == RiskLevel.CRITICAL
+
+    def test_high(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.60) == RiskLevel.HIGH
+
+    def test_high_boundary(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.50) == RiskLevel.HIGH
+
+    def test_medium(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.30) == RiskLevel.MEDIUM
+
+    def test_medium_boundary(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.25) == RiskLevel.MEDIUM
+
+    def test_low(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.10) == RiskLevel.LOW
+
+    def test_low_zero(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.0) == RiskLevel.LOW
+
+    def test_just_below_medium(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.24) == RiskLevel.LOW
+
+    def test_just_below_high(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.49) == RiskLevel.MEDIUM
+
+    def test_just_below_critical(self) -> None:
+        assert RiskCalculationPolicy.from_probability(0.74) == RiskLevel.HIGH
+
+
+# ── Entity factory methods (uncovered lines) ────────────────────────────────
+
+
+class TestEntityFactoryMethods:
+    def test_student_create(self) -> None:
+        s = Student.create(full_name="Test Student")
+        assert s.full_name == "Test Student"
+        assert s.is_active is True
+        assert s.stars == 0
+
+    def test_direction_create(self) -> None:
+        d = Direction.create("Python", description="Python programming")
+        assert d.name == "Python"
+        assert d.description == "Python programming"
+
+    def test_direction_create_no_description(self) -> None:
+        d = Direction.create("JS")
+        assert d.name == "JS"
+        assert d.description is None
+
+    def test_subject_create(self) -> None:
+        dir_id = uuid4()
+        s = Subject.create("OOP", direction_id=dir_id)
+        assert s.name == "OOP"
+        assert s.direction_id == dir_id
+
+    def test_subject_create_no_direction(self) -> None:
+        s = Subject.create("General")
+        assert s.name == "General"
+        assert s.direction_id is None
+
+    def test_room_create(self) -> None:
+        r = Room.create("Room 101", capacity=30)
+        assert r.name == "Room 101"
+        assert r.capacity == 30
+
+    def test_room_create_no_capacity(self) -> None:
+        r = Room.create("Lab")
+        assert r.name == "Lab"
+        assert r.capacity is None
+
+    def test_group_create(self) -> None:
+        g = Group.create("PY-101")
+        assert g.name == "PY-101"
+        assert g.is_active is True

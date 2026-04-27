@@ -1,0 +1,5 @@
+shukhratbekovb/eduplatform-website website 
+shukhratbekovb/eduplatform-logbook logbook 
+shukhratbekovb/eduplatform-student student 
+shukhratbekovb/eduplatform-backend backend 
+shukhratbekovb/eduplatform-crm crm 

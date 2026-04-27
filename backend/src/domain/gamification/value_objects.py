@@ -1,10 +1,12 @@
 """Gamification domain value objects."""
+
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class Reward:
     """Achievement reward — stars and crystals bundle."""
+
     stars: int = 0
     crystals: int = 0
 

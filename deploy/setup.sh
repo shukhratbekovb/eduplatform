@@ -121,15 +121,17 @@ if [ ! -f .env.backend ]; then
     echo "  WARNING: Created .env.backend from example — edit with real passwords!"
 fi
 
-# ── 7. Build & Start ──────────────────────────────────────────────────────────
-echo "▸ [7/7] Building and starting containers..."
+# ── 7. Pull & Start ──────────────────────────────────────────────────────────
+echo "▸ [7/8] Pulling images from Docker Hub..."
 
-docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml pull
+
+echo "▸ [8/8] Starting containers..."
 docker compose -f docker-compose.prod.yml up -d
 
 echo ""
 echo "  Waiting for services to start..."
-sleep 10
+sleep 15
 
 # Run migrations
 docker compose -f docker-compose.prod.yml exec -T api alembic upgrade head
@@ -147,7 +149,8 @@ echo ""
 echo "  IMPORTANT:"
 echo "  1. Edit deploy/.env with real passwords"
 echo "  2. Edit deploy/.env.backend with real passwords"
-echo "  3. Re-run: docker compose -f docker-compose.prod.yml up -d"
+echo "  3. Place gcp_keys.json in deploy/ directory"
+echo "  4. Re-run: docker compose -f docker-compose.prod.yml up -d"
 echo ""
 echo "  DNS Records needed (A records → your VPS IP):"
 echo "    ${DOMAIN}          → YOUR_VPS_IP"

@@ -14,10 +14,11 @@
 
         uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 """
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+
 import time
 import uuid as _uuid
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 import sentry_sdk
 import structlog
@@ -33,8 +34,7 @@ structlog.configure(
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
-        structlog.dev.ConsoleRenderer() if settings.APP_ENV == "development"
-        else structlog.processors.JSONRenderer(),
+        structlog.dev.ConsoleRenderer() if settings.APP_ENV == "development" else structlog.processors.JSONRenderer(),
     ],
     wrapper_class=structlog.make_filtering_bound_logger(20),  # INFO
     context_class=dict,
@@ -46,6 +46,7 @@ log = structlog.get_logger()
 
 
 # ── lifespan ──────────────────────────────────────────────────────────────────
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -69,6 +70,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Pre-load ML risk model into memory
     try:
         from src.ml.predictor import RiskPredictor
+
         RiskPredictor.get_instance()
         log.info("ml_model_loaded", model="risk_scoring")
     except Exception as e:
@@ -78,6 +80,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 # ── app factory ───────────────────────────────────────────────────────────────
+
 
 def create_app() -> FastAPI:
     """Фабрика FastAPI-приложения.
@@ -181,6 +184,7 @@ def create_app() -> FastAPI:
 
     # Routers
     from src.api.v1.router import router as v1_router
+
     app.include_router(v1_router, prefix="/api/v1")
 
     # Health check

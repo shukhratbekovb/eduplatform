@@ -18,6 +18,7 @@
     >>> async def get_data(user: CurrentUser):
     ...     return {"user_id": user.id}
 """
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -117,6 +118,7 @@ def require_roles(*roles: str):
         >>> async def admin_action(_: DirectorGuard):
         ...     return {"ok": True}
     """
+
     async def guard(current_user: CurrentUser) -> User:
         if current_user.role.value not in roles:
             raise HTTPException(
@@ -124,6 +126,7 @@ def require_roles(*roles: str):
                 detail=f"Access denied. Required roles: {list(roles)}",
             )
         return current_user
+
     return guard
 
 
@@ -147,6 +150,7 @@ def require_platform(*allowed_roles: str):
     Example:
         >>> lms_guard = require_platform("director", "mup", "teacher", "cashier")
     """
+
     async def guard(current_user: CurrentUser) -> User:
         if current_user.role.value not in allowed_roles:
             raise HTTPException(
@@ -154,6 +158,7 @@ def require_platform(*allowed_roles: str):
                 detail=f"Access denied. This platform is for: {', '.join(allowed_roles)}",
             )
         return current_user
+
     return guard
 
 

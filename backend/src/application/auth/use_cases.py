@@ -13,6 +13,7 @@
 и работают с абстрактным UserRepository, что обеспечивает независимость
 от инфраструктурного слоя.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,7 +23,11 @@ from src.application.interfaces.repositories import UserRepository
 from src.domain.auth.entities import User, UserRole
 from src.domain.auth.policies import PasswordPolicy
 from src.domain.shared.value_objects import Email
-from src.infrastructure.services.jwt_service import create_access_token, create_refresh_token, decode_token
+from src.infrastructure.services.jwt_service import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+)
 from src.infrastructure.services.password_service import hash_password, verify_password
 
 
@@ -45,6 +50,7 @@ class TokenPair:
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────
+
 
 class LoginUseCase:
     """Сценарий входа пользователя в систему.
@@ -104,6 +110,7 @@ class LoginUseCase:
 
 # ── Refresh ───────────────────────────────────────────────────────────────────
 
+
 class RefreshTokenUseCase:
     """Сценарий обновления JWT-токенов.
 
@@ -143,6 +150,7 @@ class RefreshTokenUseCase:
                 refresh-токеном, или пользователь не найден/деактивирован.
         """
         from jose import JWTError
+
         try:
             payload = decode_token(refresh_token)
         except JWTError:
@@ -163,6 +171,7 @@ class RefreshTokenUseCase:
 
 
 # ── Create User (admin) ───────────────────────────────────────────────────────
+
 
 @dataclass
 class CreateUserInput:
@@ -250,6 +259,7 @@ class CreateUserUseCase:
 
 # ── Change Password ───────────────────────────────────────────────────────────
 
+
 class ChangePasswordUseCase:
     """Сценарий смены пароля текущим пользователем.
 
@@ -302,6 +312,7 @@ class ChangePasswordUseCase:
 
 
 # ── Get Me ────────────────────────────────────────────────────────────────────
+
 
 class GetMeUseCase:
     """Сценарий получения профиля текущего пользователя.

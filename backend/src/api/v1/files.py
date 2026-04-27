@@ -1,7 +1,8 @@
 """File upload API — direct multipart upload to Google Cloud Storage."""
+
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
@@ -82,6 +83,7 @@ async def download_file(
 
     safe_name = filename or key.rsplit("/", 1)[-1]
     from urllib.parse import quote
+
     encoded_name = quote(safe_name)
     return Response(
         content=data,
@@ -114,13 +116,15 @@ async def upload_multiple_files(
 
         try:
             result = storage_service.upload(folder, filename, data, content_type)
-            results.append(FileResponse(
-                key=result.s3_key,
-                url=result.url,
-                filename=result.filename,
-                contentType=result.content_type,
-                sizeBytes=result.size_bytes,
-            ))
+            results.append(
+                FileResponse(
+                    key=result.s3_key,
+                    url=result.url,
+                    filename=result.filename,
+                    contentType=result.content_type,
+                    sizeBytes=result.size_bytes,
+                )
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Upload failed for {filename}: {e}")
 

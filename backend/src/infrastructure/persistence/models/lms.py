@@ -17,22 +17,32 @@ Timestamps (created_at, updated_at) добавляются через TimestampM
     lms_notifications, compensation_models, exams,
     salary_calculations, payments, risk_factors.
 """
+
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, Enum as SAEnum,
-    ForeignKey, Integer, Numeric, String, Text, Time,
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
 from src.infrastructure.persistence.models.base import TimestampMixin, UUIDPrimaryKey
 
-
 # ── Students ──────────────────────────────────────────────────────────────────
+
 
 class StudentModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель студента учебного центра.
@@ -67,6 +77,7 @@ class StudentModel(Base, UUIDPrimaryKey, TimestampMixin):
         У модели НЕТ полей subject_id, teacher_id и enrollments.
         Количество групп вычисляется через EnrollmentModel.
     """
+
     __tablename__ = "students"
 
     user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -87,7 +98,9 @@ class StudentModel(Base, UUIDPrimaryKey, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     risk_level: Mapped[str] = mapped_column(
         SAEnum("low", "medium", "high", "critical", name="risk_level", create_type=False),
-        nullable=False, default="normal", index=True,
+        nullable=False,
+        default="low",
+        index=True,
     )
     risk_last_updated: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     coins: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -95,13 +108,15 @@ class StudentModel(Base, UUIDPrimaryKey, TimestampMixin):
     crystals: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     badge_level: Mapped[str] = mapped_column(
         SAEnum("bronze", "silver", "gold", "platinum", "diamond", name="badge_level", create_type=False),
-        nullable=False, default="none",
+        nullable=False,
+        default="bronze",
     )
     gpa: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), nullable=True)
     attendance_percent: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
 
 
 # ── Directions ────────────────────────────────────────────────────────────────
+
 
 class DirectionModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель направления обучения (например, Python, JavaScript, DevOps).
@@ -113,6 +128,7 @@ class DirectionModel(Base, UUIDPrimaryKey, TimestampMixin):
         duration_months: Длительность обучения в месяцах (по умолчанию 6).
         total_lessons: Общее количество уроков в программе (по умолчанию 72).
     """
+
     __tablename__ = "directions"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -123,6 +139,7 @@ class DirectionModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 
 # ── Subjects ──────────────────────────────────────────────────────────────────
+
 
 class SubjectModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель учебного предмета.
@@ -137,6 +154,7 @@ class SubjectModel(Base, UUIDPrimaryKey, TimestampMixin):
         description: Описание предмета.
         is_active: Флаг активности.
     """
+
     __tablename__ = "subjects"
 
     direction_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -152,6 +170,7 @@ class SubjectModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 # ── Rooms ─────────────────────────────────────────────────────────────────────
 
+
 class RoomModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель учебного кабинета.
 
@@ -160,6 +179,7 @@ class RoomModel(Base, UUIDPrimaryKey, TimestampMixin):
         capacity: Вместимость (количество мест).
         is_active: Флаг активности.
     """
+
     __tablename__ = "rooms"
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -168,6 +188,7 @@ class RoomModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 
 # ── Groups ────────────────────────────────────────────────────────────────────
+
 
 class GroupModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель учебной группы.
@@ -190,6 +211,7 @@ class GroupModel(Base, UUIDPrimaryKey, TimestampMixin):
     Note:
         НЕТ subject_id и teacher_id — они привязаны к урокам.
     """
+
     __tablename__ = "groups"
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -209,6 +231,7 @@ class GroupModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 # ── Enrollments ───────────────────────────────────────────────────────────────
 
+
 class EnrollmentModel(Base, UUIDPrimaryKey):
     """ORM-модель зачисления студента в группу.
 
@@ -222,6 +245,7 @@ class EnrollmentModel(Base, UUIDPrimaryKey):
         dropped_at: Дата и время отчисления/перевода (UTC, None если активен).
         is_active: Флаг активного зачисления.
     """
+
     __tablename__ = "enrollments"
 
     student_id: Mapped[uuid.UUID] = mapped_column(
@@ -236,6 +260,7 @@ class EnrollmentModel(Base, UUIDPrimaryKey):
 
 
 # ── Lessons ───────────────────────────────────────────────────────────────────
+
 
 class LessonModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель урока.
@@ -262,6 +287,7 @@ class LessonModel(Base, UUIDPrimaryKey, TimestampMixin):
         временем используйте только даты (now.date() vs sched.date()),
         не время — сервер в UTC, пользователь в UTC+5.
     """
+
     __tablename__ = "lessons"
 
     group_id: Mapped[uuid.UUID] = mapped_column(
@@ -280,7 +306,9 @@ class LessonModel(Base, UUIDPrimaryKey, TimestampMixin):
     duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(
         SAEnum("scheduled", "completed", "cancelled", name="lesson_status", create_type=False),
-        nullable=False, default="scheduled", index=True,
+        nullable=False,
+        default="scheduled",
+        index=True,
     )
     is_online: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     online_link: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -289,6 +317,7 @@ class LessonModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 
 # ── Attendance ────────────────────────────────────────────────────────────────
+
 
 class AttendanceRecordModel(Base, UUIDPrimaryKey):
     """ORM-модель записи посещаемости.
@@ -307,6 +336,7 @@ class AttendanceRecordModel(Base, UUIDPrimaryKey):
     Note:
         НЕТ поля created_at — используется recorded_at.
     """
+
     __tablename__ = "attendance_records"
 
     lesson_id: Mapped[uuid.UUID] = mapped_column(
@@ -317,7 +347,8 @@ class AttendanceRecordModel(Base, UUIDPrimaryKey):
     )
     status: Mapped[str] = mapped_column(
         SAEnum("present", "absent", "late", "excused", name="attendance_status", create_type=False),
-        nullable=False, default="present",
+        nullable=False,
+        default="present",
     )
     minutes_late: Mapped[int | None] = mapped_column(Integer, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -328,6 +359,7 @@ class AttendanceRecordModel(Base, UUIDPrimaryKey):
 
 
 # ── Grades ────────────────────────────────────────────────────────────────────
+
 
 class GradeRecordModel(Base, UUIDPrimaryKey):
     """ORM-модель записи оценки.
@@ -350,6 +382,7 @@ class GradeRecordModel(Base, UUIDPrimaryKey):
     Note:
         GPA вычисляется как avg(score / max_score * 10) по всем записям.
     """
+
     __tablename__ = "grade_records"
 
     student_id: Mapped[uuid.UUID] = mapped_column(
@@ -366,7 +399,8 @@ class GradeRecordModel(Base, UUIDPrimaryKey):
     )
     type: Mapped[str] = mapped_column(
         SAEnum("homework", "exam", "quiz", "project", "participation", name="grade_type", create_type=False),
-        nullable=False, index=True,
+        nullable=False,
+        index=True,
     )
     score: Mapped[Decimal] = mapped_column(Numeric(4, 1), nullable=False)
     max_score: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
@@ -378,6 +412,7 @@ class GradeRecordModel(Base, UUIDPrimaryKey):
 
 
 # ── Diamonds ──────────────────────────────────────────────────────────────────
+
 
 class DiamondRecordModel(Base, UUIDPrimaryKey):
     """ORM-модель записи начисления бриллиантов.
@@ -396,6 +431,7 @@ class DiamondRecordModel(Base, UUIDPrimaryKey):
     Note:
         Поле называется reason, НЕ note.
     """
+
     __tablename__ = "diamond_records"
 
     lesson_id: Mapped[uuid.UUID] = mapped_column(
@@ -413,6 +449,7 @@ class DiamondRecordModel(Base, UUIDPrimaryKey):
 
 
 # ── Lesson Materials ──────────────────────────────────────────────────────────
+
 
 class LessonMaterialModel(Base, UUIDPrimaryKey):
     """ORM-модель материала урока (файл, видео, ссылка).
@@ -434,6 +471,7 @@ class LessonMaterialModel(Base, UUIDPrimaryKey):
         Поля created_at/updated_at, НЕ uploaded_at.
         Есть s3_key для Google Cloud Storage.
     """
+
     __tablename__ = "lesson_materials"
 
     lesson_id: Mapped[uuid.UUID] = mapped_column(
@@ -442,14 +480,16 @@ class LessonMaterialModel(Base, UUIDPrimaryKey):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(
         SAEnum("pdf", "video", "link", "image", "other", name="material_type", create_type=False),
-        nullable=False, default="pdf",
+        nullable=False,
+        default="pdf",
     )
     url: Mapped[str | None] = mapped_column(Text, nullable=True)
     s3_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     language: Mapped[str] = mapped_column(
         SAEnum("ru", "en", "uz", name="material_lang", create_type=False),
-        nullable=False, default="ru",
+        nullable=False,
+        default="ru",
     )
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
@@ -460,6 +500,7 @@ class LessonMaterialModel(Base, UUIDPrimaryKey):
 
 
 # ── Homework Assignments ──────────────────────────────────────────────────────
+
 
 class HomeworkAssignmentModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель домашнего задания (задание от преподавателя).
@@ -476,6 +517,7 @@ class HomeworkAssignmentModel(Base, UUIDPrimaryKey, TimestampMixin):
     Note:
         НЕТ поля type. file_urls — JSONB массив объектов.
     """
+
     __tablename__ = "homework_assignments"
 
     lesson_id: Mapped[uuid.UUID] = mapped_column(
@@ -492,6 +534,7 @@ class HomeworkAssignmentModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 
 # ── Homework Submissions ──────────────────────────────────────────────────────
+
 
 class HomeworkSubmissionModel(Base, UUIDPrimaryKey):
     """ORM-модель ответа студента на домашнее задание.
@@ -516,19 +559,26 @@ class HomeworkSubmissionModel(Base, UUIDPrimaryKey):
         При submit статус всегда "submitted", даже если просрочено.
         Auto-overdue обновляет pending → overdue при запросе.
     """
+
     __tablename__ = "homework_submissions"
 
     assignment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("homework_assignments.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("homework_assignments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     student_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     status: Mapped[str] = mapped_column(
         SAEnum("pending", "submitted", "graded", "overdue", name="homework_status", create_type=False),
-        nullable=False, default="pending", index=True,
+        nullable=False,
+        default="pending",
+        index=True,
     )
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     answer_text: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -544,6 +594,7 @@ class HomeworkSubmissionModel(Base, UUIDPrimaryKey):
 
 # ── Late Entry Requests ───────────────────────────────────────────────────────
 
+
 class LateEntryRequestModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель запроса на позднее внесение данных.
 
@@ -558,11 +609,10 @@ class LateEntryRequestModel(Base, UUIDPrimaryKey, TimestampMixin):
         reviewed_by: UUID рассмотревшего (МУП/Директор).
         reviewed_at: Дата и время рассмотрения (UTC).
     """
+
     __tablename__ = "late_entry_requests"
 
-    student_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True, index=True
-    )
+    student_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     lesson_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -576,6 +626,7 @@ class LateEntryRequestModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 # ── Coin Transactions ─────────────────────────────────────────────────────────
 
+
 class CoinTransactionModel(Base, UUIDPrimaryKey):
     """ORM-модель транзакции монет (устаревшая, заменена геймификацией).
 
@@ -586,6 +637,7 @@ class CoinTransactionModel(Base, UUIDPrimaryKey):
         issued_by: UUID выдавшего.
         created_at: Дата и время транзакции (UTC).
     """
+
     __tablename__ = "coin_transactions"
 
     student_id: Mapped[uuid.UUID] = mapped_column(
@@ -600,6 +652,7 @@ class CoinTransactionModel(Base, UUIDPrimaryKey):
 
 
 # ── MUP Tasks ─────────────────────────────────────────────────────────────────
+
 
 class MupTaskModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель задачи МУП (менеджера учебного процесса).
@@ -619,6 +672,7 @@ class MupTaskModel(Base, UUIDPrimaryKey, TimestampMixin):
         student_id: UUID связанного студента (для автозадач).
         category: Категория (для автозадач, например "attendance", "homework").
     """
+
     __tablename__ = "mup_tasks"
 
     assigned_to: Mapped[uuid.UUID] = mapped_column(
@@ -632,10 +686,17 @@ class MupTaskModel(Base, UUIDPrimaryKey, TimestampMixin):
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     is_done: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="pending", server_default="pending", index=True,
+        String(20),
+        nullable=False,
+        default="pending",
+        server_default="pending",
+        index=True,
     )
     priority: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="medium", server_default="medium",
+        String(20),
+        nullable=False,
+        default="medium",
+        server_default="medium",
     )
     # Link to student if auto-generated
     student_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -646,6 +707,7 @@ class MupTaskModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 
 # ── LMS Notifications ─────────────────────────────────────────────────────────
+
 
 class LmsNotificationModel(Base, UUIDPrimaryKey):
     """ORM-модель уведомления LMS.
@@ -659,6 +721,7 @@ class LmsNotificationModel(Base, UUIDPrimaryKey):
         linked_lesson_id: UUID связанного урока.
         created_at: Дата и время создания (UTC).
     """
+
     __tablename__ = "lms_notifications"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -676,6 +739,7 @@ class LmsNotificationModel(Base, UUIDPrimaryKey):
 
 # ── Compensation Models ───────────────────────────────────────────────────────
 
+
 class CompensationModelModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель компенсации (схемы оплаты преподавателя).
 
@@ -692,6 +756,7 @@ class CompensationModelModel(Base, UUIDPrimaryKey, TimestampMixin):
     Note:
         Поля teacher_id, type, rate — НЕ name, params.
     """
+
     __tablename__ = "compensation_models"
 
     teacher_id: Mapped[uuid.UUID] = mapped_column(
@@ -706,6 +771,7 @@ class CompensationModelModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 # ── Exams ─────────────────────────────────────────────────────────────────────
 
+
 class ExamModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель экзамена.
 
@@ -719,6 +785,7 @@ class ExamModel(Base, UUIDPrimaryKey, TimestampMixin):
         max_score: Максимальный балл (по умолчанию 12).
         created_by: UUID создателя.
     """
+
     __tablename__ = "exams"
 
     subject_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -739,6 +806,7 @@ class ExamModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 # ── Salary Calculations ───────────────────────────────────────────────────────
 
+
 class SalaryCalculationModel(Base, UUIDPrimaryKey):
     """ORM-модель расчёта зарплаты преподавателя за период.
 
@@ -758,6 +826,7 @@ class SalaryCalculationModel(Base, UUIDPrimaryKey):
     Note:
         Поля period_month, period_year — НЕ period_start.
     """
+
     __tablename__ = "salary_calculations"
 
     teacher_id: Mapped[uuid.UUID] = mapped_column(
@@ -776,6 +845,7 @@ class SalaryCalculationModel(Base, UUIDPrimaryKey):
 
 
 # ── Payments ──────────────────────────────────────────────────────────────────
+
 
 class PaymentModel(Base, UUIDPrimaryKey, TimestampMixin):
     """ORM-модель платежа (график оплаты обучения).
@@ -803,6 +873,7 @@ class PaymentModel(Base, UUIDPrimaryKey, TimestampMixin):
         paid_amount — сколько реально оплачено (может быть < amount).
         Auto-overdue: pending с прошедшей due_date → overdue при запросе.
     """
+
     __tablename__ = "payments"
 
     student_id: Mapped[uuid.UUID] = mapped_column(
@@ -819,7 +890,9 @@ class PaymentModel(Base, UUIDPrimaryKey, TimestampMixin):
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="UZS")
     status: Mapped[str] = mapped_column(
         SAEnum("paid", "pending", "overdue", name="payment_status", create_type=False),
-        nullable=False, default="pending", index=True,
+        nullable=False,
+        default="pending",
+        index=True,
     )
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -834,6 +907,7 @@ class PaymentModel(Base, UUIDPrimaryKey, TimestampMixin):
 
 # ── Risk Factors ──────────────────────────────────────────────────────────────
 
+
 class RiskFactorModel(Base, UUIDPrimaryKey):
     """ORM-модель фактора риска отчисления студента.
 
@@ -846,6 +920,7 @@ class RiskFactorModel(Base, UUIDPrimaryKey):
         details: Дополнительные данные в формате JSONB.
         computed_at: Дата и время расчёта (UTC).
     """
+
     __tablename__ = "risk_factors"
 
     student_id: Mapped[uuid.UUID] = mapped_column(

@@ -23,21 +23,26 @@
     GET /lms/analytics/homework-by-teacher — домашки в разрезе преподавателей.
     GET /lms/analytics/homework-by-student — домашки в разрезе студентов.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from src.api.dependencies import CurrentUser, DbSession
-from src.infrastructure.persistence.models.lms import (
-    StudentModel, AttendanceRecordModel, GradeRecordModel, LessonModel,
-    HomeworkAssignmentModel, HomeworkSubmissionModel, EnrollmentModel,
-)
 from src.infrastructure.persistence.models.auth import UserModel
+from src.infrastructure.persistence.models.lms import (
+    AttendanceRecordModel,
+    GradeRecordModel,
+    HomeworkAssignmentModel,
+    HomeworkSubmissionModel,
+    LessonModel,
+    StudentModel,
+)
 
 router = APIRouter(prefix="/lms/analytics", tags=["LMS - Analytics"])
 
@@ -57,7 +62,7 @@ def _period_dates(period: str, date_from: str | None, date_to: str | None):  # t
         tuple[datetime, datetime]: Кортеж (начало, конец) периода в UTC.
             При некорректных параметрах возвращает последние 30 дней.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if period == "7d":
         return now - timedelta(days=7), now
     if period == "30d":
@@ -77,6 +82,7 @@ class OverviewDelta(BaseModel):
         atRiskStudents: Изменение количества студентов в зоне риска (%).
         homeworkSubmitRate: Изменение процента сдачи домашек (%).
     """
+
     avgAttendance: float = 0.0
     atRiskStudents: float = 0.0
     homeworkSubmitRate: float = 0.0
@@ -96,6 +102,7 @@ class OverviewOut(BaseModel):
         incompleteLesson: Количество непроведённых уроков (прошедших scheduled).
         delta: Дельта-изменения по сравнению с предыдущим периодом.
     """
+
     totalStudents: int = 0
     activeGroups: int = 0
     lessonsThisWeek: int = 0
@@ -142,34 +149,49 @@ async def overview(
     total_students = len(students)
     at_risk = sum(1 for s in students if s.risk_level in ("medium", "high", "critical"))
     critical = sum(1 for s in students if s.risk_level in ("high", "critical"))
-    avg_att = sum(float(s.attendance_percent) for s in students if s.attendance_percent) / total_students if total_students else 0.0
+    avg_att = (
+        sum(float(s.attendance_percent) for s in students if s.attendance_percent) / total_students
+        if total_students
+        else 0.0
+    )
 
     # Active groups
-    active_groups = (await db.execute(
-        select(func.count()).select_from(GroupModel).where(GroupModel.is_active == True)  # noqa: E712
-    )).scalar() or 0
+    active_groups = (
+        await db.execute(
+            select(func.count()).select_from(GroupModel).where(GroupModel.is_active == True)  # noqa: E712
+        )
+    ).scalar() or 0
 
     # Lessons this week
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     week_start = now - timedelta(days=now.weekday())
     week_end = week_start + timedelta(days=7)
-    lessons_this_week = (await db.execute(
-        select(func.count()).select_from(LessonModel)
-        .where(LessonModel.scheduled_at >= week_start, LessonModel.scheduled_at < week_end)
-    )).scalar() or 0
+    lessons_this_week = (
+        await db.execute(
+            select(func.count())
+            .select_from(LessonModel)
+            .where(LessonModel.scheduled_at >= week_start, LessonModel.scheduled_at < week_end)
+        )
+    ).scalar() or 0
 
     # Incomplete lessons (scheduled but not conducted, past date)
-    incomplete = (await db.execute(
-        select(func.count()).select_from(LessonModel)
-        .where(LessonModel.status == "scheduled", LessonModel.scheduled_at < now)
-    )).scalar() or 0
+    incomplete = (
+        await db.execute(
+            select(func.count())
+            .select_from(LessonModel)
+            .where(LessonModel.status == "scheduled", LessonModel.scheduled_at < now)
+        )
+    ).scalar() or 0
 
     # Homework submit rate
     total_hw = (await db.execute(select(func.count()).select_from(HomeworkSubmissionModel))).scalar() or 0
-    submitted_hw = (await db.execute(
-        select(func.count()).select_from(HomeworkSubmissionModel)
-        .where(HomeworkSubmissionModel.status.in_(["submitted", "graded"]))
-    )).scalar() or 0
+    submitted_hw = (
+        await db.execute(
+            select(func.count())
+            .select_from(HomeworkSubmissionModel)
+            .where(HomeworkSubmissionModel.status.in_(["submitted", "graded"]))
+        )
+    ).scalar() or 0
     hw_rate = round(submitted_hw / total_hw * 100, 1) if total_hw > 0 else 0.0
 
     return OverviewOut(
@@ -194,6 +216,7 @@ class AttendanceStatOut(BaseModel):
         absent: Количество отсутствовавших.
         attendanceRate: Процент посещаемости за день.
     """
+
     date: str
     present: int
     absent: int
@@ -231,12 +254,10 @@ async def attendance_stats(
         select(
             func.date(LessonModel.scheduled_at).label("lesson_date"),
             func.count(AttendanceRecordModel.id).label("total"),
-            func.count(AttendanceRecordModel.id).filter(
-                AttendanceRecordModel.status.in_(["present", "late"])
-            ).label("present_count"),
-            func.count(AttendanceRecordModel.id).filter(
-                AttendanceRecordModel.status == "absent"
-            ).label("absent_count"),
+            func.count(AttendanceRecordModel.id)
+            .filter(AttendanceRecordModel.status.in_(["present", "late"]))
+            .label("present_count"),
+            func.count(AttendanceRecordModel.id).filter(AttendanceRecordModel.status == "absent").label("absent_count"),
         )
         .join(LessonModel, AttendanceRecordModel.lesson_id == LessonModel.id)
         .where(
@@ -270,6 +291,7 @@ class GradeBySubjectOut(BaseModel):
         avgGrade: Средняя оценка по 10-балльной шкале.
         count: Количество оценок.
     """
+
     subjectName: str
     avgGrade: float
     count: int
@@ -340,10 +362,11 @@ async def risk_distribution(current_user: CurrentUser, db: DbSession, period: st
     Returns:
         dict: {"normal": int, "at_risk": int, "critical": int}.
     """
-    rows = (await db.execute(
-        select(StudentModel.risk_level, func.count(StudentModel.id).label("cnt"))
-        .group_by(StudentModel.risk_level)
-    )).all()
+    rows = (
+        await db.execute(
+            select(StudentModel.risk_level, func.count(StudentModel.id).label("cnt")).group_by(StudentModel.risk_level)
+        )
+    ).all()
     result = {"normal": 0, "at_risk": 0, "critical": 0}
     for r in rows:
         if r.risk_level in ("low", "normal"):
@@ -373,12 +396,8 @@ async def homework_stats(current_user: CurrentUser, db: DbSession, period: str =
         dict: {"submittedRate": float, "reviewedRate": float, "overdueRate": float}.
     """
     total = (await db.execute(select(func.count()).select_from(HomeworkSubmissionModel))).scalar() or 0
-    reviewed = (await db.execute(
-        select(func.count()).where(HomeworkSubmissionModel.status == "graded")
-    )).scalar() or 0
-    overdue = (await db.execute(
-        select(func.count()).where(HomeworkSubmissionModel.status == "overdue")
-    )).scalar() or 0
+    reviewed = (await db.execute(select(func.count()).where(HomeworkSubmissionModel.status == "graded"))).scalar() or 0
+    overdue = (await db.execute(select(func.count()).where(HomeworkSubmissionModel.status == "overdue"))).scalar() or 0
     return {
         "submittedRate": 100.0 if total > 0 else 0.0,
         "reviewedRate": round(reviewed / total * 100, 1) if total else 0.0,
@@ -396,6 +415,7 @@ class TeacherStatOut(BaseModel):
         lessonsConducted: Количество проведённых уроков.
         conductRate: Процент проведённых от запланированных.
     """
+
     teacherId: str
     teacherName: str
     lessonsScheduled: int
@@ -404,7 +424,9 @@ class TeacherStatOut(BaseModel):
 
 
 @router.get("/teachers", response_model=list[TeacherStatOut])
-async def teacher_performance(current_user: CurrentUser, db: DbSession, period: str = Query("30d")) -> list[TeacherStatOut]:
+async def teacher_performance(
+    current_user: CurrentUser, db: DbSession, period: str = Query("30d")
+) -> list[TeacherStatOut]:
     """Получение показателей эффективности преподавателей.
 
     Для каждого преподавателя подсчитывает количество запланированных
@@ -418,26 +440,30 @@ async def teacher_performance(current_user: CurrentUser, db: DbSession, period: 
     Returns:
         list[TeacherStatOut]: Список преподавателей с показателями.
     """
-    rows = (await db.execute(
-        select(
-            LessonModel.teacher_id,
-            func.count(LessonModel.id).label("total"),
-            func.count(LessonModel.id).filter(LessonModel.status == "completed").label("conducted"),
+    rows = (
+        await db.execute(
+            select(
+                LessonModel.teacher_id,
+                func.count(LessonModel.id).label("total"),
+                func.count(LessonModel.id).filter(LessonModel.status == "completed").label("conducted"),
+            )
+            .where(LessonModel.teacher_id.isnot(None))
+            .group_by(LessonModel.teacher_id)
         )
-        .where(LessonModel.teacher_id.isnot(None))
-        .group_by(LessonModel.teacher_id)
-    )).all()
+    ).all()
 
     result = []
     for r in rows:
         user = (await db.execute(select(UserModel.name).where(UserModel.id == r.teacher_id))).scalar()
-        result.append(TeacherStatOut(
-            teacherId=str(r.teacher_id),
-            teacherName=user or "Unknown",
-            lessonsScheduled=r.total,
-            lessonsConducted=r.conducted,
-            conductRate=round(r.conducted / r.total * 100, 1) if r.total else 0.0,
-        ))
+        result.append(
+            TeacherStatOut(
+                teacherId=str(r.teacher_id),
+                teacherName=user or "Unknown",
+                lessonsScheduled=r.total,
+                lessonsConducted=r.conducted,
+                conductRate=round(r.conducted / r.total * 100, 1) if r.total else 0.0,
+            )
+        )
     return sorted(result, key=lambda x: x.conductRate, reverse=True)
 
 
@@ -462,34 +488,51 @@ async def homework_by_teacher(current_user: CurrentUser, db: DbSession) -> list[
     Returns:
         list[dict]: Список словарей с показателями по преподавателям.
     """
-    from src.infrastructure.persistence.models.lms import (
-        HomeworkAssignmentModel, HomeworkSubmissionModel, LessonModel,
-    )
+
     from src.infrastructure.persistence.models.auth import UserModel
-    from collections import defaultdict
+    from src.infrastructure.persistence.models.lms import (
+        HomeworkSubmissionModel,
+        LessonModel,
+    )
 
     # Get all teachers with lessons that have homework
-    teachers = (await db.execute(
-        select(UserModel).where(UserModel.role == "teacher", UserModel.is_active == True)  # noqa: E712
-    )).scalars().all()
+    teachers = (
+        (
+            await db.execute(
+                select(UserModel).where(UserModel.role == "teacher", UserModel.is_active == True)  # noqa: E712
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     result = []
     for t in teachers:
-        lesson_ids = (await db.execute(
-            select(LessonModel.id).where(LessonModel.teacher_id == t.id)
-        )).scalars().all()
+        lesson_ids = (await db.execute(select(LessonModel.id).where(LessonModel.teacher_id == t.id))).scalars().all()
         if not lesson_ids:
             continue
 
-        assign_ids = (await db.execute(
-            select(HomeworkAssignmentModel.id).where(HomeworkAssignmentModel.lesson_id.in_(lesson_ids))
-        )).scalars().all()
+        assign_ids = (
+            (
+                await db.execute(
+                    select(HomeworkAssignmentModel.id).where(HomeworkAssignmentModel.lesson_id.in_(lesson_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
         if not assign_ids:
             continue
 
-        subs = (await db.execute(
-            select(HomeworkSubmissionModel).where(HomeworkSubmissionModel.assignment_id.in_(assign_ids))
-        )).scalars().all()
+        subs = (
+            (
+                await db.execute(
+                    select(HomeworkSubmissionModel).where(HomeworkSubmissionModel.assignment_id.in_(assign_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
 
         total = len(subs)
         reviewed = sum(1 for s in subs if s.status == "graded")
@@ -497,16 +540,18 @@ async def homework_by_teacher(current_user: CurrentUser, db: DbSession) -> list[
         overdue = sum(1 for s in subs if s.status == "overdue")
         pending = sum(1 for s in subs if s.status == "pending")
 
-        result.append({
-            "teacherId": str(t.id),
-            "teacherName": t.name,
-            "total": total,
-            "reviewed": reviewed,
-            "awaitingReview": submitted,
-            "notSubmitted": pending,
-            "overdue": overdue,
-            "reviewRate": round(reviewed / total * 100) if total else 0,
-        })
+        result.append(
+            {
+                "teacherId": str(t.id),
+                "teacherName": t.name,
+                "total": total,
+                "reviewed": reviewed,
+                "awaitingReview": submitted,
+                "notSubmitted": pending,
+                "overdue": overdue,
+                "reviewRate": round(reviewed / total * 100) if total else 0,
+            }
+        )
 
     return sorted(result, key=lambda x: x["total"], reverse=True)
 
@@ -534,18 +579,27 @@ async def homework_by_student(current_user: CurrentUser, db: DbSession) -> list[
         list[dict]: Список словарей с показателями по студентам.
     """
     from src.infrastructure.persistence.models.lms import (
-        HomeworkSubmissionModel, StudentModel, HomeworkAssignmentModel,
+        HomeworkSubmissionModel,
+        StudentModel,
     )
 
-    students = (await db.execute(
-        select(StudentModel).where(StudentModel.is_active == True)  # noqa: E712
-    )).scalars().all()
+    students = (
+        (
+            await db.execute(
+                select(StudentModel).where(StudentModel.is_active == True)  # noqa: E712
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     result = []
     for s in students:
-        subs = (await db.execute(
-            select(HomeworkSubmissionModel).where(HomeworkSubmissionModel.student_id == s.id)
-        )).scalars().all()
+        subs = (
+            (await db.execute(select(HomeworkSubmissionModel).where(HomeworkSubmissionModel.student_id == s.id)))
+            .scalars()
+            .all()
+        )
         if not subs:
             continue
 
@@ -560,17 +614,19 @@ async def homework_by_student(current_user: CurrentUser, db: DbSession) -> list[
         if scored:
             avg_score = round(sum(scored) / len(scored), 1)
 
-        result.append({
-            "studentId": str(s.id),
-            "studentName": s.full_name,
-            "studentCode": s.student_code,
-            "total": total,
-            "graded": graded,
-            "submitted": submitted,
-            "pending": pending,
-            "overdue": overdue,
-            "avgScore": avg_score,
-            "completionRate": round((graded + submitted) / total * 100) if total else 0,
-        })
+        result.append(
+            {
+                "studentId": str(s.id),
+                "studentName": s.full_name,
+                "studentCode": s.student_code,
+                "total": total,
+                "graded": graded,
+                "submitted": submitted,
+                "pending": pending,
+                "overdue": overdue,
+                "avgScore": avg_score,
+                "completionRate": round((graded + submitted) / total * 100) if total else 0,
+            }
+        )
 
     return sorted(result, key=lambda x: x["overdue"], reverse=True)

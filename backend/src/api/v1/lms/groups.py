@@ -10,7 +10,12 @@ from pydantic.alias_generators import to_camel
 from sqlalchemy import select
 
 from src.api.dependencies import CurrentUser, DbSession, require_roles
-from src.infrastructure.persistence.models.lms import GroupModel, EnrollmentModel, LessonModel, DirectionModel
+from src.infrastructure.persistence.models.lms import (
+    DirectionModel,
+    EnrollmentModel,
+    GroupModel,
+    LessonModel,
+)
 
 router = APIRouter(prefix="/groups", tags=["LMS - Groups"])
 
@@ -36,8 +41,10 @@ class GroupResponse(CamelModel):
     @classmethod
     def from_model(cls, m: GroupModel, student_count: int = 0, direction_name: str | None = None) -> GroupResponse:
         return cls(
-            id=m.id, name=m.name,
-            direction_id=m.direction_id, direction_name=direction_name,
+            id=m.id,
+            name=m.name,
+            direction_id=m.direction_id,
+            direction_name=direction_name,
             room_id=m.room_id,
             start_date=str(m.started_at) if m.started_at else None,
             end_date=str(m.ended_at) if m.ended_at else None,
@@ -76,23 +83,28 @@ class UpdateGroupRequest(CamelModel):
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+
 async def _student_count(db, group_id: UUID) -> int:
     from sqlalchemy import func as fn
-    return (await db.execute(
-        select(fn.count()).where(EnrollmentModel.group_id == group_id, EnrollmentModel.is_active == True)  # noqa: E712
-    )).scalar() or 0
+
+    return (
+        await db.execute(
+            select(fn.count()).where(EnrollmentModel.group_id == group_id, EnrollmentModel.is_active == True)  # noqa: E712
+        )
+    ).scalar() or 0
 
 
 async def _direction_map(db, direction_ids: set[UUID]) -> dict[UUID, str]:
     if not direction_ids:
         return {}
-    rows = (await db.execute(
-        select(DirectionModel.id, DirectionModel.name).where(DirectionModel.id.in_(direction_ids))
-    )).all()
+    rows = (
+        await db.execute(select(DirectionModel.id, DirectionModel.name).where(DirectionModel.id.in_(direction_ids)))
+    ).all()
     return {r.id: r.name for r in rows}
 
 
 # ── CRUD ─────────────────────────────────────────────────────────────────────
+
 
 @router.post("", response_model=GroupResponse, status_code=status.HTTP_201_CREATED)
 async def create_group(
@@ -130,18 +142,27 @@ async def list_groups(
     page_size: int = Query(50, ge=1, le=200),
 ) -> PagedGroups:
     from sqlalchemy import func as fn
+
     from src.infrastructure.persistence.models.lms import SubjectModel
 
     q = select(GroupModel)
 
     # Teacher filter: groups in directions where teacher has subjects
     if teacher_id:
-        teacher_dir_ids = (await db.execute(
-            select(SubjectModel.direction_id).where(
-                SubjectModel.teacher_id == teacher_id,
-                SubjectModel.direction_id != None,  # noqa: E711
-            ).distinct()
-        )).scalars().all()
+        teacher_dir_ids = (
+            (
+                await db.execute(
+                    select(SubjectModel.direction_id)
+                    .where(
+                        SubjectModel.teacher_id == teacher_id,
+                        SubjectModel.direction_id != None,  # noqa: E711
+                    )
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        )
         if teacher_dir_ids:
             q = q.where(GroupModel.direction_id.in_(teacher_dir_ids))
         else:
@@ -153,9 +174,9 @@ async def list_groups(
         q = q.where(GroupModel.is_active == is_active)
 
     total = (await db.execute(select(fn.count()).select_from(q.subquery()))).scalar() or 0
-    rows = (await db.execute(
-        q.order_by(GroupModel.name).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (await db.execute(q.order_by(GroupModel.name).offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    )
 
     d_map = await _direction_map(db, {m.direction_id for m in rows if m.direction_id})
 
@@ -165,7 +186,10 @@ async def list_groups(
         result.append(GroupResponse.from_model(m, student_count=sc, direction_name=d_map.get(m.direction_id)))
 
     return PagedGroups(
-        data=result, total=total, page=page, limit=page_size,
+        data=result,
+        total=total,
+        page=page,
+        limit=page_size,
         total_pages=max(1, -(-total // page_size)),
     )
 
@@ -226,6 +250,7 @@ async def archive_group(group_id: UUID, _: StaffGuard, db: DbSession) -> GroupRe
 
 # ── Sub-resources ────────────────────────────────────────────────────────────
 
+
 @router.get("/{group_id}/students")
 async def get_group_students(
     group_id: UUID,
@@ -234,12 +259,18 @@ async def get_group_students(
 ) -> list[dict]:  # type: ignore[type-arg]
     from src.infrastructure.persistence.models.lms import StudentModel
 
-    rows = (await db.execute(
-        select(StudentModel)
-        .join(EnrollmentModel, EnrollmentModel.student_id == StudentModel.id)
-        .where(EnrollmentModel.group_id == group_id, EnrollmentModel.is_active == True)  # noqa: E712
-        .order_by(StudentModel.full_name)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(StudentModel)
+                .join(EnrollmentModel, EnrollmentModel.student_id == StudentModel.id)
+                .where(EnrollmentModel.group_id == group_id, EnrollmentModel.is_active == True)  # noqa: E712
+                .order_by(StudentModel.full_name)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     return [
         {
@@ -263,10 +294,17 @@ async def get_group_lessons(
 ) -> list[dict]:  # type: ignore[type-arg]
     from datetime import timedelta
 
-    rows = (await db.execute(
-        select(LessonModel).where(LessonModel.group_id == group_id)
-        .order_by(LessonModel.scheduled_at.asc().nullslast())
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(LessonModel)
+                .where(LessonModel.group_id == group_id)
+                .order_by(LessonModel.scheduled_at.asc().nullslast())
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     result = []
     for r in rows:
@@ -276,15 +314,17 @@ async def get_group_lessons(
         st = scheduled.strftime("%H:%M") if scheduled else "00:00"
         end_dt = scheduled + timedelta(minutes=duration) if scheduled else None
         et = end_dt.strftime("%H:%M") if end_dt else "00:00"
-        result.append({
-            "id": str(r.id),
-            "groupId": str(r.group_id),
-            "teacherId": str(r.teacher_id) if r.teacher_id else None,
-            "date": d,
-            "startTime": st,
-            "endTime": et,
-            "status": r.status,
-            "topic": r.topic,
-            "isOnline": r.is_online,
-        })
+        result.append(
+            {
+                "id": str(r.id),
+                "groupId": str(r.group_id),
+                "teacherId": str(r.teacher_id) if r.teacher_id else None,
+                "date": d,
+                "startTime": st,
+                "endTime": et,
+                "status": r.status,
+                "topic": r.topic,
+                "isOnline": r.is_online,
+            }
+        )
     return result

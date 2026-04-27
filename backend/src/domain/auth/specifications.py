@@ -1,4 +1,5 @@
 """Auth domain specifications."""
+
 from __future__ import annotations
 
 import re
@@ -25,6 +26,7 @@ class IsStaffSpec(Specification["User"]):
 
     def is_satisfied_by(self, candidate: User) -> bool:
         from src.domain.auth.entities import UserRole
+
         return candidate.role != UserRole.STUDENT
 
 
@@ -33,6 +35,7 @@ class IsStaffSpec(Specification["User"]):
 
 class MinLengthSpec(Specification[str]):
     """Password has at least N characters."""
+
     MIN = 8
 
     def is_satisfied_by(self, candidate: str) -> bool:
@@ -62,6 +65,7 @@ class HasDigitSpec(Specification[str]):
 
 class HasSpecialCharSpec(Specification[str]):
     """Password contains at least one special character."""
+
     SPECIAL = r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>/?`~]"
 
     def is_satisfied_by(self, candidate: str) -> bool:
@@ -88,10 +92,10 @@ STRONG_PASSWORD_SPEC = (
 
 # Map each spec to a user-friendly error message
 PASSWORD_RULES: list[tuple[Specification[str], str]] = [
-    (MinLengthSpec(),       f"Минимум {MinLengthSpec.MIN} символов"),
-    (HasUppercaseSpec(),    "Минимум одна заглавная буква (A-Z)"),
-    (HasLowercaseSpec(),    "Минимум одна строчная буква (a-z)"),
-    (HasDigitSpec(),        "Минимум одна цифра (0-9)"),
-    (HasSpecialCharSpec(),  "Минимум один спецсимвол (!@#$%^&*...)"),
-    (NoWhitespaceOnlySpec(),"Пароль не может состоять только из пробелов"),
+    (MinLengthSpec(), f"Минимум {MinLengthSpec.MIN} символов"),
+    (HasUppercaseSpec(), "Минимум одна заглавная буква (A-Z)"),
+    (HasLowercaseSpec(), "Минимум одна строчная буква (a-z)"),
+    (HasDigitSpec(), "Минимум одна цифра (0-9)"),
+    (HasSpecialCharSpec(), "Минимум один спецсимвол (!@#$%^&*...)"),
+    (NoWhitespaceOnlySpec(), "Пароль не может состоять только из пробелов"),
 ]

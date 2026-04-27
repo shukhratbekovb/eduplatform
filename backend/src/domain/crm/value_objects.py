@@ -1,4 +1,5 @@
 """CRM domain value objects."""
+
 import re
 from dataclasses import dataclass
 
@@ -6,6 +7,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class WinProbability:
     """Stage win probability — integer 0 to 100."""
+
     value: int
 
     def __post_init__(self) -> None:
@@ -19,6 +21,7 @@ class WinProbability:
 @dataclass(frozen=True)
 class HexColor:
     """CSS hex color code (e.g. #6366F1)."""
+
     value: str
 
     def __post_init__(self) -> None:

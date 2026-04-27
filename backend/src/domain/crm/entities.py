@@ -2,15 +2,15 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from uuid import UUID
 
-from src.domain.shared.entity import AggregateRoot
-from src.domain.shared.value_objects import Phone
-from src.domain.crm.value_objects import HexColor, WinProbability
 from src.domain.crm.events import (
     LeadCreatedEvent,
-    LeadWonEvent,
     LeadLostEvent,
     LeadStageMovedEvent,
+    LeadWonEvent,
 )
+from src.domain.crm.value_objects import HexColor, WinProbability
+from src.domain.shared.entity import AggregateRoot
+from src.domain.shared.value_objects import Phone
 
 
 class LeadStatus(StrEnum):
@@ -48,6 +48,7 @@ class TaskStatus(StrEnum):
 
 
 # ── Lead ──────────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class Lead(AggregateRoot):
@@ -89,15 +90,18 @@ class Lead(AggregateRoot):
     def move_to_stage(self, new_stage_id: UUID, changed_by: UUID) -> None:
         old = self.stage_id
         self.stage_id = new_stage_id
-        self.add_event(LeadStageMovedEvent(
-            lead_id=self.id,
-            from_stage_id=old,
-            to_stage_id=new_stage_id,
-            changed_by=changed_by,
-        ))
+        self.add_event(
+            LeadStageMovedEvent(
+                lead_id=self.id,
+                from_stage_id=old,
+                to_stage_id=new_stage_id,
+                changed_by=changed_by,
+            )
+        )
 
     def mark_won(self) -> None:
         from src.domain.crm.policies import LeadTransitionPolicy
+
         LeadTransitionPolicy.validate_transition(self.status, LeadStatus.WON)
         self.status = LeadStatus.WON
         self.add_event(LeadWonEvent(lead_id=self.id))
@@ -106,6 +110,7 @@ class Lead(AggregateRoot):
         if not reason.strip():
             raise ValueError("Lost reason is required")
         from src.domain.crm.policies import LeadTransitionPolicy
+
         LeadTransitionPolicy.validate_transition(self.status, LeadStatus.LOST)
         self.status = LeadStatus.LOST
         self.lost_reason = reason
@@ -116,6 +121,7 @@ class Lead(AggregateRoot):
 
 
 # ── Funnel / Stage ────────────────────────────────────────────────────────────
+
 
 @dataclass
 class Funnel(AggregateRoot):
@@ -141,13 +147,14 @@ class Stage(AggregateRoot):
 
 # ── CRM Task ──────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class CrmTask(AggregateRoot):
     title: str = ""
     description: str | None = None
     linked_lead_id: UUID | None = None
     assigned_to: UUID | None = None
-    due_date: str = ""        # ISO date string
+    due_date: str = ""  # ISO date string
     priority: TaskPriority = TaskPriority.MEDIUM
     status: TaskStatus = TaskStatus.PENDING
     reminder_at: str | None = None

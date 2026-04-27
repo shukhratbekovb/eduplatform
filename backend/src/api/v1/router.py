@@ -1,28 +1,43 @@
 from fastapi import APIRouter, Depends
 
-from src.api.dependencies import lms_platform_guard, crm_platform_guard, student_platform_guard
-from src.api.v1 import auth, files, gamification
-from src.api.v1.lms import (
-    students, lessons, groups, catalog,
-    attendance, homework, payments,
-    enrollments, grades, notifications as lms_notifs,
-)
-from src.api.v1.lms import users as lms_users
-from src.api.v1.lms import mup_tasks
-from src.api.v1.lms import compensation
-from src.api.v1.lms import late_requests
-from src.api.v1.lms import analytics as lms_analytics
-from src.api.v1.lms import exams as lms_exams
-from src.api.v1.lms import reports as lms_reports
+from src.api.dependencies import crm_platform_guard, lms_platform_guard, student_platform_guard
+from src.api.v1 import auth, files, gamification, public
+from src.api.v1 import notifications as unified_notifs
 from src.api.v1.crm import (
-    funnels, leads, tasks, contracts,
     activities as crm_activities,
-    notifications as crm_notifs,
 )
 from src.api.v1.crm import analytics as crm_analytics
+from src.api.v1.crm import (
+    contracts,
+    funnels,
+    leads,
+    tasks,
+)
+from src.api.v1.crm import (
+    notifications as crm_notifs,
+)
+from src.api.v1.lms import analytics as lms_analytics
+from src.api.v1.lms import (
+    attendance,
+    catalog,
+    compensation,
+    enrollments,
+    grades,
+    groups,
+    homework,
+    late_requests,
+    lessons,
+    mup_tasks,
+    payments,
+    students,
+)
+from src.api.v1.lms import exams as lms_exams
+from src.api.v1.lms import (
+    notifications as lms_notifs,
+)
+from src.api.v1.lms import reports as lms_reports
+from src.api.v1.lms import users as lms_users
 from src.api.v1.student import portal
-from src.api.v1 import notifications as unified_notifs
-from src.api.v1 import public
 
 router = APIRouter()
 

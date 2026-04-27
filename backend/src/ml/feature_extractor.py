@@ -31,13 +31,13 @@ conduct-урока), так и пакетное (для ночного batch-п�
         - max_debt_days — макс. дней просрочки (нормализовано /90)
         - overdue_payment_count — кол-во просроченных платежей (/5)
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import case, func, select, and_, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.persistence.models.lms import (
@@ -47,7 +47,6 @@ from src.infrastructure.persistence.models.lms import (
     HomeworkSubmissionModel,
     LessonModel,
     PaymentModel,
-    StudentModel,
 )
 
 FEATURE_NAMES = [
@@ -177,9 +176,7 @@ class RiskFeatureExtractor:
         if not student_ids:
             return {}
 
-        result: dict[UUID, dict[str, float]] = {
-            sid: _default_features() for sid in student_ids
-        }
+        result: dict[UUID, dict[str, float]] = {sid: _default_features() for sid in student_ids}
 
         att_batch = await self._extract_attendance_batch(student_ids)
         for sid, att in att_batch.items():
@@ -214,33 +211,39 @@ class RiskFeatureExtractor:
             Словарь с 4 признаками посещаемости. Пустой словарь,
             если у студента нет записей посещаемости.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         d14 = now - timedelta(days=14)
         d30 = now - timedelta(days=30)
 
         # Get attendance records with lesson dates
-        rows = (await self._s.execute(
-            select(
-                AttendanceRecordModel.status,
-                LessonModel.scheduled_at,
+        rows = (
+            await self._s.execute(
+                select(
+                    AttendanceRecordModel.status,
+                    LessonModel.scheduled_at,
+                )
+                .join(LessonModel, AttendanceRecordModel.lesson_id == LessonModel.id)
+                .where(
+                    AttendanceRecordModel.student_id == student_id,
+                    LessonModel.status == "completed",
+                )
+                .order_by(LessonModel.scheduled_at.desc())
             )
-            .join(LessonModel, AttendanceRecordModel.lesson_id == LessonModel.id)
-            .where(
-                AttendanceRecordModel.student_id == student_id,
-                LessonModel.status == "completed",
-            )
-            .order_by(LessonModel.scheduled_at.desc())
-        )).all()
+        ).all()
 
         if not rows:
             return {}
 
         total_14 = sum(1 for r in rows if r.scheduled_at and r.scheduled_at >= d14)
-        present_14 = sum(1 for r in rows if r.scheduled_at and r.scheduled_at >= d14 and r.status in ("present", "late"))
+        present_14 = sum(
+            1 for r in rows if r.scheduled_at and r.scheduled_at >= d14 and r.status in ("present", "late")
+        )
         late_14 = sum(1 for r in rows if r.scheduled_at and r.scheduled_at >= d14 and r.status == "late")
 
         total_30 = sum(1 for r in rows if r.scheduled_at and r.scheduled_at >= d30)
-        present_30 = sum(1 for r in rows if r.scheduled_at and r.scheduled_at >= d30 and r.status in ("present", "late"))
+        present_30 = sum(
+            1 for r in rows if r.scheduled_at and r.scheduled_at >= d30 and r.status in ("present", "late")
+        )
 
         # Absence streak: count consecutive absences from most recent
         streak = 0
@@ -271,26 +274,29 @@ class RiskFeatureExtractor:
             Словарь {student_id: {признак: значение}} для студентов,
             у которых есть данные о посещаемости.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         d14 = now - timedelta(days=14)
         d30 = now - timedelta(days=30)
 
-        rows = (await self._s.execute(
-            select(
-                AttendanceRecordModel.student_id,
-                AttendanceRecordModel.status,
-                LessonModel.scheduled_at,
+        rows = (
+            await self._s.execute(
+                select(
+                    AttendanceRecordModel.student_id,
+                    AttendanceRecordModel.status,
+                    LessonModel.scheduled_at,
+                )
+                .join(LessonModel, AttendanceRecordModel.lesson_id == LessonModel.id)
+                .where(
+                    AttendanceRecordModel.student_id.in_(student_ids),
+                    LessonModel.status == "completed",
+                )
+                .order_by(AttendanceRecordModel.student_id, LessonModel.scheduled_at.desc())
             )
-            .join(LessonModel, AttendanceRecordModel.lesson_id == LessonModel.id)
-            .where(
-                AttendanceRecordModel.student_id.in_(student_ids),
-                LessonModel.status == "completed",
-            )
-            .order_by(AttendanceRecordModel.student_id, LessonModel.scheduled_at.desc())
-        )).all()
+        ).all()
 
         # Group by student
         from collections import defaultdict
+
         by_student: dict[UUID, list] = defaultdict(list)
         for r in rows:
             by_student[r.student_id].append(r)
@@ -302,10 +308,14 @@ class RiskFeatureExtractor:
                 continue
 
             total_14 = sum(1 for r in student_rows if r.scheduled_at and r.scheduled_at >= d14)
-            present_14 = sum(1 for r in student_rows if r.scheduled_at and r.scheduled_at >= d14 and r.status in ("present", "late"))
+            present_14 = sum(
+                1 for r in student_rows if r.scheduled_at and r.scheduled_at >= d14 and r.status in ("present", "late")
+            )
             late_14 = sum(1 for r in student_rows if r.scheduled_at and r.scheduled_at >= d14 and r.status == "late")
             total_30 = sum(1 for r in student_rows if r.scheduled_at and r.scheduled_at >= d30)
-            present_30 = sum(1 for r in student_rows if r.scheduled_at and r.scheduled_at >= d30 and r.status in ("present", "late"))
+            present_30 = sum(
+                1 for r in student_rows if r.scheduled_at and r.scheduled_at >= d30 and r.status in ("present", "late")
+            )
 
             streak = 0
             for r in student_rows:
@@ -338,16 +348,18 @@ class RiskFeatureExtractor:
             Словарь с 4 признаками оценок. Пустой словарь,
             если у студента нет оценок.
         """
-        rows = (await self._s.execute(
-            select(
-                GradeRecordModel.score,
-                GradeRecordModel.max_score,
-                GradeRecordModel.type,
-                GradeRecordModel.graded_at,
+        rows = (
+            await self._s.execute(
+                select(
+                    GradeRecordModel.score,
+                    GradeRecordModel.max_score,
+                    GradeRecordModel.type,
+                    GradeRecordModel.graded_at,
+                )
+                .where(GradeRecordModel.student_id == student_id)
+                .order_by(GradeRecordModel.graded_at.desc())
             )
-            .where(GradeRecordModel.student_id == student_id)
-            .order_by(GradeRecordModel.graded_at.desc())
-        )).all()
+        ).all()
 
         if not rows:
             return {}
@@ -367,19 +379,22 @@ class RiskFeatureExtractor:
             Словарь {student_id: {признак: значение}} для студентов
             с хотя бы одной оценкой.
         """
-        rows = (await self._s.execute(
-            select(
-                GradeRecordModel.student_id,
-                GradeRecordModel.score,
-                GradeRecordModel.max_score,
-                GradeRecordModel.type,
-                GradeRecordModel.graded_at,
+        rows = (
+            await self._s.execute(
+                select(
+                    GradeRecordModel.student_id,
+                    GradeRecordModel.score,
+                    GradeRecordModel.max_score,
+                    GradeRecordModel.type,
+                    GradeRecordModel.graded_at,
+                )
+                .where(GradeRecordModel.student_id.in_(student_ids))
+                .order_by(GradeRecordModel.student_id, GradeRecordModel.graded_at.desc())
             )
-            .where(GradeRecordModel.student_id.in_(student_ids))
-            .order_by(GradeRecordModel.student_id, GradeRecordModel.graded_at.desc())
-        )).all()
+        ).all()
 
         from collections import defaultdict
+
         by_student: dict[UUID, list] = defaultdict(list)
         for r in rows:
             by_student[r.student_id].append(r)
@@ -441,7 +456,11 @@ class RiskFeatureExtractor:
         # Exam fail rate
         exams = [r for r in rows if r.type == "exam"]
         if exams:
-            fails = sum(1 for r in exams if float(r.score) / (float(r.max_score) if r.max_score and float(r.max_score) > 0 else 10.0) < 0.4)
+            fails = sum(
+                1
+                for r in exams
+                if float(r.score) / (float(r.max_score) if r.max_score and float(r.max_score) > 0 else 10.0) < 0.4
+            )
             exam_fail = fails / len(exams)
         else:
             exam_fail = 0.0
@@ -469,15 +488,17 @@ class RiskFeatureExtractor:
             Словарь с 3 признаками домашних заданий. Пустой словарь,
             если у студента нет submissions.
         """
-        rows = (await self._s.execute(
-            select(
-                HomeworkSubmissionModel.status,
-                HomeworkAssignmentModel.due_date,
+        rows = (
+            await self._s.execute(
+                select(
+                    HomeworkSubmissionModel.status,
+                    HomeworkAssignmentModel.due_date,
+                )
+                .join(HomeworkAssignmentModel, HomeworkSubmissionModel.assignment_id == HomeworkAssignmentModel.id)
+                .where(HomeworkSubmissionModel.student_id == student_id)
+                .order_by(HomeworkAssignmentModel.due_date.desc())
             )
-            .join(HomeworkAssignmentModel, HomeworkSubmissionModel.assignment_id == HomeworkAssignmentModel.id)
-            .where(HomeworkSubmissionModel.student_id == student_id)
-            .order_by(HomeworkAssignmentModel.due_date.desc())
-        )).all()
+        ).all()
 
         if not rows:
             return {}
@@ -494,18 +515,21 @@ class RiskFeatureExtractor:
             Словарь {student_id: {признак: значение}} для студентов
             с хотя бы одним submission.
         """
-        rows = (await self._s.execute(
-            select(
-                HomeworkSubmissionModel.student_id,
-                HomeworkSubmissionModel.status,
-                HomeworkAssignmentModel.due_date,
+        rows = (
+            await self._s.execute(
+                select(
+                    HomeworkSubmissionModel.student_id,
+                    HomeworkSubmissionModel.status,
+                    HomeworkAssignmentModel.due_date,
+                )
+                .join(HomeworkAssignmentModel, HomeworkSubmissionModel.assignment_id == HomeworkAssignmentModel.id)
+                .where(HomeworkSubmissionModel.student_id.in_(student_ids))
+                .order_by(HomeworkSubmissionModel.student_id, HomeworkAssignmentModel.due_date.desc())
             )
-            .join(HomeworkAssignmentModel, HomeworkSubmissionModel.assignment_id == HomeworkAssignmentModel.id)
-            .where(HomeworkSubmissionModel.student_id.in_(student_ids))
-            .order_by(HomeworkSubmissionModel.student_id, HomeworkAssignmentModel.due_date.desc())
-        )).all()
+        ).all()
 
         from collections import defaultdict
+
         by_student: dict[UUID, list] = defaultdict(list)
         for r in rows:
             by_student[r.student_id].append(r)
@@ -569,13 +593,14 @@ class RiskFeatureExtractor:
             Словарь с 3 признаками платежей. Пустой словарь,
             если у студента нет платежей.
         """
-        rows = (await self._s.execute(
-            select(
-                PaymentModel.status,
-                PaymentModel.due_date,
+        rows = (
+            await self._s.execute(
+                select(
+                    PaymentModel.status,
+                    PaymentModel.due_date,
+                ).where(PaymentModel.student_id == student_id)
             )
-            .where(PaymentModel.student_id == student_id)
-        )).all()
+        ).all()
 
         if not rows:
             return {}
@@ -592,16 +617,18 @@ class RiskFeatureExtractor:
             Словарь {student_id: {признак: значение}} для студентов
             с хотя бы одним платежом.
         """
-        rows = (await self._s.execute(
-            select(
-                PaymentModel.student_id,
-                PaymentModel.status,
-                PaymentModel.due_date,
+        rows = (
+            await self._s.execute(
+                select(
+                    PaymentModel.student_id,
+                    PaymentModel.status,
+                    PaymentModel.due_date,
+                ).where(PaymentModel.student_id.in_(student_ids))
             )
-            .where(PaymentModel.student_id.in_(student_ids))
-        )).all()
+        ).all()
 
         from collections import defaultdict
+
         by_student: dict[UUID, list] = defaultdict(list)
         for r in rows:
             by_student[r.student_id].append(r)

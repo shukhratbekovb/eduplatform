@@ -1,25 +1,28 @@
 """CRM Analytics endpoints."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta, date
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from src.api.dependencies import CurrentUser, DbSession
-from src.infrastructure.persistence.models.crm import (
-    LeadModel, LeadActivityModel, LeadSourceModel, StageModel, FunnelModel,
-    CrmTaskModel,
-)
 from src.infrastructure.persistence.models.auth import UserModel
+from src.infrastructure.persistence.models.crm import (
+    CrmTaskModel,
+    LeadModel,
+    LeadSourceModel,
+    StageModel,
+)
 
 router = APIRouter(prefix="/crm/analytics", tags=["CRM - Analytics"])
 
 
 def _period_range(period: str, from_: str | None, to_: str | None):  # type: ignore[no-untyped-def]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     if period == "today":
@@ -35,8 +38,7 @@ def _period_range(period: str, from_: str | None, to_: str | None):  # type: ign
     if period in ("year", "365d"):
         return now - timedelta(days=365), now
     if period == "custom" and from_ and to_:
-        return datetime.fromisoformat(from_).replace(tzinfo=timezone.utc), \
-               datetime.fromisoformat(to_).replace(tzinfo=timezone.utc)
+        return datetime.fromisoformat(from_).replace(tzinfo=UTC), datetime.fromisoformat(to_).replace(tzinfo=UTC)
     return now - timedelta(days=30), now
 
 
@@ -47,6 +49,7 @@ def _prev_period(start: datetime, end: datetime):  # type: ignore[no-untyped-def
 
 
 # ── Overview ─────────────────────────────────────────────────────────────────
+
 
 class OverviewDelta(BaseModel):
     newLeads: float
@@ -85,33 +88,39 @@ async def analytics_overview(
     if managerId:
         q_leads = q_leads.where(LeadModel.assigned_to == managerId)
 
-    new_leads = (await db.execute(
-        q_leads.where(LeadModel.created_at >= start, LeadModel.created_at <= end)
-    )).scalar() or 0
-    prev_new_leads = (await db.execute(
-        q_leads.where(LeadModel.created_at >= prev_start, LeadModel.created_at <= prev_end)
-    )).scalar() or 0
-    won_leads = (await db.execute(
-        q_leads.where(LeadModel.status == "won", LeadModel.created_at >= start, LeadModel.created_at <= end)
-    )).scalar() or 0
-    prev_won_leads = (await db.execute(
-        q_leads.where(LeadModel.status == "won", LeadModel.created_at >= prev_start, LeadModel.created_at <= prev_end)
-    )).scalar() or 0
+    new_leads = (
+        await db.execute(q_leads.where(LeadModel.created_at >= start, LeadModel.created_at <= end))
+    ).scalar() or 0
+    prev_new_leads = (
+        await db.execute(q_leads.where(LeadModel.created_at >= prev_start, LeadModel.created_at <= prev_end))
+    ).scalar() or 0
+    won_leads = (
+        await db.execute(
+            q_leads.where(LeadModel.status == "won", LeadModel.created_at >= start, LeadModel.created_at <= end)
+        )
+    ).scalar() or 0
+    prev_won_leads = (
+        await db.execute(
+            q_leads.where(
+                LeadModel.status == "won", LeadModel.created_at >= prev_start, LeadModel.created_at <= prev_end
+            )
+        )
+    ).scalar() or 0
 
     # Tasks
     q_tasks = select(func.count()).select_from(CrmTaskModel)
     if managerId:
         q_tasks = q_tasks.where(CrmTaskModel.assigned_to == managerId)
     total_tasks = (await db.execute(q_tasks)).scalar() or 0
-    completed_tasks = (await db.execute(
-        q_tasks.where(CrmTaskModel.status == "done")
-    )).scalar() or 0
-    overdue_tasks = (await db.execute(
-        q_tasks.where(
-            CrmTaskModel.status.in_(["pending", "in_progress"]),
-            CrmTaskModel.due_date < func.now(),
+    completed_tasks = (await db.execute(q_tasks.where(CrmTaskModel.status == "done"))).scalar() or 0
+    overdue_tasks = (
+        await db.execute(
+            q_tasks.where(
+                CrmTaskModel.status.in_(["pending", "in_progress"]),
+                CrmTaskModel.due_date < func.now(),
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     completed_pct = round(completed_tasks / total_tasks * 100, 1) if total_tasks > 0 else 0.0
 
@@ -138,6 +147,7 @@ async def analytics_overview(
 
 # ── Sources ──────────────────────────────────────────────────────────────────
 
+
 class LeadSourceStatOut(BaseModel):
     sourceId: str | None
     sourceName: str
@@ -156,9 +166,8 @@ async def analytics_sources(
     managerId: UUID | None = None,
 ) -> list[LeadSourceStatOut]:
     start, end = _period_range(period, from_, to_)
-    q = (
-        select(LeadModel.source_id, func.count(LeadModel.id).label("cnt"))
-        .where(LeadModel.created_at >= start, LeadModel.created_at <= end)
+    q = select(LeadModel.source_id, func.count(LeadModel.id).label("cnt")).where(
+        LeadModel.created_at >= start, LeadModel.created_at <= end
     )
     if funnelId:
         q = q.where(LeadModel.funnel_id == funnelId)
@@ -170,26 +179,28 @@ async def analytics_sources(
     source_ids = {r.source_id for r in rows if r.source_id}
     source_names: dict = {}  # type: ignore[type-arg]
     if source_ids:
-        src_rows = (await db.execute(
-            select(LeadSourceModel.id, LeadSourceModel.name)
-            .where(LeadSourceModel.id.in_(source_ids))
-        )).all()
+        src_rows = (
+            await db.execute(select(LeadSourceModel.id, LeadSourceModel.name).where(LeadSourceModel.id.in_(source_ids)))
+        ).all()
         source_names = {s.id: s.name for s in src_rows}
 
     total = sum(r.cnt for r in rows)
     result = []
     for r in rows:
         src_name = source_names.get(r.source_id, "Unknown") if r.source_id else "Unknown"
-        result.append(LeadSourceStatOut(
-            sourceId=str(r.source_id) if r.source_id else None,
-            sourceName=src_name,
-            count=r.cnt,
-            percent=round(r.cnt / total * 100, 1) if total else 0.0,
-        ))
+        result.append(
+            LeadSourceStatOut(
+                sourceId=str(r.source_id) if r.source_id else None,
+                sourceName=src_name,
+                count=r.cnt,
+                percent=round(r.cnt / total * 100, 1) if total else 0.0,
+            )
+        )
     return result
 
 
 # ── Managers ─────────────────────────────────────────────────────────────────
+
 
 class ManagerStatOut(BaseModel):
     userId: str
@@ -213,9 +224,8 @@ async def analytics_managers(
     managerId: UUID | None = None,
 ) -> list[ManagerStatOut]:
     start, end = _period_range(period, from_, to_)
-    q = (
-        select(LeadModel.assigned_to, func.count(LeadModel.id).label("cnt"))
-        .where(LeadModel.created_at >= start, LeadModel.created_at <= end)
+    q = select(LeadModel.assigned_to, func.count(LeadModel.id).label("cnt")).where(
+        LeadModel.created_at >= start, LeadModel.created_at <= end
     )
     if funnelId:
         q = q.where(LeadModel.funnel_id == funnelId)
@@ -229,23 +239,18 @@ async def analytics_managers(
         return []
 
     # Bulk fetch users
-    users_rows = (await db.execute(
-        select(UserModel).where(UserModel.id.in_(manager_ids))
-    )).scalars().all()
+    users_rows = (await db.execute(select(UserModel).where(UserModel.id.in_(manager_ids)))).scalars().all()
     users_map = {u.id: u for u in users_rows}
 
     # Single query for won/lost counts per manager
-    stats_q = (
-        select(
-            LeadModel.assigned_to,
-            func.count().filter(LeadModel.status == "won").label("won"),
-            func.count().filter(LeadModel.status == "lost").label("lost"),
-        )
-        .where(
-            LeadModel.assigned_to.in_(manager_ids),
-            LeadModel.created_at >= start,
-            LeadModel.created_at <= end,
-        )
+    stats_q = select(
+        LeadModel.assigned_to,
+        func.count().filter(LeadModel.status == "won").label("won"),
+        func.count().filter(LeadModel.status == "lost").label("lost"),
+    ).where(
+        LeadModel.assigned_to.in_(manager_ids),
+        LeadModel.created_at >= start,
+        LeadModel.created_at <= end,
     )
     if funnelId:
         stats_q = stats_q.where(LeadModel.funnel_id == funnelId)
@@ -262,20 +267,23 @@ async def analytics_managers(
         stats = stats_map.get(mid)
         won = stats.won if stats else 0
         lost = stats.lost if stats else 0
-        result.append(ManagerStatOut(
-            userId=str(mid),
-            userName=user.name if user else "Unknown",
-            avatarUrl=user.avatar_url if user else None,
-            leadsHandled=cnt,
-            leadsWon=won,
-            leadsLost=lost,
-            wonRate=round(won / cnt, 3) if cnt else 0.0,
-            avgResponseTimeHours=0.0,
-        ))
+        result.append(
+            ManagerStatOut(
+                userId=str(mid),
+                userName=user.name if user else "Unknown",
+                avatarUrl=user.avatar_url if user else None,
+                leadsHandled=cnt,
+                leadsWon=won,
+                leadsLost=lost,
+                wonRate=round(won / cnt, 3) if cnt else 0.0,
+                avgResponseTimeHours=0.0,
+            )
+        )
     return result
 
 
 # ── Funnel Conversion ────────────────────────────────────────────────────────
+
 
 class FunnelConversionOut(BaseModel):
     fromStageId: str
@@ -305,11 +313,13 @@ async def funnel_conversion(
 
     # Single query to count leads per stage
     stage_ids = [s.id for s in stages]
-    count_rows = (await db.execute(
-        select(LeadModel.stage_id, func.count(LeadModel.id).label("cnt"))
-        .where(LeadModel.stage_id.in_(stage_ids))
-        .group_by(LeadModel.stage_id)
-    )).all()
+    count_rows = (
+        await db.execute(
+            select(LeadModel.stage_id, func.count(LeadModel.id).label("cnt"))
+            .where(LeadModel.stage_id.in_(stage_ids))
+            .group_by(LeadModel.stage_id)
+        )
+    ).all()
     counts_map = {r.stage_id: r.cnt for r in count_rows}
 
     result = []
@@ -319,18 +329,21 @@ async def funnel_conversion(
         from_count = counts_map.get(from_stage.id, 0)
         to_count = counts_map.get(to_stage.id, 0)
         conv = round(to_count / from_count * 100, 1) if from_count > 0 else 0.0
-        result.append(FunnelConversionOut(
-            fromStageId=str(from_stage.id),
-            fromStageName=from_stage.name,
-            toStageId=str(to_stage.id),
-            toStageName=to_stage.name,
-            conversionRate=conv,
-            leadCount=from_count,
-        ))
+        result.append(
+            FunnelConversionOut(
+                fromStageId=str(from_stage.id),
+                fromStageName=from_stage.name,
+                toStageId=str(to_stage.id),
+                toStageName=to_stage.name,
+                conversionRate=conv,
+                leadCount=from_count,
+            )
+        )
     return result
 
 
 # ── Loss Reasons ─────────────────────────────────────────────────────────────
+
 
 class LossReasonOut(BaseModel):
     reason: str
@@ -354,11 +367,13 @@ async def loss_reasons(
         q_where.append(LeadModel.funnel_id == funnelId)
     if managerId:
         q_where.append(LeadModel.assigned_to == managerId)
-    rows = (await db.execute(
-        select(LeadModel.lost_reason, func.count(LeadModel.id).label("cnt"))
-        .where(*q_where)
-        .group_by(LeadModel.lost_reason)
-    )).all()
+    rows = (
+        await db.execute(
+            select(LeadModel.lost_reason, func.count(LeadModel.id).label("cnt"))
+            .where(*q_where)
+            .group_by(LeadModel.lost_reason)
+        )
+    ).all()
     total = sum(r.cnt for r in rows)
     return [
         LossReasonOut(
@@ -371,6 +386,7 @@ async def loss_reasons(
 
 
 # ── Leads Over Time ─────────────────────────────────────────────────────────
+
 
 class LeadsOverTimeOut(BaseModel):
     date: str
@@ -415,6 +431,7 @@ async def leads_over_time(
 
 
 # ── Misc ─────────────────────────────────────────────────────────────────────
+
 
 @router.get("/forecast")
 async def forecast(current_user: CurrentUser, db: DbSession, funnelId: UUID | None = None) -> dict:  # type: ignore[type-arg]
@@ -489,13 +506,16 @@ async def sankey_data(
         else:
             sid = key.replace("src_", "")
             from uuid import UUID as _UUID
-            nodes.append({
-                "id": key,
-                "label": source_names.get(_UUID(sid), "Unknown"),
-                "color": "#6366F1",
-                "column": 0,
-                "value": count,
-            })
+
+            nodes.append(
+                {
+                    "id": key,
+                    "label": source_names.get(_UUID(sid), "Unknown"),
+                    "color": "#6366F1",
+                    "column": 0,
+                    "value": count,
+                }
+            )
 
     # Column 1: Stages
     stage_values: dict = {}  # type: ignore[type-arg]
@@ -507,6 +527,7 @@ async def sankey_data(
     for key, count in stage_values.items():
         sid = key.replace("stage_", "")
         from uuid import UUID as _UUID
+
         info = stage_info.get(_UUID(sid), {"name": "Unknown", "color": "#94A3B8"})
         nodes.append({"id": key, "label": info["name"], "color": info["color"], "column": 1, "value": count})
 
@@ -518,13 +539,15 @@ async def sankey_data(
 
     for key, count in outcome_values.items():
         status = key.replace("out_", "")
-        nodes.append({
-            "id": key,
-            "label": outcome_labels.get(status, status),
-            "color": outcome_colors.get(status, "#94A3B8"),
-            "column": 2,
-            "value": count,
-        })
+        nodes.append(
+            {
+                "id": key,
+                "label": outcome_labels.get(status, status),
+                "color": outcome_colors.get(status, "#94A3B8"),
+                "column": 2,
+                "value": count,
+            }
+        )
 
     # Build links: source → stage
     link_counts: dict = {}  # type: ignore[type-arg]
@@ -550,6 +573,7 @@ async def sankey_data(
 
 # ── Contracts Analytics ──────────────────────────────────────────────────────
 
+
 @router.get("/contracts-overview")
 async def contracts_overview(
     current_user: CurrentUser,
@@ -561,18 +585,27 @@ async def contracts_overview(
     from src.infrastructure.persistence.models.crm import ContractModel
 
     start, end = _period_range(period, from_, to_)
-    total = (await db.execute(
-        select(func.count()).select_from(ContractModel)
-        .where(ContractModel.created_at >= start, ContractModel.created_at <= end)
-    )).scalar() or 0
-    active = (await db.execute(
-        select(func.count()).select_from(ContractModel)
-        .where(ContractModel.status == "active", ContractModel.created_at >= start, ContractModel.created_at <= end)
-    )).scalar() or 0
-    total_amount = (await db.execute(
-        select(func.sum(ContractModel.payment_amount))
-        .where(ContractModel.created_at >= start, ContractModel.created_at <= end)
-    )).scalar() or 0
+    total = (
+        await db.execute(
+            select(func.count())
+            .select_from(ContractModel)
+            .where(ContractModel.created_at >= start, ContractModel.created_at <= end)
+        )
+    ).scalar() or 0
+    active = (
+        await db.execute(
+            select(func.count())
+            .select_from(ContractModel)
+            .where(ContractModel.status == "active", ContractModel.created_at >= start, ContractModel.created_at <= end)
+        )
+    ).scalar() or 0
+    total_amount = (
+        await db.execute(
+            select(func.sum(ContractModel.payment_amount)).where(
+                ContractModel.created_at >= start, ContractModel.created_at <= end
+            )
+        )
+    ).scalar() or 0
 
     return {"totalContracts": total, "activeContracts": active, "totalRevenue": float(total_amount)}
 
@@ -589,30 +622,33 @@ async def contracts_by_direction(
     from src.infrastructure.persistence.models.lms import DirectionModel
 
     start, end = _period_range(period, from_, to_)
-    rows = (await db.execute(
-        select(ContractModel.direction_id, func.count(ContractModel.id).label("cnt"))
-        .where(ContractModel.created_at >= start, ContractModel.created_at <= end)
-        .group_by(ContractModel.direction_id)
-    )).all()
+    rows = (
+        await db.execute(
+            select(ContractModel.direction_id, func.count(ContractModel.id).label("cnt"))
+            .where(ContractModel.created_at >= start, ContractModel.created_at <= end)
+            .group_by(ContractModel.direction_id)
+        )
+    ).all()
 
     # Fetch direction names in bulk
     dir_ids = {r.direction_id for r in rows if r.direction_id}
     dir_names: dict = {}  # type: ignore[type-arg]
     if dir_ids:
-        dir_rows = (await db.execute(
-            select(DirectionModel.id, DirectionModel.name)
-            .where(DirectionModel.id.in_(dir_ids))
-        )).all()
+        dir_rows = (
+            await db.execute(select(DirectionModel.id, DirectionModel.name).where(DirectionModel.id.in_(dir_ids)))
+        ).all()
         dir_names = {d.id: d.name for d in dir_rows}
 
     total = sum(r.cnt for r in rows)
     result = []
     for r in rows:
         name = dir_names.get(r.direction_id, "Не указано") if r.direction_id else "Не указано"
-        result.append({
-            "directionId": str(r.direction_id) if r.direction_id else None,
-            "directionName": name,
-            "count": r.cnt,
-            "percent": round(r.cnt / total * 100, 1) if total else 0,
-        })
+        result.append(
+            {
+                "directionId": str(r.direction_id) if r.direction_id else None,
+                "directionName": name,
+                "count": r.cnt,
+                "percent": round(r.cnt / total * 100, 1) if total else 0,
+            }
+        )
     return result

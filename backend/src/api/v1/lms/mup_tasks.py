@@ -28,13 +28,14 @@
     POST /lms/tasks/{id}/move — перемещение задачи (смена статуса).
     DELETE /lms/tasks/{id} — удаление задачи (директор/МУП).
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Response, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -65,6 +66,7 @@ class MupTaskOut(BaseModel):
         category: Категория задачи (для автозадач).
         createdAt: Дата создания (ISO формат).
     """
+
     id: UUID
     title: str
     description: str | None
@@ -96,6 +98,7 @@ class CreateMupTaskRequest(BaseModel):
         priority: Приоритет (по умолчанию "medium").
         studentId: UUID связанного студента (опционально).
     """
+
     title: str
     description: str | None = None
     assignedTo: UUID | None = None
@@ -134,6 +137,7 @@ class UpdateMupTaskRequest(BaseModel):
         dueDate: Новая дата выполнения.
         priority: Новый приоритет.
     """
+
     title: str | None = None
     description: str | None = None
     assignedTo: UUID | None = None
@@ -147,6 +151,7 @@ class MoveTaskRequest(BaseModel):
     Attributes:
         status: Новый статус (pending, in_progress, done, overdue).
     """
+
     status: str
 
 
@@ -164,9 +169,11 @@ async def _task_out(t: MupTaskModel, db: object | None = None) -> MupTaskOut:
     """
     student_name = None
     if t.student_id and db:
-        s = (await db.execute(  # type: ignore[union-attr]
-            select(StudentModel.full_name).where(StudentModel.id == t.student_id)
-        )).scalar()
+        s = (
+            await db.execute(  # type: ignore[union-attr]
+                select(StudentModel.full_name).where(StudentModel.id == t.student_id)
+            )
+        ).scalar()
         student_name = s
 
     return MupTaskOut(
@@ -176,12 +183,12 @@ async def _task_out(t: MupTaskModel, db: object | None = None) -> MupTaskOut:
         assignedTo=t.assigned_to,
         createdBy=t.created_by,
         dueDate=t.due_date.isoformat() if t.due_date else None,
-        status=t.status if hasattr(t, 'status') and t.status else ("done" if t.is_done else "pending"),
-        priority=t.priority if hasattr(t, 'priority') and t.priority else "medium",
+        status=t.status if hasattr(t, "status") and t.status else ("done" if t.is_done else "pending"),
+        priority=t.priority if hasattr(t, "priority") and t.priority else "medium",
         isDone=t.is_done,
-        studentId=t.student_id if hasattr(t, 'student_id') else None,
+        studentId=t.student_id if hasattr(t, "student_id") else None,
         studentName=student_name,
-        category=t.category if hasattr(t, 'category') else None,
+        category=t.category if hasattr(t, "category") else None,
         createdAt=t.created_at.isoformat() if t.created_at else None,
     )
 
@@ -287,7 +294,9 @@ async def get_task(task_id: UUID, current_user: CurrentUser, db: DbSession) -> M
 
 
 @router.patch("/{task_id}", response_model=MupTaskOut)
-async def update_task(task_id: UUID, body: UpdateMupTaskRequest, current_user: CurrentUser, db: DbSession) -> MupTaskOut:
+async def update_task(
+    task_id: UUID, body: UpdateMupTaskRequest, current_user: CurrentUser, db: DbSession
+) -> MupTaskOut:
     """Обновление задачи МУП.
 
     Обновляет только переданные (не None) поля.

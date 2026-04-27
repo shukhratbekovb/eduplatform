@@ -1,17 +1,22 @@
 """LMS Compensation — salary calculations per teacher."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from src.api.dependencies import CurrentUser, DbSession
-from src.infrastructure.persistence.models.lms import SalaryCalculationModel, LessonModel, CompensationModelModel
 from src.infrastructure.persistence.models.auth import UserModel
+from src.infrastructure.persistence.models.lms import (
+    CompensationModelModel,
+    LessonModel,
+    SalaryCalculationModel,
+)
 
 router = APIRouter(prefix="/lms", tags=["LMS - Compensation"])
 
@@ -37,11 +42,16 @@ class SalaryOut(CamelModel):
 
 def _sal_out(s: SalaryCalculationModel, name: str | None = None) -> SalaryOut:
     return SalaryOut(
-        id=s.id, teacher_id=s.teacher_id, teacher_name=name,
-        period_month=s.period_month, period_year=s.period_year,
+        id=s.id,
+        teacher_id=s.teacher_id,
+        teacher_name=name,
+        period_month=s.period_month,
+        period_year=s.period_year,
         lessons_conducted=s.lessons_conducted,
-        base_amount=float(s.base_amount), bonus_amount=float(s.bonus_amount),
-        total_amount=float(s.total_amount), currency=s.currency,
+        base_amount=float(s.base_amount),
+        bonus_amount=float(s.bonus_amount),
+        total_amount=float(s.total_amount),
+        currency=s.currency,
         is_paid=s.is_paid,
         calculated_at=s.calculated_at.isoformat() if s.calculated_at else None,
     )
@@ -49,27 +59,33 @@ def _sal_out(s: SalaryCalculationModel, name: str | None = None) -> SalaryOut:
 
 # ── List ─────────────────────────────────────────────────────────────────────
 
+
 @router.get("/compensation")
 async def list_compensation(current_user: CurrentUser, db: DbSession) -> list[dict]:
     rows = (await db.execute(select(CompensationModelModel))).scalars().all()
-    return [{
-        "id": str(m.id), "teacherId": str(m.teacher_id),
-        "modelType": m.type,
-        "fixedMonthlyRate": float(m.rate) if m.type == "fixed_monthly" else None,
-        "ratePerLesson": {"default": float(m.rate)} if m.type == "per_lesson" else None,
-        "ratePerStudent": {"default": float(m.rate)} if m.type == "per_student" else None,
-    } for m in rows]
+    return [
+        {
+            "id": str(m.id),
+            "teacherId": str(m.teacher_id),
+            "modelType": m.type,
+            "fixedMonthlyRate": float(m.rate) if m.type == "fixed_monthly" else None,
+            "ratePerLesson": {"default": float(m.rate)} if m.type == "per_lesson" else None,
+            "ratePerStudent": {"default": float(m.rate)} if m.type == "per_student" else None,
+        }
+        for m in rows
+    ]
 
 
 @router.get("/compensation/{teacher_id}")
 async def get_compensation_by_teacher(teacher_id: UUID, current_user: CurrentUser, db: DbSession) -> dict:
-    m = (await db.execute(
-        select(CompensationModelModel).where(CompensationModelModel.teacher_id == teacher_id)
-    )).scalar_one_or_none()
+    m = (
+        await db.execute(select(CompensationModelModel).where(CompensationModelModel.teacher_id == teacher_id))
+    ).scalar_one_or_none()
     if not m:
         return {}
     return {
-        "id": str(m.id), "teacherId": str(m.teacher_id),
+        "id": str(m.id),
+        "teacherId": str(m.teacher_id),
         "modelType": m.type,
         "fixedMonthlyRate": float(m.rate) if m.type == "fixed_monthly" else None,
         "ratePerLesson": {"default": float(m.rate)} if m.type == "per_lesson" else None,
@@ -78,6 +94,7 @@ async def get_compensation_by_teacher(teacher_id: UUID, current_user: CurrentUse
 
 
 # ── Compensation model (per-teacher rate config) ─────────────────────────────
+
 
 class CompModelOut(CamelModel):
     id: UUID
@@ -99,7 +116,10 @@ class SetCompModelIn(CamelModel):
 
 @router.put("/compensation/{teacher_id}", response_model=CompModelOut)
 async def set_compensation_model(
-    teacher_id: UUID, body: SetCompModelIn, current_user: CurrentUser, db: DbSession,
+    teacher_id: UUID,
+    body: SetCompModelIn,
+    current_user: CurrentUser,
+    db: DbSession,
 ) -> CompModelOut:
     from datetime import date as d_type
 
@@ -113,9 +133,9 @@ async def set_compensation_model(
     eff_from = d_type.fromisoformat(body.effective_from) if body.effective_from else d_type.today()
 
     # Upsert
-    existing = (await db.execute(
-        select(CompensationModelModel).where(CompensationModelModel.teacher_id == teacher_id)
-    )).scalar_one_or_none()
+    existing = (
+        await db.execute(select(CompensationModelModel).where(CompensationModelModel.teacher_id == teacher_id))
+    ).scalar_one_or_none()
 
     if existing:
         existing.type = body.model_type
@@ -124,8 +144,11 @@ async def set_compensation_model(
         m = existing
     else:
         m = CompensationModelModel(
-            id=uuid4(), teacher_id=teacher_id,
-            type=body.model_type, rate=rate, currency="UZS",
+            id=uuid4(),
+            teacher_id=teacher_id,
+            type=body.model_type,
+            rate=rate,
+            currency="UZS",
             effective_from=eff_from,
         )
         db.add(m)
@@ -133,25 +156,36 @@ async def set_compensation_model(
     await db.commit()
     await db.refresh(m)
     return CompModelOut(
-        id=m.id, teacher_id=m.teacher_id,
-        model_type=m.type, rate=float(m.rate),
-        currency=m.currency, effective_from=str(m.effective_from),
+        id=m.id,
+        teacher_id=m.teacher_id,
+        model_type=m.type,
+        rate=float(m.rate),
+        currency=m.currency,
+        effective_from=str(m.effective_from),
     )
 
 
 # ── Salaries (alias) ─────────────────────────────────────────────────────────
 
+
 @router.get("/salaries", response_model=list[SalaryOut])
 async def list_salaries(
-    current_user: CurrentUser, db: DbSession,
+    current_user: CurrentUser,
+    db: DbSession,
     teacherId: UUID | None = Query(None, alias="teacherId"),
 ) -> list[SalaryOut]:
     q = select(SalaryCalculationModel)
     if teacherId:
         q = q.where(SalaryCalculationModel.teacher_id == teacherId)
-    rows = (await db.execute(
-        q.order_by(SalaryCalculationModel.period_year.desc(), SalaryCalculationModel.period_month.desc())
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                q.order_by(SalaryCalculationModel.period_year.desc(), SalaryCalculationModel.period_month.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     tids = {s.teacher_id for s in rows}
     name_map: dict = {}
     if tids:
@@ -161,6 +195,7 @@ async def list_salaries(
 
 
 # ── Calculate ────────────────────────────────────────────────────────────────
+
 
 class CalculateRequest(CamelModel):
     teacher_id: UUID
@@ -175,30 +210,35 @@ async def calculate_salary(body: CalculateRequest, current_user: CurrentUser, db
     year, month = int(parts[0]), int(parts[1])
 
     # Check if already calculated
-    existing = (await db.execute(
-        select(SalaryCalculationModel).where(
-            SalaryCalculationModel.teacher_id == body.teacher_id,
-            SalaryCalculationModel.period_year == year,
-            SalaryCalculationModel.period_month == month,
+    existing = (
+        await db.execute(
+            select(SalaryCalculationModel).where(
+                SalaryCalculationModel.teacher_id == body.teacher_id,
+                SalaryCalculationModel.period_year == year,
+                SalaryCalculationModel.period_month == month,
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if existing:
         # Recalculate
         from sqlalchemy import extract
-        lessons_count = (await db.execute(
-            select(func.count()).where(
-                LessonModel.teacher_id == body.teacher_id,
-                LessonModel.status == "completed",
-                extract("year", LessonModel.scheduled_at) == year,
-                extract("month", LessonModel.scheduled_at) == month,
+
+        lessons_count = (
+            await db.execute(
+                select(func.count()).where(
+                    LessonModel.teacher_id == body.teacher_id,
+                    LessonModel.status == "completed",
+                    extract("year", LessonModel.scheduled_at) == year,
+                    extract("month", LessonModel.scheduled_at) == month,
+                )
             )
-        )).scalar() or 0
+        ).scalar() or 0
 
         base_rate = 50000.0
         existing.lessons_conducted = lessons_count
         existing.base_amount = base_rate * lessons_count
         existing.total_amount = existing.base_amount + float(existing.bonus_amount)
-        existing.calculated_at = datetime.now(timezone.utc)
+        existing.calculated_at = datetime.now(UTC)
         await db.commit()
         await db.refresh(existing)
         user = (await db.execute(select(UserModel.name).where(UserModel.id == body.teacher_id))).scalar()
@@ -206,14 +246,17 @@ async def calculate_salary(body: CalculateRequest, current_user: CurrentUser, db
 
     # New calculation
     from sqlalchemy import extract
-    lessons_count = (await db.execute(
-        select(func.count()).where(
-            LessonModel.teacher_id == body.teacher_id,
-            LessonModel.status == "completed",
-            extract("year", LessonModel.scheduled_at) == year,
-            extract("month", LessonModel.scheduled_at) == month,
+
+    lessons_count = (
+        await db.execute(
+            select(func.count()).where(
+                LessonModel.teacher_id == body.teacher_id,
+                LessonModel.status == "completed",
+                extract("year", LessonModel.scheduled_at) == year,
+                extract("month", LessonModel.scheduled_at) == month,
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     base_rate = 50000.0
     base_amount = base_rate * lessons_count
@@ -229,7 +272,7 @@ async def calculate_salary(body: CalculateRequest, current_user: CurrentUser, db
         total_amount=base_amount,
         currency="UZS",
         is_paid=False,
-        calculated_at=datetime.now(timezone.utc),
+        calculated_at=datetime.now(UTC),
     )
     db.add(s)
     await db.commit()

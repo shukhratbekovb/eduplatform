@@ -1,11 +1,12 @@
 """CRM Funnels — funnels, stages, and custom fields."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Response, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -16,10 +17,14 @@ from src.application.crm.funnels.use_cases import (
     CreateStageInput,
     CreateStageUseCase,
     ListFunnelsUseCase,
-    ListStagesUseCase,
 )
-from src.domain.crm.entities import Funnel, Stage
-from src.infrastructure.persistence.models.crm import FunnelModel, StageModel, CustomFieldModel, LeadModel
+from src.domain.crm.entities import Funnel
+from src.infrastructure.persistence.models.crm import (
+    CustomFieldModel,
+    FunnelModel,
+    LeadModel,
+    StageModel,
+)
 from src.infrastructure.persistence.repositories.crm.funnel_repository import (
     SqlFunnelRepository,
     SqlStageRepository,
@@ -31,6 +36,7 @@ CrmGuard = Annotated[object, Depends(require_roles("director", "sales_manager"))
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
+
 
 class FunnelOut(BaseModel):
     id: UUID
@@ -137,6 +143,7 @@ def _cf_out(cf: CustomFieldModel) -> CustomFieldOut:
 
 # ── Funnel CRUD ───────────────────────────────────────────────────────────────
 
+
 @router.post("", response_model=FunnelOut, status_code=status.HTTP_201_CREATED)
 async def create_funnel(body: CreateFunnelRequest, _: CrmGuard, db: DbSession) -> FunnelOut:
     uc = CreateFunnelUseCase(SqlFunnelRepository(db))
@@ -210,13 +217,14 @@ async def archive_funnel(funnel_id: UUID, _: CrmGuard, db: DbSession) -> FunnelO
 
 # ── Stages ────────────────────────────────────────────────────────────────────
 
+
 @router.get("/{funnel_id}/stages", response_model=list[StageOut])
 async def list_stages(funnel_id: UUID, current_user: CurrentUser, db: DbSession) -> list[StageOut]:
-    rows = (await db.execute(
-        select(StageModel)
-        .where(StageModel.funnel_id == funnel_id)
-        .order_by(StageModel.order)
-    )).scalars().all()
+    rows = (
+        (await db.execute(select(StageModel).where(StageModel.funnel_id == funnel_id).order_by(StageModel.order)))
+        .scalars()
+        .all()
+    )
     return [_stage_out(s) for s in rows]
 
 
@@ -225,13 +233,15 @@ async def create_stage(funnel_id: UUID, body: CreateStageRequest, _: CrmGuard, d
     win_prob = body.winProbability or body.win_probability
     uc = CreateStageUseCase(SqlStageRepository(db), SqlFunnelRepository(db))
     try:
-        stage = await uc.execute(CreateStageInput(
-            funnel_id=funnel_id,
-            name=body.name,
-            color=body.color,
-            win_probability=win_prob,
-            order=body.order,
-        ))
+        stage = await uc.execute(
+            CreateStageInput(
+                funnel_id=funnel_id,
+                name=body.name,
+                color=body.color,
+                win_probability=win_prob,
+                order=body.order,
+            )
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     await db.commit()
@@ -241,10 +251,10 @@ async def create_stage(funnel_id: UUID, body: CreateStageRequest, _: CrmGuard, d
 
 
 @router.patch("/{funnel_id}/stages/{stage_id}", response_model=StageOut)
-async def update_stage(funnel_id: UUID, stage_id: UUID, body: UpdateStageRequest, _: CrmGuard, db: DbSession) -> StageOut:
-    result = await db.execute(
-        select(StageModel).where(StageModel.id == stage_id, StageModel.funnel_id == funnel_id)
-    )
+async def update_stage(
+    funnel_id: UUID, stage_id: UUID, body: UpdateStageRequest, _: CrmGuard, db: DbSession
+) -> StageOut:
+    result = await db.execute(select(StageModel).where(StageModel.id == stage_id, StageModel.funnel_id == funnel_id))
     s = result.scalar_one_or_none()
     if s is None:
         raise HTTPException(status_code=404, detail="Stage not found")
@@ -265,9 +275,7 @@ async def update_stage(funnel_id: UUID, stage_id: UUID, body: UpdateStageRequest
 
 @router.delete("/{funnel_id}/stages/{stage_id}")
 async def delete_stage(funnel_id: UUID, stage_id: UUID, _: CrmGuard, db: DbSession) -> Response:
-    result = await db.execute(
-        select(StageModel).where(StageModel.id == stage_id, StageModel.funnel_id == funnel_id)
-    )
+    result = await db.execute(select(StageModel).where(StageModel.id == stage_id, StageModel.funnel_id == funnel_id))
     s = result.scalar_one_or_none()
     if s is None:
         raise HTTPException(status_code=404, detail="Stage not found")
@@ -289,7 +297,9 @@ async def reorder_stages(funnel_id: UUID, body: ReorderStagesRequest, _: CrmGuar
 
 
 @router.post("/{funnel_id}/stages/{stage_id}/migrate-leads")
-async def migrate_leads(funnel_id: UUID, stage_id: UUID, body: MigrateLeadsRequest, _: CrmGuard, db: DbSession) -> Response:
+async def migrate_leads(
+    funnel_id: UUID, stage_id: UUID, body: MigrateLeadsRequest, _: CrmGuard, db: DbSession
+) -> Response:
     await db.execute(
         LeadModel.__table__.update()
         .where(LeadModel.stage_id == stage_id, LeadModel.funnel_id == funnel_id)
@@ -301,18 +311,25 @@ async def migrate_leads(funnel_id: UUID, stage_id: UUID, body: MigrateLeadsReque
 
 # ── Custom Fields ─────────────────────────────────────────────────────────────
 
+
 @router.get("/{funnel_id}/custom-fields", response_model=list[CustomFieldOut])
 async def list_custom_fields(funnel_id: UUID, current_user: CurrentUser, db: DbSession) -> list[CustomFieldOut]:
-    rows = (await db.execute(
-        select(CustomFieldModel)
-        .where(CustomFieldModel.funnel_id == funnel_id)
-        .order_by(CustomFieldModel.order)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(CustomFieldModel).where(CustomFieldModel.funnel_id == funnel_id).order_by(CustomFieldModel.order)
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [_cf_out(cf) for cf in rows]
 
 
 @router.post("/{funnel_id}/custom-fields", response_model=CustomFieldOut, status_code=status.HTTP_201_CREATED)
-async def create_custom_field(funnel_id: UUID, body: CreateCustomFieldRequest, _: CrmGuard, db: DbSession) -> CustomFieldOut:
+async def create_custom_field(
+    funnel_id: UUID, body: CreateCustomFieldRequest, _: CrmGuard, db: DbSession
+) -> CustomFieldOut:
     cf = CustomFieldModel(
         funnel_id=funnel_id,
         label=body.label,
@@ -320,7 +337,7 @@ async def create_custom_field(funnel_id: UUID, body: CreateCustomFieldRequest, _
         options=body.options,
         order=body.order,
         is_active=True,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     db.add(cf)
     await db.commit()
@@ -329,7 +346,9 @@ async def create_custom_field(funnel_id: UUID, body: CreateCustomFieldRequest, _
 
 
 @router.patch("/{funnel_id}/custom-fields/{field_id}", response_model=CustomFieldOut)
-async def update_custom_field(funnel_id: UUID, field_id: UUID, body: UpdateCustomFieldRequest, _: CrmGuard, db: DbSession) -> CustomFieldOut:
+async def update_custom_field(
+    funnel_id: UUID, field_id: UUID, body: UpdateCustomFieldRequest, _: CrmGuard, db: DbSession
+) -> CustomFieldOut:
     result = await db.execute(
         select(CustomFieldModel).where(CustomFieldModel.id == field_id, CustomFieldModel.funnel_id == funnel_id)
     )
@@ -361,7 +380,9 @@ async def delete_custom_field(funnel_id: UUID, field_id: UUID, _: CrmGuard, db: 
 
 
 @router.post("/{funnel_id}/custom-fields/reorder")
-async def reorder_custom_fields(funnel_id: UUID, body: ReorderCustomFieldsRequest, _: CrmGuard, db: DbSession) -> Response:
+async def reorder_custom_fields(
+    funnel_id: UUID, body: ReorderCustomFieldsRequest, _: CrmGuard, db: DbSession
+) -> Response:
     for idx, field_id in enumerate(body.fieldIds):
         await db.execute(
             CustomFieldModel.__table__.update()

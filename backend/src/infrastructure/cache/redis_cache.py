@@ -1,4 +1,5 @@
 """Redis cache helpers — simple get/set/delete with JSON serialisation."""
+
 from __future__ import annotations
 
 import json

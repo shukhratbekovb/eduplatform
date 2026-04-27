@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.interfaces.repositories import Page, StudentRepository
@@ -54,9 +54,7 @@ class SqlStudentRepository(StudentRepository):
         return _to_domain(m) if m else None
 
     async def get_by_user_id(self, user_id: UUID) -> Student | None:
-        result = await self._s.execute(
-            select(StudentModel).where(StudentModel.user_id == user_id)
-        )
+        result = await self._s.execute(select(StudentModel).where(StudentModel.user_id == user_id))
         m = result.scalar_one_or_none()
         return _to_domain(m) if m else None
 
@@ -93,6 +91,7 @@ class SqlStudentRepository(StudentRepository):
 
     async def get_by_group(self, group_id: UUID) -> list[Student]:
         from src.infrastructure.persistence.models.lms import EnrollmentModel
+
         result = await self._s.execute(
             select(StudentModel)
             .join(EnrollmentModel, EnrollmentModel.student_id == StudentModel.id)

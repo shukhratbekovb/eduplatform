@@ -1,4 +1,5 @@
 """LMS domain specifications."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -15,6 +16,7 @@ class StudentAtRiskSpec(Specification["Student"]):
 
     def is_satisfied_by(self, candidate: Student) -> bool:
         from src.domain.lms.entities import RiskLevel
+
         risk_order = {RiskLevel.LOW: 0, RiskLevel.MEDIUM: 1, RiskLevel.HIGH: 2, RiskLevel.CRITICAL: 3}
         return risk_order.get(candidate.risk_level, 0) >= 1
 
@@ -24,6 +26,7 @@ class HighRiskStudentSpec(Specification["Student"]):
 
     def is_satisfied_by(self, candidate: Student) -> bool:
         from src.domain.lms.entities import RiskLevel
+
         return candidate.risk_level == RiskLevel.HIGH
 
 
@@ -32,6 +35,7 @@ class OverduePaymentSpec(Specification["Payment"]):
 
     def is_satisfied_by(self, candidate: Payment) -> bool:
         from src.domain.lms.entities import PaymentStatus
+
         return (
             candidate.status == PaymentStatus.PENDING
             and candidate.due_date is not None
@@ -44,6 +48,7 @@ class LessonConductibleSpec(Specification["Lesson"]):
 
     def is_satisfied_by(self, candidate: Lesson) -> bool:
         from src.domain.lms.entities import LessonStatus
+
         return candidate.status == LessonStatus.SCHEDULED
 
 
@@ -52,4 +57,5 @@ class LessonCancellableSpec(Specification["Lesson"]):
 
     def is_satisfied_by(self, candidate: Lesson) -> bool:
         from src.domain.lms.entities import LessonStatus
+
         return candidate.status != LessonStatus.COMPLETED

@@ -1,4 +1,5 @@
 """Unit tests — CRM domain: value objects, specifications, policies."""
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -7,21 +8,28 @@ from uuid import uuid4
 import pytest
 
 from src.domain.crm.entities import (
-    CrmTask, Lead, LeadStatus, Stage, TaskPriority, TaskStatus,
+    CrmTask,
+    Lead,
+    LeadStatus,
+    Stage,
+    TaskStatus,
 )
-from src.domain.crm.value_objects import HexColor, WinProbability
+from src.domain.crm.policies import LeadTransitionPolicy
 from src.domain.crm.specifications import (
     ActiveLeadSpec,
     OverdueTaskSpec,
     StageBelongsToFunnelSpec,
 )
-from src.domain.crm.policies import LeadTransitionPolicy
+from src.domain.crm.value_objects import HexColor, WinProbability
 
 
 def _make_lead(**kw) -> Lead:
     defaults = dict(
-        full_name="Ali Valiyev", phone="+998901234567",
-        funnel_id=uuid4(), stage_id=uuid4(), assigned_to=uuid4(),
+        full_name="Ali Valiyev",
+        phone="+998901234567",
+        funnel_id=uuid4(),
+        stage_id=uuid4(),
+        assigned_to=uuid4(),
     )
     return Lead.create(**{**defaults, **kw})
 
@@ -112,8 +120,10 @@ class TestStageWithVOs:
 
     def test_stage_custom_values(self) -> None:
         s = Stage(
-            funnel_id=uuid4(), name="Qualified",
-            color=HexColor("#00FF00"), win_probability=WinProbability(75),
+            funnel_id=uuid4(),
+            name="Qualified",
+            color=HexColor("#00FF00"),
+            win_probability=WinProbability(75),
         )
         assert s.color.value == "#00FF00"
         assert s.win_probability.value == 75

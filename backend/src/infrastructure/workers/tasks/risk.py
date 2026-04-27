@@ -13,9 +13,11 @@
 Результаты ML-скоринга (доменные суб-оценки и вероятность отчисления)
 сохраняются в таблицу ``risk_factors`` для аудита и отображения в UI.
 """
+
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC
 
 from src.infrastructure.workers.celery_app import celery_app
 
@@ -50,12 +52,9 @@ async def _recalculate_all() -> dict:  # type: ignore[type-arg]
     Returns:
         Словарь {"updated": int, "changed": int}.
     """
-    from sqlalchemy import select
     from src.database import async_session_factory
-    from src.infrastructure.persistence.models.lms import StudentModel
     from src.infrastructure.persistence.repositories.lms.student_repository import (
         SqlStudentRepository,
-        _to_domain,
     )
 
     updated = 0
@@ -109,6 +108,7 @@ async def _recalculate_all_legacy(session: object) -> tuple[int, int]:
         и количество студентов с изменённым уровнем.
     """
     from sqlalchemy import select
+
     from src.infrastructure.persistence.models.lms import StudentModel
     from src.infrastructure.persistence.repositories.lms.student_repository import (
         SqlStudentRepository,
@@ -149,9 +149,11 @@ async def _save_risk_factors_batch(session: object, results: list) -> None:
         session: Асинхронная сессия SQLAlchemy.
         results: Список объектов RiskScoreResult от MLRiskScorer.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
     from uuid import uuid4
+
     from sqlalchemy import delete
+
     from src.infrastructure.persistence.models.lms import RiskFactorModel
 
     if not results:
@@ -163,7 +165,7 @@ async def _save_risk_factors_batch(session: object, results: list) -> None:
         delete(RiskFactorModel).where(RiskFactorModel.student_id.in_(student_ids))
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for result in results:
         for domain, score in [
             ("attendance", result.attendance_score),
@@ -220,8 +222,11 @@ async def _recalculate_one(student_id: str) -> dict:  # type: ignore[type-arg]
         или словарь с ошибкой.
     """
     from uuid import UUID
+
     from src.database import async_session_factory
-    from src.infrastructure.persistence.repositories.lms.student_repository import SqlStudentRepository
+    from src.infrastructure.persistence.repositories.lms.student_repository import (
+        SqlStudentRepository,
+    )
 
     async with async_session_factory() as session:
         repo = SqlStudentRepository(session)
@@ -233,6 +238,7 @@ async def _recalculate_one(student_id: str) -> dict:  # type: ignore[type-arg]
 
         try:
             from src.ml.risk_scorer import MLRiskScorer
+
             scorer = MLRiskScorer(session)
             result = await scorer.score_student(UUID(student_id))
             student.risk_level = result.risk_level

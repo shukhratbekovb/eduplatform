@@ -12,14 +12,14 @@
 Все сценарии принимают зависимости через конструктор (Dependency Injection)
 и работают с абстрактными репозиториями.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
 from uuid import UUID, uuid4
 
 from src.application.interfaces.repositories import Page, StudentRepository, UserRepository
-from src.domain.lms.entities import BadgeLevel, RiskLevel, Student
+from src.domain.lms.entities import Student
 
 
 @dataclass
@@ -308,6 +308,7 @@ class RecalculateRiskUseCase:
         if self._session is not None:
             try:
                 from src.ml.risk_scorer import MLRiskScorer
+
                 scorer = MLRiskScorer(self._session)
                 result = await scorer.score_student(student_id)
                 student.risk_level = result.risk_level
@@ -319,11 +320,14 @@ class RecalculateRiskUseCase:
 
         if student.risk_level != old_level:
             from src.domain.lms.events import StudentRiskChangedEvent
-            student.add_event(StudentRiskChangedEvent(
-                student_id=student.id,
-                old_level=old_level,
-                new_level=student.risk_level,
-            ))
+
+            student.add_event(
+                StudentRiskChangedEvent(
+                    student_id=student.id,
+                    old_level=old_level,
+                    new_level=student.risk_level,
+                )
+            )
 
         await self._students.save(student)
         return student

@@ -190,7 +190,7 @@ class TimeRange:
     """
 
     start: str  # "HH:MM"
-    end: str    # "HH:MM"
+    end: str  # "HH:MM"
 
     def __post_init__(self) -> None:
         """Валидирует формат и логическую корректность диапазона.

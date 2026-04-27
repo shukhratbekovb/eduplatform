@@ -28,6 +28,7 @@
     - Таймзона: UTC (Docker-контейнер работает в UTC).
     - Prefetch: 1 (worker берёт по одной задаче для равномерного распределения).
 """
+
 from celery import Celery
 
 from src.config import settings

@@ -1,10 +1,11 @@
 """CRM Tasks router."""
+
 from __future__ import annotations
 
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Response, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 
 from src.api.dependencies import CurrentUser, DbSession, require_roles
@@ -30,7 +31,7 @@ class TaskResponse(BaseModel):
     isAutoCreated: bool
 
     @classmethod
-    def from_domain(cls, t: CrmTask) -> "TaskResponse":
+    def from_domain(cls, t: CrmTask) -> TaskResponse:
         due = t.due_date if isinstance(t.due_date, str) else str(t.due_date)
         return cls(
             id=t.id,
@@ -102,6 +103,7 @@ async def create_task(
     db: DbSession,
 ) -> TaskResponse:
     from uuid import uuid4
+
     try:
         priority = TaskPriority(body.priority)
     except ValueError:
@@ -196,7 +198,9 @@ async def delete_task(task_id: UUID, current_user: CurrentUser, db: DbSession) -
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     from sqlalchemy import select as sa_select
+
     from src.infrastructure.persistence.models.crm import CrmTaskModel
+
     result = await db.execute(sa_select(CrmTaskModel).where(CrmTaskModel.id == task_id))
     model = result.scalar_one_or_none()
     if model:

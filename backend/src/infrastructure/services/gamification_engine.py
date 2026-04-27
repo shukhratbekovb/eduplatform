@@ -47,20 +47,25 @@ Example:
     ...     db=session,
     ... )
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.infrastructure.persistence.models.lms import (
-    StudentModel, AttendanceRecordModel, GradeRecordModel,
-    HomeworkSubmissionModel, DiamondRecordModel,
-)
 from src.infrastructure.persistence.models.gamification import (
-    AchievementModel, StudentAchievementModel, StudentActivityEventModel,
+    AchievementModel,
+    StudentAchievementModel,
+    StudentActivityEventModel,
+)
+from src.infrastructure.persistence.models.lms import (
+    AttendanceRecordModel,
+    GradeRecordModel,
+    HomeworkSubmissionModel,
+    StudentModel,
 )
 
 # ── Star rules ───────────────────────────────────────────────────────────────
@@ -90,10 +95,10 @@ STARS_HOMEWORK_GRADE_GOOD = 10
 
 BADGE_THRESHOLDS = [
     (1000, "diamond"),
-    (600,  "platinum"),
-    (300,  "gold"),
-    (100,  "silver"),
-    (0,    "bronze"),
+    (600, "platinum"),
+    (300, "gold"),
+    (100, "silver"),
+    (0, "bronze"),
 ]
 """Пороги для автоматического повышения уровня бейджа.
 
@@ -104,14 +109,14 @@ BADGE_THRESHOLDS = [
 # ── Achievement triggers ─────────────────────────────────────────────────────
 
 TRIGGER_CHECKS = {
-    "first_grade":        lambda ctx: ctx["total_grades"] >= 1,
-    "five_tens":          lambda ctx: ctx["tens_count"] >= 5,
-    "gpa_9":              lambda ctx: (ctx["gpa"] or 0) >= 9.0,
-    "ten_present":        lambda ctx: ctx["streak_present"] >= 10,
-    "thirty_present":     lambda ctx: ctx["streak_present"] >= 30,
-    "ten_homework":       lambda ctx: ctx["hw_on_time"] >= 10,
+    "first_grade": lambda ctx: ctx["total_grades"] >= 1,
+    "five_tens": lambda ctx: ctx["tens_count"] >= 5,
+    "gpa_9": lambda ctx: (ctx["gpa"] or 0) >= 9.0,
+    "ten_present": lambda ctx: ctx["streak_present"] >= 10,
+    "thirty_present": lambda ctx: ctx["streak_present"] >= 30,
+    "ten_homework": lambda ctx: ctx["hw_on_time"] >= 10,
     "first_day_homework": lambda ctx: ctx.get("submitted_first_day", False),
-    "leaderboard_first":  lambda ctx: ctx.get("leaderboard_rank") == 1,
+    "leaderboard_first": lambda ctx: ctx.get("leaderboard_rank") == 1,
 }
 """Словарь функций-проверок для автоматической разблокировки достижений.
 
@@ -122,9 +127,15 @@ TRIGGER_CHECKS = {
 
 # ── Core engine ──────────────────────────────────────────────────────────────
 
-async def _add_stars(student: StudentModel, amount: int, description: str,
-                     db: AsyncSession, subject_id: UUID | None = None,
-                     lesson_id: UUID | None = None) -> None:
+
+async def _add_stars(
+    student: StudentModel,
+    amount: int,
+    description: str,
+    db: AsyncSession,
+    subject_id: UUID | None = None,
+    lesson_id: UUID | None = None,
+) -> None:
     """Начисляет звёзды студенту и создаёт событие в ленте активности.
 
     Если amount == 0, операция пропускается. Поддерживает как
@@ -141,17 +152,22 @@ async def _add_stars(student: StudentModel, amount: int, description: str,
     if amount == 0:
         return
     student.stars = (student.stars or 0) + amount
-    db.add(StudentActivityEventModel(
-        id=uuid4(), student_id=student.id,
-        type="stars_earned", description=description,
-        stars_amount=amount, crystals_amount=None,
-        subject_id=subject_id, linked_lesson_id=lesson_id,
-        created_at=datetime.now(timezone.utc),
-    ))
+    db.add(
+        StudentActivityEventModel(
+            id=uuid4(),
+            student_id=student.id,
+            type="stars_earned",
+            description=description,
+            stars_amount=amount,
+            crystals_amount=None,
+            subject_id=subject_id,
+            linked_lesson_id=lesson_id,
+            created_at=datetime.now(UTC),
+        )
+    )
 
 
-async def _add_crystals(student: StudentModel, amount: int, description: str,
-                        db: AsyncSession) -> None:
+async def _add_crystals(student: StudentModel, amount: int, description: str, db: AsyncSession) -> None:
     """Начисляет кристаллы (бриллианты) студенту и создаёт событие.
 
     Начисление происходит только при amount > 0.
@@ -165,12 +181,17 @@ async def _add_crystals(student: StudentModel, amount: int, description: str,
     if amount <= 0:
         return
     student.crystals = (student.crystals or 0) + amount
-    db.add(StudentActivityEventModel(
-        id=uuid4(), student_id=student.id,
-        type="crystals_earned", description=description,
-        stars_amount=None, crystals_amount=amount,
-        created_at=datetime.now(timezone.utc),
-    ))
+    db.add(
+        StudentActivityEventModel(
+            id=uuid4(),
+            student_id=student.id,
+            type="crystals_earned",
+            description=description,
+            stars_amount=None,
+            crystals_amount=amount,
+            created_at=datetime.now(UTC),
+        )
+    )
 
 
 def _update_badge(student: StudentModel) -> str | None:
@@ -190,7 +211,6 @@ def _update_badge(student: StudentModel) -> str | None:
     for threshold, level in BADGE_THRESHOLDS:
         if stars >= threshold:
             if student.badge_level != level:
-                old = student.badge_level
                 student.badge_level = level
                 return level
             return None
@@ -214,26 +234,34 @@ async def _get_achievement_context(student_id: UUID, db: AsyncSession) -> dict:
         dict: Контекст с ключами: total_grades, tens_count, gpa,
             streak_present, hw_on_time.
     """
-    total_grades = (await db.execute(
-        select(func.count()).where(GradeRecordModel.student_id == student_id)
-    )).scalar() or 0
+    total_grades = (
+        await db.execute(select(func.count()).where(GradeRecordModel.student_id == student_id))
+    ).scalar() or 0
 
-    tens_count = (await db.execute(
-        select(func.count()).where(
-            GradeRecordModel.student_id == student_id,
-            GradeRecordModel.score >= 10,
+    tens_count = (
+        await db.execute(
+            select(func.count()).where(
+                GradeRecordModel.student_id == student_id,
+                GradeRecordModel.score >= 10,
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     student = await db.get(StudentModel, student_id)
     gpa = float(student.gpa) if student and student.gpa else 0
 
     # Attendance streak (consecutive present, no absent)
-    att_rows = (await db.execute(
-        select(AttendanceRecordModel.status)
-        .where(AttendanceRecordModel.student_id == student_id)
-        .order_by(AttendanceRecordModel.recorded_at.desc().nullslast())
-    )).scalars().all()
+    att_rows = (
+        (
+            await db.execute(
+                select(AttendanceRecordModel.status)
+                .where(AttendanceRecordModel.student_id == student_id)
+                .order_by(AttendanceRecordModel.recorded_at.desc().nullslast())
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     streak = 0
     for status in att_rows:
@@ -243,12 +271,14 @@ async def _get_achievement_context(student_id: UUID, db: AsyncSession) -> dict:
             break
 
     # Homework on time
-    hw_on_time = (await db.execute(
-        select(func.count()).where(
-            HomeworkSubmissionModel.student_id == student_id,
-            HomeworkSubmissionModel.status.in_(["submitted", "graded"]),
+    hw_on_time = (
+        await db.execute(
+            select(func.count()).where(
+                HomeworkSubmissionModel.student_id == student_id,
+                HomeworkSubmissionModel.status.in_(["submitted", "graded"]),
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     return {
         "total_grades": total_grades,
@@ -276,20 +306,31 @@ async def _check_achievements(student: StudentModel, db: AsyncSession) -> None:
     ctx = await _get_achievement_context(student.id, db)
 
     # Get all active achievements with triggers
-    achievements = (await db.execute(
-        select(AchievementModel).where(
-            AchievementModel.is_active == True,  # noqa: E712
-            AchievementModel.trigger_type != None,  # noqa: E711
+    achievements = (
+        (
+            await db.execute(
+                select(AchievementModel).where(
+                    AchievementModel.is_active == True,  # noqa: E712
+                    AchievementModel.trigger_type != None,  # noqa: E711
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # Get already unlocked
-    unlocked_ids = set((await db.execute(
-        select(StudentAchievementModel.achievement_id)
-        .where(StudentAchievementModel.student_id == student.id)
-    )).scalars().all())
+    unlocked_ids = set(
+        (
+            await db.execute(
+                select(StudentAchievementModel.achievement_id).where(StudentAchievementModel.student_id == student.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for ach in achievements:
         if ach.id in unlocked_ids:
@@ -298,27 +339,35 @@ async def _check_achievements(student: StudentModel, db: AsyncSession) -> None:
         checker = TRIGGER_CHECKS.get(ach.trigger_type)
         if checker and checker(ctx):
             # Unlock!
-            db.add(StudentAchievementModel(
-                id=uuid4(), student_id=student.id,
-                achievement_id=ach.id, unlocked_at=now,
-            ))
+            db.add(
+                StudentAchievementModel(
+                    id=uuid4(),
+                    student_id=student.id,
+                    achievement_id=ach.id,
+                    unlocked_at=now,
+                )
+            )
 
             if ach.reward_stars > 0:
                 student.stars = (student.stars or 0) + ach.reward_stars
             if ach.reward_crystals > 0:
                 student.crystals = (student.crystals or 0) + ach.reward_crystals
 
-            db.add(StudentActivityEventModel(
-                id=uuid4(), student_id=student.id,
-                type="badge_unlocked",
-                description=f"Достижение: {ach.name}",
-                stars_amount=ach.reward_stars or None,
-                crystals_amount=ach.reward_crystals or None,
-                created_at=now,
-            ))
+            db.add(
+                StudentActivityEventModel(
+                    id=uuid4(),
+                    student_id=student.id,
+                    type="badge_unlocked",
+                    description=f"Достижение: {ach.name}",
+                    stars_amount=ach.reward_stars or None,
+                    crystals_amount=ach.reward_crystals or None,
+                    created_at=now,
+                )
+            )
 
 
 # ── Public API ───────────────────────────────────────────────────────────────
+
 
 async def on_lesson_conducted(
     student_id: UUID,
@@ -368,27 +417,31 @@ async def on_lesson_conducted(
 
     # Stars for attendance
     if attendance_status == "present":
-        await _add_stars(student, STARS_ATTENDANCE_PRESENT,
-                         f"Посещение: {topic}", db, subject_id, lesson_id)
+        await _add_stars(student, STARS_ATTENDANCE_PRESENT, f"Посещение: {topic}", db, subject_id, lesson_id)
     elif attendance_status == "late":
-        await _add_stars(student, STARS_ATTENDANCE_LATE,
-                         f"Опоздание: {topic}", db, subject_id, lesson_id)
+        await _add_stars(student, STARS_ATTENDANCE_LATE, f"Опоздание: {topic}", db, subject_id, lesson_id)
 
     # Stars for grade
     if grade is not None:
         if grade >= 9:
-            await _add_stars(student, STARS_GRADE_EXCELLENT,
-                             f"Оценка {grade}/10 за «{topic}»", db, subject_id, lesson_id)
+            await _add_stars(
+                student, STARS_GRADE_EXCELLENT, f"Оценка {grade}/10 за «{topic}»", db, subject_id, lesson_id
+            )
         elif grade >= 7:
-            await _add_stars(student, STARS_GRADE_GOOD,
-                             f"Оценка {grade}/10 за «{topic}»", db, subject_id, lesson_id)
+            await _add_stars(student, STARS_GRADE_GOOD, f"Оценка {grade}/10 за «{topic}»", db, subject_id, lesson_id)
 
     # Check attendance streak for crystals
-    att_rows = (await db.execute(
-        select(AttendanceRecordModel.status)
-        .where(AttendanceRecordModel.student_id == student_id)
-        .order_by(AttendanceRecordModel.recorded_at.desc().nullslast())
-    )).scalars().all()
+    att_rows = (
+        (
+            await db.execute(
+                select(AttendanceRecordModel.status)
+                .where(AttendanceRecordModel.student_id == student_id)
+                .order_by(AttendanceRecordModel.recorded_at.desc().nullslast())
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     streak = 0
     for s in att_rows:
@@ -428,8 +481,7 @@ async def on_homework_submitted(
     if not student:
         return
 
-    await _add_stars(student, STARS_HOMEWORK_ON_TIME,
-                     "Домашка сдана вовремя", db)
+    await _add_stars(student, STARS_HOMEWORK_ON_TIME, "Домашка сдана вовремя", db)
 
     _update_badge(student)
     await _check_achievements(student, db)
@@ -467,11 +519,9 @@ async def on_homework_graded(
     normalized = (score / max_score * 10) if max_score > 0 else 0
 
     if normalized >= 9:
-        await _add_stars(student, STARS_HOMEWORK_GRADE_EXCELLENT,
-                         f"Отлично за домашку ({score}/{max_score})", db)
+        await _add_stars(student, STARS_HOMEWORK_GRADE_EXCELLENT, f"Отлично за домашку ({score}/{max_score})", db)
     elif normalized >= 7:
-        await _add_stars(student, STARS_HOMEWORK_GRADE_GOOD,
-                         f"Хорошо за домашку ({score}/{max_score})", db)
+        await _add_stars(student, STARS_HOMEWORK_GRADE_GOOD, f"Хорошо за домашку ({score}/{max_score})", db)
 
     _update_badge(student)
     await _check_achievements(student, db)
@@ -504,11 +554,15 @@ async def on_diamonds_awarded(
         return
 
     student.crystals = (student.crystals or 0) + amount
-    db.add(StudentActivityEventModel(
-        id=uuid4(), student_id=student.id,
-        type="crystals_earned",
-        description=f"Бриллианты от преподавателя: {reason}",
-        stars_amount=None, crystals_amount=amount,
-        linked_lesson_id=lesson_id,
-        created_at=datetime.now(timezone.utc),
-    ))
+    db.add(
+        StudentActivityEventModel(
+            id=uuid4(),
+            student_id=student.id,
+            type="crystals_earned",
+            description=f"Бриллианты от преподавателя: {reason}",
+            stars_amount=None,
+            crystals_amount=amount,
+            linked_lesson_id=lesson_id,
+            created_at=datetime.now(UTC),
+        )
+    )

@@ -1,7 +1,8 @@
 """Enrollment API — enroll / drop students from groups."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -44,18 +45,20 @@ async def enroll_student(body: EnrollRequest, _: StaffGuard, db: DbSession) -> E
         raise HTTPException(status_code=404, detail="Student not found")
 
     # Check for existing active enrollment
-    existing = (await db.execute(
-        select(EnrollmentModel).where(
-            EnrollmentModel.student_id == body.student_id,
-            EnrollmentModel.group_id == body.group_id,
-            EnrollmentModel.is_active == True,  # noqa: E712
+    existing = (
+        await db.execute(
+            select(EnrollmentModel).where(
+                EnrollmentModel.student_id == body.student_id,
+                EnrollmentModel.group_id == body.group_id,
+                EnrollmentModel.is_active == True,  # noqa: E712
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
 
     if existing:
         raise HTTPException(status_code=409, detail="Student is already enrolled in this group")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     m = EnrollmentModel(
         id=uuid4(),
         student_id=body.student_id,
@@ -86,7 +89,7 @@ async def drop_student(enrollment_id: UUID, _: StaffGuard, db: DbSession) -> Enr
         raise HTTPException(status_code=400, detail="Enrollment is already inactive")
 
     m.is_active = False
-    m.dropped_at = datetime.now(timezone.utc)
+    m.dropped_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(m)
 
@@ -108,27 +111,41 @@ async def list_group_enrollments(
     if is_active is not None:
         q = q.where(EnrollmentModel.is_active == is_active)
     rows = (await db.execute(q)).scalars().all()
-    return [EnrollmentOut(
-        id=r.id, student_id=r.student_id, group_id=r.group_id,
-        enrolled_at=r.enrolled_at.isoformat(),
-        dropped_at=r.dropped_at.isoformat() if r.dropped_at else None,
-        is_active=r.is_active,
-    ) for r in rows]
+    return [
+        EnrollmentOut(
+            id=r.id,
+            student_id=r.student_id,
+            group_id=r.group_id,
+            enrolled_at=r.enrolled_at.isoformat(),
+            dropped_at=r.dropped_at.isoformat() if r.dropped_at else None,
+            is_active=r.is_active,
+        )
+        for r in rows
+    ]
 
 
 @router.get("/students/{student_id}", response_model=list[EnrollmentOut])
-async def list_student_enrollments(
-    student_id: UUID, current_user: CurrentUser, db: DbSession
-) -> list[EnrollmentOut]:
-    rows = (await db.execute(
-        select(EnrollmentModel).where(
-            EnrollmentModel.student_id == student_id,
-            EnrollmentModel.is_active == True,  # noqa: E712
+async def list_student_enrollments(student_id: UUID, current_user: CurrentUser, db: DbSession) -> list[EnrollmentOut]:
+    rows = (
+        (
+            await db.execute(
+                select(EnrollmentModel).where(
+                    EnrollmentModel.student_id == student_id,
+                    EnrollmentModel.is_active == True,  # noqa: E712
+                )
+            )
         )
-    )).scalars().all()
-    return [EnrollmentOut(
-        id=r.id, student_id=r.student_id, group_id=r.group_id,
-        enrolled_at=r.enrolled_at.isoformat(),
-        dropped_at=r.dropped_at.isoformat() if r.dropped_at else None,
-        is_active=r.is_active,
-    ) for r in rows]
+        .scalars()
+        .all()
+    )
+    return [
+        EnrollmentOut(
+            id=r.id,
+            student_id=r.student_id,
+            group_id=r.group_id,
+            enrolled_at=r.enrolled_at.isoformat(),
+            dropped_at=r.dropped_at.isoformat() if r.dropped_at else None,
+            is_active=r.is_active,
+        )
+        for r in rows
+    ]

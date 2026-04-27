@@ -1,14 +1,12 @@
 """Unit tests — Gamification domain: value objects, specifications."""
-from __future__ import annotations
 
-from uuid import uuid4
+from __future__ import annotations
 
 import pytest
 
-from src.domain.gamification.entities import Achievement, AchievementCategory, StudentAchievement
-from src.domain.gamification.value_objects import Reward
+from src.domain.gamification.entities import Achievement, AchievementCategory
 from src.domain.gamification.specifications import AchievementTriggeredSpec
-
+from src.domain.gamification.value_objects import Reward
 
 # ── Reward VO ────────────────────────────────────────────────────────────────
 
@@ -106,9 +104,11 @@ class TestAchievementWithReward:
 class TestAchievementTriggeredSpec:
     def _make_achievement(self, **kw) -> Achievement:
         defaults = dict(
-            name="Streak", description="10 day streak",
+            name="Streak",
+            description="10 day streak",
             category=AchievementCategory.ATTENDANCE,
-            trigger_type="attendance_streak", trigger_value=10,
+            trigger_type="attendance_streak",
+            trigger_value=10,
             is_active=True,
         )
         return Achievement(**{**defaults, **kw})

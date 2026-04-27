@@ -7,7 +7,7 @@ Internet
     │
     ▼
 ┌──────────┐     ┌──────────────────────────────────────────────────┐
-│  Nginx   │────▸│  Docker Containers                               │
+│  Nginx   │────▸│  Docker Containers (from Docker Hub)             │
 │ (SSL +   │     │                                                  │
 │  Proxy)  │     │  ┌─────────┐  ┌─────────┐  ┌──────────┐        │
 │          │     │  │ Website │  │   CRM   │  │ Logbook  │        │
@@ -17,13 +17,23 @@ Internet
 │          │     │  │ Student │  │   API   │──▸ PostgreSQL         │
 │          │     │  │  :3002  │  │  :8000  │──▸ Redis              │
 │          │     │  └─────────┘  └─────────┘──▸ RabbitMQ           │
-│          │     │               ┌─────────┐──▸ MinIO              │
-│          │     │               │ Worker  │                      │
+│          │     │               ┌─────────┐                      │
+│          │     │               │ Worker  │──▸ GCS (files)        │
 │          │     │               │ + Beat  │                      │
 │          │     │               └─────────┘                      │
 │          │     └──────────────────────────────────────────────────┘
 └──────────┘
 ```
+
+## Docker Hub Images
+
+| Image | Repository |
+|-------|-----------|
+| Backend | `shukhratbekovb/eduplatform-backend:latest` |
+| CRM | `shukhratbekovb/eduplatform-crm:latest` |
+| Logbook | `shukhratbekovb/eduplatform-logbook:latest` |
+| Student | `shukhratbekovb/eduplatform-student:latest` |
+| Website | `shukhratbekovb/eduplatform-website:latest` |
 
 ## Domains
 
@@ -73,7 +83,7 @@ cd deploy
 
 # Infrastructure passwords
 cp .env.example .env
-nano .env    # Set strong passwords for PostgreSQL, Redis, RabbitMQ, MinIO
+nano .env    # Set strong passwords for PostgreSQL, Redis, RabbitMQ
 
 # Backend config
 cp .env.backend.example .env.backend
@@ -82,7 +92,14 @@ nano .env.backend    # Set SECRET_KEY, database URLs with matching passwords
 
 **Important:** Use the same passwords in `.env` and `.env.backend`. For example, if `.env` has `POSTGRES_PASSWORD=mySecurePass123`, then `.env.backend` must have `DATABASE_URL=postgresql+asyncpg://edu:mySecurePass123@postgres:5432/eduplatform`.
 
-### 3. Run the setup script
+### 3. Place GCS credentials
+
+```bash
+# Copy your Google Cloud Storage credentials file to deploy/
+scp gcp_keys.json root@YOUR_VPS_IP:/opt/eduplatform/deploy/gcp_keys.json
+```
+
+### 4. Run the setup script
 
 ```bash
 chmod +x setup.sh
@@ -94,10 +111,10 @@ This script:
 - Configures firewall (SSH + Nginx only)
 - Obtains Let's Encrypt SSL certificates for all subdomains
 - Configures Nginx as reverse proxy with HTTPS
-- Builds and starts all Docker containers
+- Pulls images from Docker Hub and starts all containers
 - Runs database migrations
 
-### 4. Seed initial data (optional)
+### 5. Seed initial data (optional)
 
 ```bash
 cd /opt/eduplatform/deploy
@@ -110,9 +127,10 @@ docker compose -f docker-compose.prod.yml exec -T api bash -c "PYTHONPATH=/app p
 
 ```
 deploy/
-├── docker-compose.prod.yml    # Production Docker Compose
+├── docker-compose.prod.yml    # Production Docker Compose (pulls from Docker Hub)
 ├── .env.example               # Infrastructure env template
 ├── .env.backend.example       # Backend env template
+├── gcp_keys.json              # GCS credentials (not in git!)
 ├── setup.sh                   # One-click server setup script
 ├── README.md                  # This file
 └── nginx/
@@ -132,9 +150,8 @@ docker compose -f docker-compose.prod.yml logs -f crm
 # Restart a service
 docker compose -f docker-compose.prod.yml restart api
 
-# Rebuild and deploy updates
-git pull
-docker compose -f docker-compose.prod.yml build
+# Update to latest images
+docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 
 # Run migrations after backend changes
@@ -155,19 +172,6 @@ docker compose -f docker-compose.prod.yml exec -T postgres psql -U edu eduplatfo
 - **Docker ports**: All bound to `127.0.0.1` — not exposed to internet directly
 - **SSL auto-renewal**: Certbot cron runs daily at 3:00 AM
 - **Rate limiting**: API 30 req/s, Web 50 req/s per IP
-
-## Nginx Configuration
-
-The Nginx config at `nginx/nginx.conf` includes:
-
-- HTTP → HTTPS redirect for all domains
-- Let's Encrypt ACME challenge support
-- Reverse proxy to 5 upstream services
-- WebSocket support (Upgrade headers)
-- Gzip compression
-- Security headers (X-Frame-Options, X-Content-Type-Options, etc.)
-- Rate limiting per zone (api + web)
-- SSL session caching and OCSP stapling
 
 ## Updating SSL Certificates
 

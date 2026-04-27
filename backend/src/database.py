@@ -12,6 +12,7 @@
 Конфигурация подключения берётся из ``settings.DATABASE_URL``.
 При DEBUG=True включается echo SQL-запросов в лог.
 """
+
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (

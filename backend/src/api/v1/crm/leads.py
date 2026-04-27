@@ -1,16 +1,28 @@
 """CRM Leads router — full CRUD + workflow actions."""
+
 from __future__ import annotations
 
 import csv
 import io
 import json
 import secrets
+from datetime import UTC
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, Form, Response, Depends, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel
-from sqlalchemy import select, update, delete
+from sqlalchemy import select
 
 from src.api.dependencies import CurrentUser, DbSession, require_roles
 from src.application.crm.leads.use_cases import (
@@ -18,21 +30,20 @@ from src.application.crm.leads.use_cases import (
     CreateLeadInput,
     CreateLeadUseCase,
     GetLeadUseCase,
-    ListLeadsUseCase,
     LoseLeadUseCase,
     MoveLeadStageUseCase,
     WinLeadUseCase,
 )
 from src.domain.crm.entities import Lead
+from src.infrastructure.persistence.models.auth import UserModel
 from src.infrastructure.persistence.models.crm import (
-    LeadModel,
     LeadActivityModel,
     LeadCommentModel,
+    LeadModel,
     LeadSourceModel,
 )
-from src.infrastructure.persistence.models.auth import UserModel
-from src.infrastructure.persistence.repositories.crm.lead_repository import SqlLeadRepository
 from src.infrastructure.persistence.repositories.crm.funnel_repository import SqlStageRepository
+from src.infrastructure.persistence.repositories.crm.lead_repository import SqlLeadRepository
 
 router = APIRouter(prefix="/crm", tags=["CRM - Leads"])
 
@@ -40,6 +51,7 @@ CrmGuard = Annotated[object, Depends(require_roles("director", "sales_manager"))
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
+
 
 class LeadOut(BaseModel):
     id: UUID
@@ -59,7 +71,7 @@ class LeadOut(BaseModel):
     lastActivityAt: str | None = None
 
     @classmethod
-    def from_model(cls, m: LeadModel) -> "LeadOut":
+    def from_model(cls, m: LeadModel) -> LeadOut:
         return cls(
             id=m.id,
             fullName=m.full_name,
@@ -79,7 +91,7 @@ class LeadOut(BaseModel):
         )
 
     @classmethod
-    def from_domain(cls, l: Lead) -> "LeadOut":
+    def from_domain(cls, l: Lead) -> LeadOut:
         return cls(
             id=l.id,
             fullName=l.full_name,
@@ -174,28 +186,40 @@ class AssignRequest(BaseModel):
 
 # ── Lead CRUD ─────────────────────────────────────────────────────────────────
 
+
 @router.post("/leads", response_model=LeadOut, status_code=status.HTTP_201_CREATED)
 async def create_lead(body: CreateLeadRequest, current_user: CurrentUser, db: DbSession) -> LeadOut:
     from uuid import uuid4 as _uid
-    from sqlalchemy import func as fn, or_
+
+    from sqlalchemy import func as fn
+    from sqlalchemy import or_
+
     from src.infrastructure.persistence.models.crm import CrmContactModel
 
     # ── Auto-assign manager if not provided (round-robin by least active leads) ──
     assigned_to = body.resolved_assigned_to()
     if not assigned_to:
-        managers = (await db.execute(
-            select(UserModel)
-            .where(or_(UserModel.role == "sales_manager", UserModel.role == "director"))
-            .where(UserModel.is_active == True)  # noqa: E712
-        )).scalars().all()
+        managers = (
+            (
+                await db.execute(
+                    select(UserModel)
+                    .where(or_(UserModel.role == "sales_manager", UserModel.role == "director"))
+                    .where(UserModel.is_active == True)  # noqa: E712
+                )
+            )
+            .scalars()
+            .all()
+        )
         if managers:
             # Pick manager with fewest active leads — single GROUP BY query
             manager_ids = [m.id for m in managers]
-            lead_counts = (await db.execute(
-                select(LeadModel.assigned_to, fn.count(LeadModel.id).label("cnt"))
-                .where(LeadModel.assigned_to.in_(manager_ids), LeadModel.status == "active")
-                .group_by(LeadModel.assigned_to)
-            )).all()
+            lead_counts = (
+                await db.execute(
+                    select(LeadModel.assigned_to, fn.count(LeadModel.id).label("cnt"))
+                    .where(LeadModel.assigned_to.in_(manager_ids), LeadModel.status == "active")
+                    .group_by(LeadModel.assigned_to)
+                )
+            ).all()
             counts_map = {r.assigned_to: r.cnt for r in lead_counts}
             best, best_count = None, float("inf")
             for m in managers:
@@ -205,9 +229,9 @@ async def create_lead(body: CreateLeadRequest, current_user: CurrentUser, db: Db
             assigned_to = best
 
     # ── Find or create contact by phone ──────────────────────────────────────
-    existing_contact = (await db.execute(
-        select(CrmContactModel).where(CrmContactModel.phone == body.phone)
-    )).scalar_one_or_none()
+    existing_contact = (
+        await db.execute(select(CrmContactModel).where(CrmContactModel.phone == body.phone))
+    ).scalar_one_or_none()
 
     if existing_contact:
         contact = existing_contact
@@ -217,8 +241,10 @@ async def create_lead(body: CreateLeadRequest, current_user: CurrentUser, db: Db
             contact.email = body.email
     else:
         contact = CrmContactModel(
-            id=_uid(), full_name=body.resolved_full_name() or "Unknown",
-            phone=body.phone, email=body.email,
+            id=_uid(),
+            full_name=body.resolved_full_name() or "Unknown",
+            phone=body.phone,
+            email=body.email,
         )
         db.add(contact)
         await db.flush()
@@ -232,15 +258,17 @@ async def create_lead(body: CreateLeadRequest, current_user: CurrentUser, db: Db
     # ── Create lead ──────────────────────────────────────────────────────────
     uc = CreateLeadUseCase(SqlLeadRepository(db), SqlStageRepository(db))
     try:
-        lead = await uc.execute(CreateLeadInput(
-            full_name=body.resolved_full_name(),
-            phone=body.phone,
-            funnel_id=body.resolved_funnel_id(),
-            stage_id=body.resolved_stage_id(),
-            assigned_to=assigned_to,
-            source_id=source_id,
-            email=body.email,
-        ))
+        lead = await uc.execute(
+            CreateLeadInput(
+                full_name=body.resolved_full_name(),
+                phone=body.phone,
+                funnel_id=body.resolved_funnel_id(),
+                stage_id=body.resolved_stage_id(),
+                assigned_to=assigned_to,
+                source_id=source_id,
+                email=body.email,
+            )
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -271,8 +299,9 @@ async def list_leads(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=500),
 ) -> PagedLeads:
+    from datetime import datetime as dt
+
     from sqlalchemy import func as fn
-    from datetime import datetime as dt, timezone
 
     page_size = limit
     q = select(LeadModel)
@@ -298,15 +327,20 @@ async def list_leads(
 
     # Date range
     if createdFrom:
-        q = q.where(LeadModel.created_at >= dt.fromisoformat(createdFrom).replace(tzinfo=timezone.utc))
+        q = q.where(LeadModel.created_at >= dt.fromisoformat(createdFrom).replace(tzinfo=UTC))
     if createdTo:
-        q = q.where(LeadModel.created_at <= dt.fromisoformat(createdTo).replace(tzinfo=timezone.utc))
+        q = q.where(LeadModel.created_at <= dt.fromisoformat(createdTo).replace(tzinfo=UTC))
 
     total = (await db.execute(select(fn.count()).select_from(q.subquery()))).scalar() or 0
-    rows = (await db.execute(
-        q.order_by(LeadModel.created_at.desc().nullslast())
-        .offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                q.order_by(LeadModel.created_at.desc().nullslast()).offset((page - 1) * page_size).limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     return PagedLeads(
         data=[LeadOut.from_model(m) for m in rows],
@@ -365,6 +399,7 @@ async def delete_lead(lead_id: UUID, _: CrmGuard, db: DbSession) -> Response:
 
 # ── Lead workflow ─────────────────────────────────────────────────────────────
 
+
 @router.post("/leads/{lead_id}/move-stage", response_model=LeadOut)
 async def move_stage(lead_id: UUID, body: MoveStageRequest, current_user: CurrentUser, db: DbSession) -> LeadOut:
     try:
@@ -408,7 +443,6 @@ async def assign_lead(lead_id: UUID, body: AssignRequest, current_user: CurrentU
         user_id = body.resolved()
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    from src.application.crm.leads.use_cases import AssignLeadUseCase
     uc = AssignLeadUseCase(SqlLeadRepository(db))
     try:
         lead = await uc.execute(lead_id, user_id, current_user.id)
@@ -431,69 +465,68 @@ async def get_timeline(
 ) -> dict:  # type: ignore[type-arg]
     from src.infrastructure.persistence.models.auth import UserModel
 
-    activities = (await db.execute(
-        select(LeadActivityModel)
-        .where(LeadActivityModel.lead_id == lead_id)
-    )).scalars().all()
+    activities = (
+        (await db.execute(select(LeadActivityModel).where(LeadActivityModel.lead_id == lead_id))).scalars().all()
+    )
 
-    comments = (await db.execute(
-        select(LeadCommentModel)
-        .where(LeadCommentModel.lead_id == lead_id)
-    )).scalars().all()
+    comments = (await db.execute(select(LeadCommentModel).where(LeadCommentModel.lead_id == lead_id))).scalars().all()
 
     # Cache user lookups
     user_ids = {a.created_by for a in activities if a.created_by}
     user_ids.update(c.author_id for c in comments if c.author_id)
     users_map: dict = {}  # type: ignore[type-arg]
     if user_ids:
-        users = (await db.execute(
-            select(UserModel).where(UserModel.id.in_(user_ids))
-        )).scalars().all()
+        users = (await db.execute(select(UserModel).where(UserModel.id.in_(user_ids)))).scalars().all()
         users_map = {u.id: {"name": u.name, "avatarUrl": u.avatar_url} for u in users}
 
     entries: list[dict] = []  # type: ignore[type-arg]
     for a in activities:
-        entries.append({
-            "type": "activity",
-            "date": a.created_at.isoformat() if a.created_at else "",
-            "data": {
-                "id": str(a.id),
-                "leadId": str(a.lead_id),
-                "type": a.type,
-                "date": a.date.isoformat() if a.date else "",
-                "outcome": a.outcome or "",
-                "notes": a.notes,
-                "durationMinutes": a.duration_minutes,
-                "channel": a.channel,
-                "needsFollowUp": a.needs_follow_up,
-                "createdBy": str(a.created_by) if a.created_by else None,
-                "createdByUser": users_map.get(a.created_by),
-                "createdAt": a.created_at.isoformat() if a.created_at else "",
-            },
-        })
+        entries.append(
+            {
+                "type": "activity",
+                "date": a.created_at.isoformat() if a.created_at else "",
+                "data": {
+                    "id": str(a.id),
+                    "leadId": str(a.lead_id),
+                    "type": a.type,
+                    "date": a.date.isoformat() if a.date else "",
+                    "outcome": a.outcome or "",
+                    "notes": a.notes,
+                    "durationMinutes": a.duration_minutes,
+                    "channel": a.channel,
+                    "needsFollowUp": a.needs_follow_up,
+                    "createdBy": str(a.created_by) if a.created_by else None,
+                    "createdByUser": users_map.get(a.created_by),
+                    "createdAt": a.created_at.isoformat() if a.created_at else "",
+                },
+            }
+        )
     for c in comments:
-        entries.append({
-            "type": "comment",
-            "date": c.created_at.isoformat() if c.created_at else "",
-            "data": {
-                "id": str(c.id),
-                "leadId": str(c.lead_id),
-                "text": c.text,
-                "authorId": str(c.author_id) if c.author_id else None,
-                "author": users_map.get(c.author_id),
-                "createdAt": c.created_at.isoformat() if c.created_at else "",
-                "updatedAt": c.updated_at.isoformat() if c.updated_at else "",
-            },
-        })
+        entries.append(
+            {
+                "type": "comment",
+                "date": c.created_at.isoformat() if c.created_at else "",
+                "data": {
+                    "id": str(c.id),
+                    "leadId": str(c.lead_id),
+                    "text": c.text,
+                    "authorId": str(c.author_id) if c.author_id else None,
+                    "author": users_map.get(c.author_id),
+                    "createdAt": c.created_at.isoformat() if c.created_at else "",
+                    "updatedAt": c.updated_at.isoformat() if c.updated_at else "",
+                },
+            }
+        )
 
     entries.sort(key=lambda e: e["date"], reverse=True)
     total = len(entries)
     start = (page - 1) * limit
-    page_entries = entries[start: start + limit]
+    page_entries = entries[start : start + limit]
     return {"data": page_entries, "total": total, "page": page, "limit": limit, "totalPages": -(-total // limit)}
 
 
 # ── Lead Sources ──────────────────────────────────────────────────────────────
+
 
 class LeadSourceOut(BaseModel):
     id: UUID
@@ -546,16 +579,18 @@ def _src_out(s: LeadSourceModel) -> LeadSourceOut:
 
 async def _get_or_create_singleton_source(source_type: str, name: str, db) -> LeadSourceModel:  # type: ignore[no-untyped-def]
     """Находит или создаёт системный singleton-источник."""
-    from datetime import datetime, timezone
-    result = await db.execute(
-        select(LeadSourceModel).where(LeadSourceModel.type == source_type).limit(1)
-    )
+    from datetime import datetime
+
+    result = await db.execute(select(LeadSourceModel).where(LeadSourceModel.type == source_type).limit(1))
     existing = result.scalar_one_or_none()
     if existing:
         return existing
     s = LeadSourceModel(
-        id=uuid4(), name=name, type=source_type, is_active=True,
-        created_at=datetime.now(timezone.utc),
+        id=uuid4(),
+        name=name,
+        type=source_type,
+        is_active=True,
+        created_at=datetime.now(UTC),
     )
     db.add(s)
     await db.flush()
@@ -578,13 +613,13 @@ async def list_sources(current_user: CurrentUser, db: DbSession) -> list[LeadSou
 
 @router.post("/lead-sources", response_model=LeadSourceOut, status_code=status.HTTP_201_CREATED)
 async def create_source(body: CreateLeadSourceRequest, _: CrmGuard, db: DbSession) -> LeadSourceOut:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     # Block creating manual/import sources — they are singletons
     if body.type in ("manual", "import"):
-        existing = (await db.execute(
-            select(LeadSourceModel).where(LeadSourceModel.type == body.type)
-        )).scalar_one_or_none()
+        existing = (
+            await db.execute(select(LeadSourceModel).where(LeadSourceModel.type == body.type))
+        ).scalar_one_or_none()
         if existing:
             raise HTTPException(status_code=409, detail=f"Системный источник '{body.type}' уже существует")
 
@@ -605,7 +640,7 @@ async def create_source(body: CreateLeadSourceRequest, _: CrmGuard, db: DbSessio
         api_key=api_key,
         webhook_url=body.webhookUrl,
         is_active=True,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     db.add(s)
     await db.commit()
@@ -659,6 +694,7 @@ async def regenerate_api_key(source_id: UUID, _: CrmGuard, db: DbSession) -> Lea
 
 # ── CSV Import ────────────────────────────────────────────────────────────────
 
+
 @router.post("/leads/import", response_model=ImportResult)
 async def import_leads_csv(
     _: CrmGuard,
@@ -669,8 +705,9 @@ async def import_leads_csv(
     columnMap: str = Form(...),
 ) -> ImportResult:
     """Импорт лидов из CSV. columnMap — JSON: {"phone":"csv_col","fullName":"csv_col","email":"csv_col"}."""
-    from datetime import datetime, timezone
-    from src.infrastructure.persistence.models.crm import CrmContactModel, StageModel
+    from datetime import datetime
+
+    from src.infrastructure.persistence.models.crm import CrmContactModel
 
     # Parse column mapping
     try:
@@ -693,20 +730,30 @@ async def import_leads_csv(
 
     # Auto-assign manager helper
     async def _pick_manager():  # type: ignore[no-untyped-def]
-        from sqlalchemy import func as fn, or_
-        managers = (await db.execute(
-            select(UserModel)
-            .where(or_(UserModel.role == "sales_manager", UserModel.role == "director"))
-            .where(UserModel.is_active == True)  # noqa: E712
-        )).scalars().all()
+        from sqlalchemy import func as fn
+        from sqlalchemy import or_
+
+        managers = (
+            (
+                await db.execute(
+                    select(UserModel)
+                    .where(or_(UserModel.role == "sales_manager", UserModel.role == "director"))
+                    .where(UserModel.is_active == True)  # noqa: E712
+                )
+            )
+            .scalars()
+            .all()
+        )
         if not managers:
             return None
         manager_ids = [m.id for m in managers]
-        lead_counts = (await db.execute(
-            select(LeadModel.assigned_to, fn.count(LeadModel.id).label("cnt"))
-            .where(LeadModel.assigned_to.in_(manager_ids), LeadModel.status == "active")
-            .group_by(LeadModel.assigned_to)
-        )).all()
+        lead_counts = (
+            await db.execute(
+                select(LeadModel.assigned_to, fn.count(LeadModel.id).label("cnt"))
+                .where(LeadModel.assigned_to.in_(manager_ids), LeadModel.status == "active")
+                .group_by(LeadModel.assigned_to)
+            )
+        ).all()
         counts_map = {r.assigned_to: r.cnt for r in lead_counts}
         best, best_count = None, float("inf")
         for m in managers:
@@ -729,7 +776,7 @@ async def import_leads_csv(
     imported = 0
     skipped = 0
     errors: list[dict] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for row_num, row in enumerate(reader, start=2):  # row 1 is header
         phone = (row.get(phone_col) or "").strip()
@@ -742,16 +789,19 @@ async def import_leads_csv(
         email = (row.get(email_col) or "").strip() if email_col else None
 
         # Find or create contact
-        existing_contact = (await db.execute(
-            select(CrmContactModel).where(CrmContactModel.phone == phone)
-        )).scalar_one_or_none()
+        existing_contact = (
+            await db.execute(select(CrmContactModel).where(CrmContactModel.phone == phone))
+        ).scalar_one_or_none()
         if existing_contact:
             contact = existing_contact
             if full_name:
                 contact.full_name = full_name
         else:
             contact = CrmContactModel(
-                id=uuid4(), full_name=full_name or "Unknown", phone=phone, email=email,
+                id=uuid4(),
+                full_name=full_name or "Unknown",
+                phone=phone,
+                email=email,
             )
             db.add(contact)
             await db.flush()
@@ -780,6 +830,7 @@ async def import_leads_csv(
 
 # ── CRM Contacts ─────────────────────────────────────────────────────────────
 
+
 class ContactOut(BaseModel):
     id: UUID
     fullName: str
@@ -792,13 +843,15 @@ class ContactOut(BaseModel):
 
 @router.get("/contacts", response_model=list[ContactOut])
 async def list_contacts(
-    current_user: CurrentUser, db: DbSession,
+    current_user: CurrentUser,
+    db: DbSession,
     search: str | None = None,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
 ) -> list[ContactOut]:
-    from src.infrastructure.persistence.models.crm import CrmContactModel
     from sqlalchemy import func as fn
+
+    from src.infrastructure.persistence.models.crm import CrmContactModel
 
     q = select(CrmContactModel)
     if search:
@@ -815,37 +868,46 @@ async def list_contacts(
     contact_ids = [c.id for c in rows]
     leads_counts_map: dict = {}  # type: ignore[type-arg]
     if contact_ids:
-        count_rows = (await db.execute(
-            select(LeadModel.contact_id, fn.count(LeadModel.id).label("cnt"))
-            .where(LeadModel.contact_id.in_(contact_ids))
-            .group_by(LeadModel.contact_id)
-        )).all()
+        count_rows = (
+            await db.execute(
+                select(LeadModel.contact_id, fn.count(LeadModel.id).label("cnt"))
+                .where(LeadModel.contact_id.in_(contact_ids))
+                .group_by(LeadModel.contact_id)
+            )
+        ).all()
         leads_counts_map = {r.contact_id: r.cnt for r in count_rows}
 
     result = []
     for c in rows:
-        result.append(ContactOut(
-            id=c.id, fullName=c.full_name, phone=c.phone, email=c.email,
-            notes=c.notes,
-            createdAt=c.created_at.isoformat() if c.created_at else None,
-            leadsCount=leads_counts_map.get(c.id, 0),
-        ))
+        result.append(
+            ContactOut(
+                id=c.id,
+                fullName=c.full_name,
+                phone=c.phone,
+                email=c.email,
+                notes=c.notes,
+                createdAt=c.created_at.isoformat() if c.created_at else None,
+                leadsCount=leads_counts_map.get(c.id, 0),
+            )
+        )
     return result
 
 
 @router.get("/contacts/{contact_id}", response_model=ContactOut)
 async def get_contact(contact_id: UUID, current_user: CurrentUser, db: DbSession) -> ContactOut:
-    from src.infrastructure.persistence.models.crm import CrmContactModel
     from sqlalchemy import func as fn
+
+    from src.infrastructure.persistence.models.crm import CrmContactModel
 
     c = (await db.execute(select(CrmContactModel).where(CrmContactModel.id == contact_id))).scalar_one_or_none()
     if c is None:
         raise HTTPException(status_code=404, detail="Contact not found")
-    leads_count = (await db.execute(
-        select(fn.count()).where(LeadModel.contact_id == c.id)
-    )).scalar() or 0
+    leads_count = (await db.execute(select(fn.count()).where(LeadModel.contact_id == c.id))).scalar() or 0
     return ContactOut(
-        id=c.id, fullName=c.full_name, phone=c.phone, email=c.email,
+        id=c.id,
+        fullName=c.full_name,
+        phone=c.phone,
+        email=c.email,
         notes=c.notes,
         createdAt=c.created_at.isoformat() if c.created_at else None,
         leadsCount=leads_count,
@@ -853,6 +915,7 @@ async def get_contact(contact_id: UUID, current_user: CurrentUser, db: DbSession
 
 
 # ── CRM Users / Managers ──────────────────────────────────────────────────────
+
 
 class CrmUserOut(BaseModel):
     id: UUID
@@ -878,26 +941,33 @@ class UpdateCrmUserRequest(BaseModel):
 
 
 def _crm_user_out(u: UserModel) -> CrmUserOut:
-    return CrmUserOut(id=u.id, name=u.name, email=u.email, role=u.role,
-                      avatarUrl=u.avatar_url, isActive=u.is_active)
+    return CrmUserOut(id=u.id, name=u.name, email=u.email, role=u.role, avatarUrl=u.avatar_url, isActive=u.is_active)
 
 
 @router.get("/users", response_model=list[CrmUserOut])
 async def list_crm_users(current_user: CurrentUser, db: DbSession) -> list[CrmUserOut]:
     from sqlalchemy import or_
-    rows = (await db.execute(
-        select(UserModel).where(
-            or_(UserModel.role == "director", UserModel.role == "sales_manager")
-        ).order_by(UserModel.name)
-    )).scalars().all()
+
+    rows = (
+        (
+            await db.execute(
+                select(UserModel)
+                .where(or_(UserModel.role == "director", UserModel.role == "sales_manager"))
+                .order_by(UserModel.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [_crm_user_out(u) for u in rows]
 
 
 @router.post("/users", response_model=CrmUserOut, status_code=status.HTTP_201_CREATED)
-async def create_crm_user(body: CreateCrmUserRequest, _: CrmGuard, db: DbSession, current_user: CurrentUser) -> CrmUserOut:
-    from src.domain.auth.entities import UserRole
-    from src.infrastructure.services.password_service import hash_password
+async def create_crm_user(
+    body: CreateCrmUserRequest, _: CrmGuard, db: DbSession, current_user: CurrentUser
+) -> CrmUserOut:
     from src.domain.auth.policies import PasswordPolicy
+    from src.infrastructure.services.password_service import hash_password
 
     # Only directors can create users
     if current_user.role != "director":
@@ -915,11 +985,14 @@ async def create_crm_user(body: CreateCrmUserRequest, _: CrmGuard, db: DbSession
         raise HTTPException(status_code=409, detail="Email already exists")
 
     from uuid import uuid4
-    from datetime import datetime, timezone
+
     u = UserModel(
-        id=uuid4(), name=body.name, email=body.email,
+        id=uuid4(),
+        name=body.name,
+        email=body.email,
         password_hash=hash_password(body.password),
-        role=body.role, is_active=True,
+        role=body.role,
+        is_active=True,
     )
     db.add(u)
     await db.commit()
@@ -928,7 +1001,9 @@ async def create_crm_user(body: CreateCrmUserRequest, _: CrmGuard, db: DbSession
 
 
 @router.patch("/users/{user_id}", response_model=CrmUserOut)
-async def update_crm_user(user_id: UUID, body: UpdateCrmUserRequest, _: CrmGuard, db: DbSession, current_user: CurrentUser) -> CrmUserOut:
+async def update_crm_user(
+    user_id: UUID, body: UpdateCrmUserRequest, _: CrmGuard, db: DbSession, current_user: CurrentUser
+) -> CrmUserOut:
     if current_user.role != "director":
         raise HTTPException(status_code=403, detail="Only directors can edit users")
 
@@ -939,7 +1014,9 @@ async def update_crm_user(user_id: UUID, body: UpdateCrmUserRequest, _: CrmGuard
     if body.name is not None:
         u.name = body.name
     if body.email is not None:
-        existing = (await db.execute(select(UserModel).where(UserModel.email == body.email, UserModel.id != user_id))).scalar_one_or_none()
+        existing = (
+            await db.execute(select(UserModel).where(UserModel.email == body.email, UserModel.id != user_id))
+        ).scalar_one_or_none()
         if existing:
             raise HTTPException(status_code=409, detail="Email already taken")
         u.email = body.email

@@ -13,10 +13,11 @@
     - Вычисление: base_amount = rate * lessons_count.
     - Upsert в таблицу salary_calculations.
 """
+
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.infrastructure.workers.celery_app import celery_app
 
@@ -42,11 +43,12 @@ async def _mark_overdue_payments() -> dict:  # type: ignore[type-arg]
     Returns:
         Словарь {"marked_overdue": int}.
     """
-    from sqlalchemy import select, update
+    from sqlalchemy import update
+
     from src.database import async_session_factory
     from src.infrastructure.persistence.models.lms import PaymentModel
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     async with async_session_factory() as session:
         result = await session.execute(
             update(PaymentModel)
@@ -104,14 +106,16 @@ async def _calculate_salary(teacher_id: str, month: int, year: int) -> dict:  # 
     Returns:
         Словарь с результатами расчёта.
     """
-    from uuid import UUID, uuid4
     from datetime import date
     from decimal import Decimal
-    from sqlalchemy import select, func
+    from uuid import UUID, uuid4
+
+    from sqlalchemy import func, select
+
     from src.database import async_session_factory
     from src.infrastructure.persistence.models.lms import (
-        LessonModel,
         CompensationModelModel,
+        LessonModel,
         SalaryCalculationModel,
     )
 
@@ -121,6 +125,7 @@ async def _calculate_salary(teacher_id: str, month: int, year: int) -> dict:  # 
         # Count completed lessons
         period_start = date(year, month, 1)
         import calendar
+
         last_day = calendar.monthrange(year, month)[1]
         period_end = date(year, month, last_day)
 
@@ -136,10 +141,13 @@ async def _calculate_salary(teacher_id: str, month: int, year: int) -> dict:  # 
 
         # Get active compensation model
         comp_result = await session.execute(
-            select(CompensationModelModel).where(
+            select(CompensationModelModel)
+            .where(
                 CompensationModelModel.teacher_id == tid,
                 CompensationModelModel.effective_from <= period_start,
-            ).order_by(CompensationModelModel.effective_from.desc()).limit(1)
+            )
+            .order_by(CompensationModelModel.effective_from.desc())
+            .limit(1)
         )
         comp = comp_result.scalar_one_or_none()
         rate = Decimal(str(comp.rate)) if comp else Decimal("0")
@@ -149,19 +157,21 @@ async def _calculate_salary(teacher_id: str, month: int, year: int) -> dict:  # 
         total_amount = base_amount
 
         # Upsert
-        existing = (await session.execute(
-            select(SalaryCalculationModel).where(
-                SalaryCalculationModel.teacher_id == tid,
-                SalaryCalculationModel.period_month == month,
-                SalaryCalculationModel.period_year == year,
+        existing = (
+            await session.execute(
+                select(SalaryCalculationModel).where(
+                    SalaryCalculationModel.teacher_id == tid,
+                    SalaryCalculationModel.period_month == month,
+                    SalaryCalculationModel.period_year == year,
+                )
             )
-        )).scalar_one_or_none()
+        ).scalar_one_or_none()
 
         if existing:
             existing.lessons_conducted = lessons_count
             existing.base_amount = base_amount
             existing.total_amount = total_amount
-            existing.calculated_at = datetime.now(timezone.utc)
+            existing.calculated_at = datetime.now(UTC)
         else:
             sc = SalaryCalculationModel(
                 id=uuid4(),
@@ -173,7 +183,7 @@ async def _calculate_salary(teacher_id: str, month: int, year: int) -> dict:  # 
                 bonus_amount=Decimal("0"),
                 total_amount=total_amount,
                 currency=currency,
-                calculated_at=datetime.now(timezone.utc),
+                calculated_at=datetime.now(UTC),
             )
             session.add(sc)
 

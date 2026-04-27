@@ -1,7 +1,8 @@
 """Payments API — contract-based payment flow with schedule & partial payments."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone, date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -12,9 +13,8 @@ from pydantic.alias_generators import to_camel
 from sqlalchemy import func, select, update
 
 from src.api.dependencies import CurrentUser, DbSession, require_roles
-from src.infrastructure.persistence.models.lms import PaymentModel, StudentModel, DirectionModel
 from src.infrastructure.persistence.models.crm import ContractModel
-from src.infrastructure.persistence.models.auth import UserModel
+from src.infrastructure.persistence.models.lms import DirectionModel, PaymentModel, StudentModel
 
 router = APIRouter(prefix="/payments", tags=["LMS - Payments"])
 
@@ -26,6 +26,7 @@ class CamelModel(BaseModel):
 
 
 # ── Schemas ─────────────────────────────────────────────────────────────────
+
 
 class PaymentOut(CamelModel):
     id: UUID
@@ -95,6 +96,7 @@ class StudentFinanceSummary(CamelModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 async def _enrich(m: PaymentModel, db) -> PaymentOut:
     student_name = None
     contract_number = None
@@ -104,19 +106,28 @@ async def _enrich(m: PaymentModel, db) -> PaymentOut:
     student_name = student
 
     if m.contract_id:
-        contract = (await db.execute(select(ContractModel).where(ContractModel.id == m.contract_id))).scalar_one_or_none()
+        contract = (
+            await db.execute(select(ContractModel).where(ContractModel.id == m.contract_id))
+        ).scalar_one_or_none()
         if contract:
             contract_number = contract.contract_number
             if contract.direction_id:
-                dn = (await db.execute(select(DirectionModel.name).where(DirectionModel.id == contract.direction_id))).scalar()
+                dn = (
+                    await db.execute(select(DirectionModel.name).where(DirectionModel.id == contract.direction_id))
+                ).scalar()
                 direction_name = dn
 
     return PaymentOut(
-        id=m.id, student_id=m.student_id, student_name=student_name,
-        contract_id=m.contract_id, contract_number=contract_number,
+        id=m.id,
+        student_id=m.student_id,
+        student_name=student_name,
+        contract_id=m.contract_id,
+        contract_number=contract_number,
         direction_name=direction_name,
-        amount=float(m.amount), paid_amount=float(m.paid_amount or 0),
-        currency=m.currency, status=m.status,
+        amount=float(m.amount),
+        paid_amount=float(m.paid_amount or 0),
+        currency=m.currency,
+        status=m.status,
         description=m.description,
         due_date=m.due_date.isoformat() if m.due_date else None,
         paid_at=m.paid_at.isoformat() if m.paid_at else None,
@@ -144,35 +155,52 @@ async def _auto_mark_overdue(db, student_id: UUID | None = None) -> None:
 
 # ── Search students ──────────────────────────────────────────────────────────
 
+
 @router.get("/search-students")
 async def search_students(
-    _: CashierGuard, db: DbSession,
+    _: CashierGuard,
+    db: DbSession,
     q: str = Query("", alias="q"),
 ) -> list[dict]:
     if len(q) < 2:
         return []
-    rows = (await db.execute(
-        select(StudentModel)
-        .where(
-            StudentModel.full_name.ilike(f"%{q}%")
-            | StudentModel.phone.ilike(f"%{q}%")
-            | StudentModel.student_code.ilike(f"%{q}%")
+    rows = (
+        (
+            await db.execute(
+                select(StudentModel)
+                .where(
+                    StudentModel.full_name.ilike(f"%{q}%")
+                    | StudentModel.phone.ilike(f"%{q}%")
+                    | StudentModel.student_code.ilike(f"%{q}%")
+                )
+                .order_by(StudentModel.full_name)
+                .limit(10)
+            )
         )
-        .order_by(StudentModel.full_name).limit(10)
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     return [{"id": str(s.id), "fullName": s.full_name, "phone": s.phone, "studentCode": s.student_code} for s in rows]
 
 
 # ── Student contracts with balance ──────────────────────────────────────────
 
+
 @router.get("/student-contracts/{student_id}")
 async def student_contracts(student_id: UUID, _: CashierGuard, db: DbSession) -> list[dict]:
     await _auto_mark_overdue(db, student_id)
 
-    rows = (await db.execute(
-        select(ContractModel).where(ContractModel.student_id == student_id)
-        .order_by(ContractModel.created_at.desc())
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(ContractModel)
+                .where(ContractModel.student_id == student_id)
+                .order_by(ContractModel.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     dir_ids = {c.direction_id for c in rows if c.direction_id}
     dir_map: dict = {}
@@ -182,54 +210,67 @@ async def student_contracts(student_id: UUID, _: CashierGuard, db: DbSession) ->
 
     result = []
     for c in rows:
-        paid_total = (await db.execute(
-            select(func.coalesce(func.sum(PaymentModel.paid_amount), 0))
-            .where(PaymentModel.contract_id == c.id)
-        )).scalar() or 0
+        paid_total = (
+            await db.execute(
+                select(func.coalesce(func.sum(PaymentModel.paid_amount), 0)).where(PaymentModel.contract_id == c.id)
+            )
+        ).scalar() or 0
 
-        total_expected = (await db.execute(
-            select(func.coalesce(func.sum(PaymentModel.amount), 0))
-            .where(PaymentModel.contract_id == c.id)
-        )).scalar() or 0
+        total_expected = (
+            await db.execute(
+                select(func.coalesce(func.sum(PaymentModel.amount), 0)).where(PaymentModel.contract_id == c.id)
+            )
+        ).scalar() or 0
 
-        overdue_count = (await db.execute(
-            select(func.count())
-            .where(PaymentModel.contract_id == c.id, PaymentModel.status == "overdue")
-        )).scalar() or 0
+        overdue_count = (
+            await db.execute(
+                select(func.count()).where(PaymentModel.contract_id == c.id, PaymentModel.status == "overdue")
+            )
+        ).scalar() or 0
 
-        result.append({
-            "id": str(c.id),
-            "contractNumber": c.contract_number,
-            "directionName": dir_map.get(c.direction_id),
-            "paymentType": c.payment_type,
-            "paymentAmount": float(c.payment_amount) if c.payment_amount else 0,
-            "currency": c.currency,
-            "status": c.status,
-            "startDate": str(c.start_date) if c.start_date else None,
-            "paidTotal": float(paid_total),
-            "totalExpected": float(total_expected),
-            "remaining": float(total_expected) - float(paid_total),
-            "overdueCount": overdue_count,
-        })
+        result.append(
+            {
+                "id": str(c.id),
+                "contractNumber": c.contract_number,
+                "directionName": dir_map.get(c.direction_id),
+                "paymentType": c.payment_type,
+                "paymentAmount": float(c.payment_amount) if c.payment_amount else 0,
+                "currency": c.currency,
+                "status": c.status,
+                "startDate": str(c.start_date) if c.start_date else None,
+                "paidTotal": float(paid_total),
+                "totalExpected": float(total_expected),
+                "remaining": float(total_expected) - float(paid_total),
+                "overdueCount": overdue_count,
+            }
+        )
     return result
 
 
 # ── Payment schedule for a contract ─────────────────────────────────────────
 
+
 @router.get("/schedule/{contract_id}", response_model=list[PaymentOut])
 async def payment_schedule(contract_id: UUID, _: CashierGuard, db: DbSession) -> list[PaymentOut]:
     await _auto_mark_overdue(db)
 
-    rows = (await db.execute(
-        select(PaymentModel)
-        .where(PaymentModel.contract_id == contract_id)
-        .order_by(PaymentModel.period_number, PaymentModel.due_date)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(PaymentModel)
+                .where(PaymentModel.contract_id == contract_id)
+                .order_by(PaymentModel.period_number, PaymentModel.due_date)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     return [await _enrich(m, db) for m in rows]
 
 
 # ── Contract balance ────────────────────────────────────────────────────────
+
 
 @router.get("/contract-balance/{contract_id}", response_model=ContractBalance)
 async def contract_balance(contract_id: UUID, _: CashierGuard, db: DbSession) -> ContractBalance:
@@ -241,14 +282,19 @@ async def contract_balance(contract_id: UUID, _: CashierGuard, db: DbSession) ->
 
     direction_name = None
     if contract.direction_id:
-        direction_name = (await db.execute(
-            select(DirectionModel.name).where(DirectionModel.id == contract.direction_id)
-        )).scalar()
+        direction_name = (
+            await db.execute(select(DirectionModel.name).where(DirectionModel.id == contract.direction_id))
+        ).scalar()
 
-    payments = (await db.execute(
-        select(PaymentModel).where(PaymentModel.contract_id == contract_id)
-        .order_by(PaymentModel.period_number)
-    )).scalars().all()
+    payments = (
+        (
+            await db.execute(
+                select(PaymentModel).where(PaymentModel.contract_id == contract_id).order_by(PaymentModel.period_number)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     total_expected = sum(float(p.amount) for p in payments)
     total_paid = sum(float(p.paid_amount or 0) for p in payments)
@@ -286,6 +332,7 @@ async def contract_balance(contract_id: UUID, _: CashierGuard, db: DbSession) ->
 
 # ── Pay a scheduled payment (supports partial) ─────────────────────────────
 
+
 @router.post("/{payment_id}/pay", response_model=PaymentOut)
 async def pay_payment(payment_id: UUID, body: PayIn, _: CashierGuard, db: DbSession) -> PaymentOut:
     m = await db.get(PaymentModel, payment_id)
@@ -305,7 +352,7 @@ async def pay_payment(payment_id: UUID, body: PayIn, _: CashierGuard, db: DbSess
 
     if new_paid >= float(m.amount):
         m.status = "paid"
-        m.paid_at = datetime.now(timezone.utc)
+        m.paid_at = datetime.now(UTC)
     else:
         # Partial payment — keep pending/overdue but update paid_amount
         pass
@@ -316,6 +363,7 @@ async def pay_payment(payment_id: UUID, body: PayIn, _: CashierGuard, db: DbSess
 
 
 # ── Create manual payment (for ad-hoc payments not in schedule) ─────────────
+
 
 @router.post("", response_model=PaymentOut, status_code=status.HTTP_201_CREATED)
 async def create_payment(body: PaymentIn, _: CashierGuard, current_user: CurrentUser, db: DbSession) -> PaymentOut:
@@ -337,7 +385,7 @@ async def create_payment(body: PaymentIn, _: CashierGuard, current_user: Current
         description=body.description,
         status="paid" if is_immediate else "pending",
         due_date=due or date.today(),
-        paid_at=datetime.now(timezone.utc) if is_immediate else None,
+        paid_at=datetime.now(UTC) if is_immediate else None,
         paid_amount=Decimal(str(body.amount)) if is_immediate else Decimal("0"),
         method=body.method,
         created_by=current_user.id,
@@ -350,9 +398,11 @@ async def create_payment(body: PaymentIn, _: CashierGuard, current_user: Current
 
 # ── List payments ───────────────────────────────────────────────────────────
 
+
 @router.get("", response_model=PagedPayments)
 async def list_payments(
-    _: CashierGuard, db: DbSession,
+    _: CashierGuard,
+    db: DbSession,
     student_id: UUID | None = Query(None, alias="studentId"),
     contract_id: UUID | None = Query(None, alias="contractId"),
     payment_status: str | None = Query(None, alias="status"),
@@ -371,16 +421,24 @@ async def list_payments(
         q = q.where(PaymentModel.status == payment_status)
 
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
-    rows = (await db.execute(
-        q.order_by(PaymentModel.due_date.asc().nullslast(), PaymentModel.created_at.desc())
-        .offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                q.order_by(PaymentModel.due_date.asc().nullslast(), PaymentModel.created_at.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     data = [await _enrich(m, db) for m in rows]
     return PagedPayments(data=data, total=total, page=page)
 
 
 # ── Mark paid (legacy, kept for backward compat) ───────────────────────────
+
 
 @router.post("/{payment_id}/mark-paid", response_model=PaymentOut)
 async def mark_paid(payment_id: UUID, body: dict, _: CashierGuard, db: DbSession) -> PaymentOut:
@@ -392,7 +450,7 @@ async def mark_paid(payment_id: UUID, body: dict, _: CashierGuard, db: DbSession
 
     m.status = "paid"
     m.method = body.get("method", "cash")
-    m.paid_at = datetime.now(timezone.utc)
+    m.paid_at = datetime.now(UTC)
     m.paid_amount = m.amount
     await db.commit()
     await db.refresh(m)
@@ -400,6 +458,7 @@ async def mark_paid(payment_id: UUID, body: dict, _: CashierGuard, db: DbSession
 
 
 # ── Finance summary for a student ──────────────────────────────────────────
+
 
 @router.get("/student-summary/{student_id}", response_model=StudentFinanceSummary)
 async def student_finance_summary(student_id: UUID, _: CashierGuard, db: DbSession) -> StudentFinanceSummary:
@@ -409,10 +468,17 @@ async def student_finance_summary(student_id: UUID, _: CashierGuard, db: DbSessi
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    contracts = (await db.execute(
-        select(ContractModel).where(ContractModel.student_id == student_id)
-        .order_by(ContractModel.created_at.desc())
-    )).scalars().all()
+    contracts = (
+        (
+            await db.execute(
+                select(ContractModel)
+                .where(ContractModel.student_id == student_id)
+                .order_by(ContractModel.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     total_debt = 0.0
     total_paid = 0.0
@@ -420,10 +486,15 @@ async def student_finance_summary(student_id: UUID, _: CashierGuard, db: DbSessi
     contract_balances = []
 
     for c in contracts:
-        payments = (await db.execute(
-            select(PaymentModel).where(PaymentModel.contract_id == c.id)
-            .order_by(PaymentModel.period_number)
-        )).scalars().all()
+        payments = (
+            (
+                await db.execute(
+                    select(PaymentModel).where(PaymentModel.contract_id == c.id).order_by(PaymentModel.period_number)
+                )
+            )
+            .scalars()
+            .all()
+        )
 
         c_expected = sum(float(p.amount) for p in payments)
         c_paid = sum(float(p.paid_amount or 0) for p in payments)
@@ -432,9 +503,9 @@ async def student_finance_summary(student_id: UUID, _: CashierGuard, db: DbSessi
 
         direction_name = None
         if c.direction_id:
-            direction_name = (await db.execute(
-                select(DirectionModel.name).where(DirectionModel.id == c.direction_id)
-            )).scalar()
+            direction_name = (
+                await db.execute(select(DirectionModel.name).where(DirectionModel.id == c.direction_id))
+            ).scalar()
 
         next_payment = None
         for p in payments:
@@ -448,23 +519,25 @@ async def student_finance_summary(student_id: UUID, _: CashierGuard, db: DbSessi
         elif c_paid < c_expected:
             bal_status = "has_debt"
 
-        contract_balances.append(ContractBalance(
-            contract_id=c.id,
-            contract_number=c.contract_number,
-            direction_name=direction_name,
-            payment_type=c.payment_type,
-            payment_amount=float(c.payment_amount or 0),
-            total_expected=c_expected,
-            total_paid=c_paid,
-            remaining=c_expected - c_paid,
-            total_periods=len(payments),
-            paid_periods=c_paid_periods,
-            overdue_periods=c_overdue,
-            next_payment=next_payment,
-            status=bal_status,
-        ))
+        contract_balances.append(
+            ContractBalance(
+                contract_id=c.id,
+                contract_number=c.contract_number,
+                direction_name=direction_name,
+                payment_type=c.payment_type,
+                payment_amount=float(c.payment_amount or 0),
+                total_expected=c_expected,
+                total_paid=c_paid,
+                remaining=c_expected - c_paid,
+                total_periods=len(payments),
+                paid_periods=c_paid_periods,
+                overdue_periods=c_overdue,
+                next_payment=next_payment,
+                status=bal_status,
+            )
+        )
 
-        total_debt += (c_expected - c_paid)
+        total_debt += c_expected - c_paid
         total_paid += c_paid
         overdue_count += c_overdue
 
