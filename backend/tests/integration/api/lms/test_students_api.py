@@ -47,7 +47,7 @@ class TestListStudents:
         resp = await client.get("/api/v1/lms/students", headers=auth_headers(director))
         assert resp.status_code == 200
         data = resp.json()
-        assert isinstance(data, (list, dict))
+        assert isinstance(data, list | dict)
 
     async def test_student_cannot_list(self, client: AsyncClient, db_session: AsyncSession) -> None:
         student_user = await _persist_user(db_session, email="stu_list_s@test.com", role=UserRole.STUDENT)

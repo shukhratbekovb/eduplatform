@@ -17,7 +17,7 @@ from src.infrastructure.persistence.models.crm import (
     StageModel,
 )
 from src.infrastructure.persistence.repositories.user_repository import SqlUserRepository
-from tests.conftest import auth_headers, make_user
+from tests.conftest import make_user
 
 pytestmark = pytest.mark.asyncio
 
